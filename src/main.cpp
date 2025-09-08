@@ -81,7 +81,7 @@ int main()
 	std::vector<cl_platform_id> platforms(platformsCount);
 	OCL_SAFE_CALL(clGetPlatformIDs(platformsCount, platforms.data(), nullptr));
 
-	for(size_t platformIndex = 0; platformIndex < platformsCount; ++platformIndex)
+	for(cl_uint platformIndex = 0; platformIndex < platformsCount; ++platformIndex)
 	{
 		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
 		cl_platform_id platform = platforms[platformIndex];
