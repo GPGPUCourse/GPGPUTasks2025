@@ -22,8 +22,8 @@ void reportError(cl_int err, const std::string &filename, int line)
 		return;
 
 	// Таблица с кодами ошибок:
-	// libs/clew/CL/cl.h:103
-	// P.S. Быстрый переход к файлу в CLion: Ctrl+Shift+N -> cl.h (или даже с номером строки: cl.h:103) -> Enter
+	// libs/clew/CL/cl.h:178
+	// P.S. Быстрый переход к файлу в CLion: Ctrl+Shift+N -> cl.h (или даже с номером строки: cl.h:178) -> Enter
 	std::string message = "OpenCL error code " + to_string(err) + " encountered at " + filename + ":" + to_string(line);
 	throw std::runtime_error(message);
 }
@@ -95,8 +95,8 @@ int main()
 		// Т.к. это некорректный идентификатор параметра платформы - то метод вернет код ошибки
 		// Макрос OCL_SAFE_CALL заметит это, и кинет ошибку с кодом
 		// Откройте таблицу с кодами ошибок:
-		// libs/clew/CL/cl.h:103
-		// P.S. Быстрый переход к файлу в CLion: Ctrl+Shift+N -> cl.h (или даже с номером строки: cl.h:103) -> Enter
+		// libs/clew/CL/cl.h:178
+		// P.S. Быстрый переход к файлу в CLion: Ctrl+Shift+N -> cl.h (или даже с номером строки: cl.h:178) -> Enter
 		// Найдите там нужный код ошибки и ее название
 		// Затем откройте документацию по clGetPlatformInfo и в секции Errors найдите ошибку, с которой столкнулись
 		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
