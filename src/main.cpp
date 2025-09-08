@@ -139,8 +139,25 @@ int main()
 			std::cout << "    Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
 			cl_device_id device = devices[deviceIndex];
 
+			// Resolve device type name.
+			cl_device_type device_type = queryDeviceParam<cl_device_type>(device, CL_DEVICE_TYPE);
+			// Exclusive branches are fine, since there is "else" case.
+			std::ostringstream device_type_ss;
+			if(device_type & CL_DEVICE_TYPE_GPU)
+			{
+				device_type_ss << "GPU ";
+			}
+			else if(device_type & CL_DEVICE_TYPE_CPU)
+			{
+				device_type_ss << "CPU ";
+			}
+			else
+			{
+				device_type_ss << "SOMETHING STRANGE";
+			}
+
 			std::cout << "        Name: " << queryDeviceParam<std::vector<unsigned char>>(device, CL_DEVICE_NAME).data() << std::endl;
-			std::cout << "        Type: " << queryDeviceParam<cl_device_type>(device, CL_DEVICE_TYPE) << std::endl;
+			std::cout << "        Type: " << device_type_ss.str() << std::endl;
 			std::cout << "        Mem Size (MB): " << queryDeviceParam<cl_ulong>(device, CL_DEVICE_GLOBAL_MEM_SIZE) / BYTES_IN_MEGABYTE << std::endl;
 			std::cout << "        Mem Cache Size (MB): " << queryDeviceParam<cl_ulong>(device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE) / BYTES_IN_MEGABYTE << std::endl;
 			std::cout << "        Image Support: " << queryDeviceParam<cl_bool>(device, CL_DEVICE_IMAGE_SUPPORT) << std::endl;
