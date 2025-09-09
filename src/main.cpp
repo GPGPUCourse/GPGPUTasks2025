@@ -1,4 +1,3 @@
-#include "CL/cl_platform.h"
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
 
@@ -126,7 +125,7 @@ int main()
 				humanReadableDeviceType = "Default";
 				break;
 			default:
-				humanReadableDeviceType = "Unknown";
+				humanReadableDeviceType = "Something strange";
 			}
 			std::cout << "    Type: " << humanReadableDeviceType << std::endl;
 
