@@ -1,10 +1,12 @@
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
 
+#include <array>
 #include <iomanip>
 #include <iostream>
 #include <string_view>
 #include <sstream>
+#include <string_view>
 #include <stdexcept>
 #include <vector>
 
