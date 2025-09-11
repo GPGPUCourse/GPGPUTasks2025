@@ -1,6 +1,7 @@
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
 
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -71,7 +72,7 @@ std::string readDeviceInfo<std::string>(cl_device_id device, cl_device_info para
 	OCL_SAFE_CALL(clGetDeviceInfo(device, param_name, 0, nullptr, &size));
 	std::vector<unsigned char> result(size, 0);
 	OCL_SAFE_CALL(clGetDeviceInfo(device, param_name, size, result.data(), nullptr));
-	return {result.begin(), std::prev(result.end())};
+	return to_string(result.data());
 }
 
 int main()
@@ -149,11 +150,10 @@ int main()
 
 			std::cout << "        Device type: " << toDeviceType(readDeviceInfo<cl_device_type>(device, CL_DEVICE_TYPE)) << std::endl;
 			std::cout << "        Device: " << readDeviceInfo<std::string>(device, CL_DEVICE_NAME) << " (" << readDeviceInfo<std::string>(device, CL_DEVICE_VENDOR) << ")" << std::endl;
-			std::cout << "        Global memory size: " << readDeviceInfo<cl_ulong>(device, CL_DEVICE_GLOBAL_MEM_SIZE) / MB << "MB" << std::endl;
+			std::cout << "        Global memory size: " << static_cast<double>(readDeviceInfo<cl_ulong>(device, CL_DEVICE_GLOBAL_MEM_SIZE)) / MB << "MB" << std::endl;
 			std::cout << "        Max clock frequency: " << readDeviceInfo<cl_uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << std::endl;
 			std::cout << "        Image supported: " << readDeviceInfo<cl_bool>(device, CL_DEVICE_IMAGE_SUPPORT) << std::endl;
-			std::cout << "        OpenCL version: " << readDeviceInfo<std::string>(device, CL_DEVICE_VERSION) << std::endl;
-			std::cout << "        OpenCL C version: " << readDeviceInfo<std::string>(device, CL_DEVICE_OPENCL_C_VERSION) << std::endl;
+			std::cout << "        Device version: " << readDeviceInfo<std::string>(device, CL_DEVICE_VERSION) << std::endl;
 		}
 	}
 
