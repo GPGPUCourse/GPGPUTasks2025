@@ -153,9 +153,9 @@ int main()
 			std::cout << "        Device type: " << toDeviceType(readDeviceInfo<cl_device_type>(device, CL_DEVICE_TYPE)) << std::endl;
 			std::cout << "        Device: " << readDeviceInfo<std::string>(device, CL_DEVICE_NAME) << " (" << readDeviceInfo<std::string>(device, CL_DEVICE_VENDOR) << ")" << std::endl;
 			std::cout << "        Global memory size: " << static_cast<double>(readDeviceInfo<cl_ulong>(device, CL_DEVICE_GLOBAL_MEM_SIZE)) / MB << " MB" << std::endl;
-			std::cout << "        Max clock frequency: " << readDeviceInfo<cl_uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << std::endl;
+			std::cout << "        Max clock frequency: " << readDeviceInfo<cl_uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << " MHz" << std::endl;
 			std::cout << "        Image supported: " << readDeviceInfo<cl_bool>(device, CL_DEVICE_IMAGE_SUPPORT) << std::endl;
-			std::cout << "        Device version: " << readDeviceInfo<std::string>(device, CL_DEVICE_VERSION) << " MHz" << std::endl;
+			std::cout << "        Device version: " << readDeviceInfo<std::string>(device, CL_DEVICE_VERSION) << std::endl;
 		}
 	}
 
