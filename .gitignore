@@ -1,0 +1,5 @@
+**/*_cl.h
+.idea
+build*
+cmake-build*
+.vs
