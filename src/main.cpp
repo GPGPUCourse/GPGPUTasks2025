@@ -58,7 +58,7 @@ int main()
 			std::cout << TAB << name << ": " << paramDescription.data() << std::endl;
 		};
 
-		std::cout << TAB << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
+		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
 
 		print_platform_info_string(CL_PLATFORM_NAME, "Platform name");
 		print_platform_info_string(CL_PLATFORM_VENDOR, "Platform vendor");
@@ -81,6 +81,8 @@ int main()
 				OCL_SAFE_CALL(clGetDeviceInfo(device, param, paramSize * sizeof(unsigned char), paramDescription.data(), NULL));
 				std::cout << DOUBLE_TAB << name << ": " << paramDescription.data() << std::endl;
 			};
+
+			std::cout << TAB << "Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
 
 			print_device_info_string(CL_DEVICE_NAME, "Device name");
 			print_device_info_string(CL_DEVICE_VENDOR, "Device vendor");
