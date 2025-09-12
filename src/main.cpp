@@ -1,10 +1,25 @@
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
 
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
+
+struct Indent
+{
+	size_t count;
+
+	friend std::ostream &operator<<(std::ostream &os, Indent indent)
+	{
+		return os << std::setfill(' ') << std::setw(indent.count) << ' ';
+	}
+};
+
+const Indent TAB = Indent{ 4 };
+const Indent DOUBLE_TAB = Indent{ 8 };
 
 void reportError(cl_int err, const std::string &filename, int line)
 {
@@ -32,22 +47,21 @@ int main()
 
 	for(int platformIndex = 0; platformIndex < platformsCount; ++platformIndex)
 	{
-		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
 		cl_platform_id platform = platforms[platformIndex];
 
-		size_t platformNameSize = 0;
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &platformNameSize));
+		auto print_platform_info_string = [=](cl_platform_info param, std::string_view name) {
+			size_t paramSize = 0;
+			OCL_SAFE_CALL(clGetPlatformInfo(platform, param, 0, nullptr, &paramSize));
 
-		std::vector<unsigned char> platformName(platformNameSize);
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize * sizeof(unsigned char), platformName.data(), NULL));
-		std::cout << "    Platform name: " << platformName.data() << std::endl;
+			std::vector<unsigned char> paramDescription(paramSize);
+			OCL_SAFE_CALL(clGetPlatformInfo(platform, param, paramSize * sizeof(unsigned char), paramDescription.data(), NULL));
+			std::cout << TAB << name << ": " << paramDescription.data() << std::endl;
+		};
 
-		size_t vendorNameSize = 0;
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &vendorNameSize));
+		std::cout << TAB << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
 
-		std::vector<unsigned char> vendorName(vendorNameSize);
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendorNameSize * sizeof(unsigned char), vendorName.data(), NULL));
-		std::cout << "    Vendor name: " << vendorName.data() << std::endl;
+		print_platform_info_string(CL_PLATFORM_NAME, "Platform name");
+		print_platform_info_string(CL_PLATFORM_VENDOR, "Platform vendor");
 
 		cl_uint devicesCount = 0;
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
@@ -57,43 +71,32 @@ int main()
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
-			size_t deviceNameSize = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+			auto device = devices[deviceIndex];
 
-			std::vector<unsigned char> deviceName(deviceNameSize);
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_NAME, deviceNameSize * sizeof(unsigned char), deviceName.data(), NULL));
-			std::cout << "        Device name: " << deviceName.data() << std::endl;
+			auto print_device_info_string = [=](cl_device_info param, std::string_view name) {
+				size_t paramSize = 0;
+				OCL_SAFE_CALL(clGetDeviceInfo(device, param, 0, nullptr, &paramSize));
 
-			size_t deviceVendorSize = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_VENDOR, 0, nullptr, &deviceVendorSize));
+				std::vector<unsigned char> paramDescription(paramSize);
+				OCL_SAFE_CALL(clGetDeviceInfo(device, param, paramSize * sizeof(unsigned char), paramDescription.data(), NULL));
+				std::cout << DOUBLE_TAB << name << ": " << paramDescription.data() << std::endl;
+			};
 
-			std::vector<unsigned char> deviceVendor(deviceVendorSize);
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_VENDOR, deviceVendorSize * sizeof(unsigned char), deviceVendor.data(), NULL));
-			std::cout << "        Device vendor: " << deviceVendor.data() << std::endl;
+			print_device_info_string(CL_DEVICE_NAME, "Device name");
+			print_device_info_string(CL_DEVICE_VENDOR, "Device vendor");
 
 			cl_device_type deviceType = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, NULL));
-			std::cout << "        Device type: " << (deviceType == CL_DEVICE_TYPE_CPU ? "CPU" : deviceType == CL_DEVICE_TYPE_GPU ? "GPU"
-			                                                                                                                     : "Other")
+			std::cout << DOUBLE_TAB << "Device type: " << (deviceType == CL_DEVICE_TYPE_CPU ? "CPU" : deviceType == CL_DEVICE_TYPE_GPU ? "GPU"
+			                                                                                                                           : "Other")
 			          << std::endl;
 
 			cl_ulong memorySizeInBytes = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &memorySizeInBytes, NULL));
-			std::cout << "        Global memory size: " << (memorySizeInBytes / (1024 * 1024)) << "Mb" << std::endl;
+			std::cout << DOUBLE_TAB << "Global memory size: " << (memorySizeInBytes / (1024 * 1024)) << "Mb" << std::endl;
 
-			size_t deviceDriverVersionSize = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DRIVER_VERSION, 0, nullptr, &deviceDriverVersionSize));
-
-			std::vector<unsigned char> driverVersion(deviceDriverVersionSize);
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DRIVER_VERSION, deviceDriverVersionSize * sizeof(unsigned char), driverVersion.data(), NULL));
-			std::cout << "        Driver version: " << driverVersion.data() << std::endl;
-
-			size_t deviceVersionSize = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_VERSION, 0, nullptr, &deviceVersionSize));
-
-			std::vector<unsigned char> deviceVersion(deviceVersionSize);
-			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_VERSION, deviceVersionSize * sizeof(unsigned char), deviceVersion.data(), NULL));
-			std::cout << "        Device version: " << deviceVersion.data() << std::endl;
+			print_device_info_string(CL_DRIVER_VERSION, "Driver version");
+			print_device_info_string(CL_DEVICE_VERSION, "Supported OpenCL version");
 		}
 	}
 
