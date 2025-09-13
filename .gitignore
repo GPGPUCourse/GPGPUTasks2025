@@ -1,5 +1,6 @@
 **/*_cl.h
 .idea
+.vscode
 build*
 cmake-build*
 .vs
