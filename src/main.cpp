@@ -111,7 +111,7 @@ int main()
 			std::vector<unsigned char> deviceName(deviceNameSize, 0);
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
 
-			std::cout << "    Device name: " << deviceName.data() << std::endl;
+			std::cout << "        Device name: " << deviceName.data() << std::endl;
 
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 
@@ -123,19 +123,19 @@ int main()
 
 			switch (deviceType) {
 				case CL_DEVICE_TYPE_DEFAULT:
-					std::cout << "    Device type: DEFAULT" << std::endl;
+					std::cout << "        Device type: DEFAULT" << std::endl;
 					break;
 				case CL_DEVICE_TYPE_CPU:
-					std::cout << "    Device type: CPU" << std::endl;
+					std::cout << "        Device type: CPU" << std::endl;
 					break;
 				case CL_DEVICE_TYPE_GPU:
-					std::cout << "    Device type: GPU" << std::endl;
+					std::cout << "        Device type: GPU" << std::endl;
 					break;
 				case CL_DEVICE_TYPE_ACCELERATOR:
-					std::cout << "    Device type: ACCELERATOR" << std::endl;
+					std::cout << "        Device type: ACCELERATOR" << std::endl;
 					break;
 				case CL_DEVICE_TYPE_CUSTOM:
-					std::cout << "    Device type: CUSTOM" << std::endl;
+					std::cout << "        Device type: CUSTOM" << std::endl;
 					break;
 			}
 
@@ -144,14 +144,14 @@ int main()
 			cl_ulong deviceMemSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(deviceMemSize), &deviceMemSize, nullptr));
 
-			std::cout << "    Device memory size: " << (deviceMemSize >> 20) << " MB" << std::endl;
+			std::cout << "        Device memory size: " << (deviceMemSize >> 20) << " MB" << std::endl;
 
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
 
 			cl_uint deviceMaxComputeUnits = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(deviceMaxComputeUnits), &deviceMaxComputeUnits, nullptr));
 
-			std::cout << "    Device max compute units: " << deviceMaxComputeUnits << std::endl;
+			std::cout << "        Device max compute units: " << deviceMaxComputeUnits << std::endl;
 
 			size_t deviceVendorSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, 0, nullptr, &deviceVendorSize));
@@ -159,7 +159,7 @@ int main()
 			std::vector<unsigned char> deviceVendor(deviceVendorSize, 0);
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, deviceVendorSize, deviceVendor.data(), nullptr));
 
-			std::cout << "    Device vendor: " << deviceVendor.data() << std::endl;
+			std::cout << "        Device vendor: " << deviceVendor.data() << std::endl;
 		}
 	}
 
