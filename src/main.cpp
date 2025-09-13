@@ -113,11 +113,11 @@ int main()
 			std::string deviceTypeStr;
 			if (deviceType & CL_DEVICE_TYPE_CPU)
 			{
-				deviceTypeStr += "GPU, ";
+				deviceTypeStr += "CPU, ";
 			}
 			if (deviceType & CL_DEVICE_TYPE_GPU)
 			{
-				deviceTypeStr += "CPU, ";
+				deviceTypeStr += "GPU, ";
 			}
 			if (deviceType & CL_DEVICE_TYPE_ACCELERATOR)
 			{
@@ -127,6 +127,10 @@ int main()
 			{
 				deviceTypeStr += "Default, ";
 			}
+			if (!deviceTypeStr.empty())
+			{
+				deviceTypeStr.erase(deviceTypeStr.size() - 2, 2);
+			}
 
 			std::cout << "         Device type: " << deviceTypeStr << std::endl;
 
@@ -134,7 +138,7 @@ int main()
 			cl_ulong deviceMemSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(deviceMemSize), &deviceMemSize, nullptr));
 			size_t memorySize = deviceMemSize / (1024 * 1024);
-			std::cout << "         Device memory size: " << memorySize << std::endl;
+			std::cout << "         Device memory size: " << memorySize << " mb" << std::endl;
 
 			size_t deviceVendorSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, 0, nullptr, &deviceVendorSize));
