@@ -49,6 +49,11 @@ NVidia: я предпочитаю скачивать ```.run```-файл с са
 
 AMD: [скачав](https://www.amd.com/en/support) и установив amdgpu-pro драйвер
 
+Windows WSL (Ubuntu 24.04)
+--------------------------
+
+NVidia: хотя нативной поддержки OpenCL [на данный момент нет](https://github.com/microsoft/WSL/issues/6951) (только CUDA), можно [скомпилировать pocl](https://github.com/microsoft/WSL/issues/6951#issuecomment-2745803886) OpenCL-драйвер который полагается на CUDA.
+
 Apple macOS
 -----------
 
