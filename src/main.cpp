@@ -67,18 +67,44 @@ int main()
 		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
 		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
 
+		// Solution 1.1
+		// Я подставила 239. Получила следующую ошибку при исполнении:
+		// libc++abi: terminating due to uncaught exception of type std::runtime_error: OpenCL error code -30 encountered at /Users/htual/gpgpu/GPGPUTasks2025/src/main.cpp:57
+		// Открыла таблицу с кодами ошибок: libs/clew/CL/cl.h:178, мой код ошибки соответсвует ошибке с названием CL_INVALID_VALUE.
+		// По документации стало ясно, что эта ошибка значит, что param_name не соответвует ни одному из поддерживаемых значений или размер в байтах
+		// указанный в параметре param_value_size меньше, чем размер возвращаемого типа и param_value при этом не NULL. Ясно, что в нашем случае подходит 
+		// первый случай: не тот param_name.
+		// Я обратно вернула корректное значение для param_name.
+
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
+		// Solution 1.2
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		// Solution 1.3
+		// Сначала получим размер
+		size_t platformVendorSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platformVendorSize));
+		std::vector<unsigned char> platformVendor(platformVendorSize, 0);
+		// Теперь запросим само название
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, platformVendor.data(), nullptr));
+		std::cout << "    Platform vendor: " << platformVendor.data() << std::endl;
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+
+		// Solution 2.1
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+		std::cout << "Number of available devices for the platform: " << devicesCount << std::endl;
+
+		// Для следующего задания получим еще и идентификаторы всех девайсов
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
@@ -88,6 +114,51 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+
+
+			// Solution 2.2
+			std::cout << "Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+			cl_device_id device = devices[deviceIndex];
+			// Название устройства
+			size_t deviceNameSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+			std::vector<unsigned char> deviceName(deviceNameSize, 0);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
+			std::cout << "    Device name: " << deviceName.data() << std::endl;
+
+			// Тип устройства (видеокарта/процессор/что-то странное)
+			// size_t deviceTypeSize = 0;
+			// OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, 0, nullptr, &deviceTypeSize));
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
+			std::cout << "    Device type: ";
+			if(deviceType & CL_DEVICE_TYPE_CPU) std::cout << "CPU ";
+			if(deviceType & CL_DEVICE_TYPE_GPU) std::cout << "GPU ";
+			if(deviceType & CL_DEVICE_TYPE_ACCELERATOR) std::cout << "Accelerator ";
+			if(deviceType & CL_DEVICE_TYPE_DEFAULT) std::cout << "Default ";
+			if(deviceType & CL_DEVICE_TYPE_CUSTOM) std::cout << "Custom ";
+			std::cout << "(" << deviceType << ")" << std::endl;
+
+			// Размер памяти устройства в мегабайтах
+			cl_ulong globalMemSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemSize), &globalMemSize, nullptr));
+			std::cout << "    Device memory size: " << (globalMemSize / (1024 * 1024)) <<  " MB" << std::endl;
+
+			// Еще пару свойств устройства
+			// Количество вычислительных ядер
+			cl_uint computeUnits = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(computeUnits), &computeUnits, nullptr));
+			std::cout << "    Max compute units: " << computeUnits << std::endl;
+
+			// Максимальная тактовая частота в Мгц
+			cl_uint clockFreq = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(clockFreq), &clockFreq, nullptr));
+			std::cout << "    Max clock frequency: " << clockFreq << " MHz" << std::endl;
+
+			// Размер локальной памяти в КБ
+			cl_ulong localMemSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(localMemSize), &localMemSize, nullptr));
+			std::cout << "    Local memory size: " << (localMemSize / 1024) << " KB" << std::endl;
 		}
 	}
 
