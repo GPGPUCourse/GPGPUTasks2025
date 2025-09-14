@@ -87,8 +87,8 @@ int main()
 		size_t platformVendorSize = 0;
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platformVendorSize));
 
-		std::vector<unsigned char> platformVendor(platformNameSize, 0);
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformVendorSize, platformVendor.data(), nullptr));
+		std::vector<unsigned char> platformVendor(platformVendorSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, platformVendor.data(), nullptr));
 		std::cout << indent(1) << "Platform vendor: " << platformVendor.data() << std::endl;
 
 		// TODO 2.1
@@ -96,7 +96,7 @@ int main()
 
 		cl_uint devicesCount = 0;
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
-		std::cout << indent(1) << "Platforms devices: " << platformsCount << std::endl;
+		std::cout << indent(1) << "Platforms devices: " << devicesCount << std::endl;
 
 		std::vector<cl_device_id> devices(devicesCount);
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
@@ -119,7 +119,7 @@ int main()
 
 			std::vector<unsigned char> deviceName(deviceNameSize, 0);
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
-			std::cout << indent(3) << "Name: " << platformName.data() << std::endl;
+			std::cout << indent(3) << "Name: " << deviceName.data() << std::endl;
 
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			cl_device_type deviceType = 0;
@@ -142,17 +142,17 @@ int main()
 			// - Размер памяти устройства в мегабайтах
 			cl_ulong deviceMemoryInBytes = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(deviceMemoryInBytes), &deviceMemoryInBytes, nullptr));
-			std::cout << indent(3) << "Memory: " << (deviceMemoryInBytes >> 20) << std::endl;
+			std::cout << indent(3) << "Memory: " << (deviceMemoryInBytes >> 20) << " MB" << std::endl;
 
 			// - Размер кэш линии устройства в мегабайтах
 			cl_uint deviceCacheLineInBytes = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(deviceCacheLineInBytes), &deviceCacheLineInBytes, nullptr));
-			std::cout << indent(3) << "Cache line: " << (deviceCacheLineInBytes >> 20) << std::endl;
+			std::cout << indent(3) << "Cache line: " << (deviceCacheLineInBytes >> 20) << " MB" << std::endl;
 
 			// - Размер памяти, которое устройство может выделить за раз
 			cl_ulong deviceMaxMemAllocInBytes = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(deviceMaxMemAllocInBytes), &deviceMaxMemAllocInBytes, nullptr));
-			std::cout << indent(3) << "Max alloc: " << (deviceMaxMemAllocInBytes >> 20) << std::endl;
+			std::cout << indent(3) << "Max alloc: " << (deviceMaxMemAllocInBytes >> 20) << " MB" << std::endl;
 		}
 	}
 
