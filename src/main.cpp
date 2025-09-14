@@ -123,14 +123,14 @@ int main()
 			std::string deviceTypeStr;
 			if(deviceType & CL_DEVICE_TYPE_DEFAULT) {
 				deviceTypeStr = "Default";
-			} else if(deviceType & CL_DEVICE_TYPE_CPU) {
+			} else if (deviceType & CL_DEVICE_TYPE_CPU) {
 				deviceTypeStr = "CPU";
-			} else if(deviceType & CL_DEVICE_TYPE_GPU) {
+			} else if (deviceType & CL_DEVICE_TYPE_GPU) {
 				deviceTypeStr = "GPU";
-			} else if(deviceType & CL_DEVICE_TYPE_ACCELERATOR) {
+			} else if (deviceType & CL_DEVICE_TYPE_ACCELERATOR) {
 				deviceTypeStr = "Accelerator";
 				#ifdef CL_VERSION_1_2
-			} else if(deviceType & CL_DEVICE_TYPE_CUSTOM) {
+			} else if (deviceType & CL_DEVICE_TYPE_CUSTOM) {
 				#endif
 				deviceTypeStr = "Custom";
 			}
@@ -161,7 +161,7 @@ int main()
 			std::string cacheTypeStr;
 			if(cacheType & CL_READ_WRITE_CACHE) {
 				cacheTypeStr = "Read Write Cache";
-			} else if(cacheType & CL_READ_ONLY_CACHE) {
+			} else if (cacheType & CL_READ_ONLY_CACHE) {
 				cacheTypeStr = "Read Only Cache";
 			} else {
 				cacheTypeStr = "None";
