@@ -110,6 +110,12 @@ int main()
 			cl_ulong deviceMem = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMem, nullptr));
 
+			cl_uint maxComputeUnits = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &maxComputeUnits, nullptr));
+
+			cl_uint maxClockFrequency = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &maxClockFrequency, nullptr));
+
 			std::cout << "    -- Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
 			std::cout << "       Device name: " << deviceName.data() << std::endl;
 			std::cout << "       Device type: ";
@@ -133,6 +139,8 @@ int main()
 			}
 			std::cout << std::endl;
 			std::cout << "       Device memory (MiB): " << (deviceMem >> 20) << std::endl;
+			std::cout << "       Max compute units: " << maxComputeUnits << std::endl;
+			std::cout << "       Max clock frequency (MHz): " << maxClockFrequency << std::endl;
 		}
 	}
 
