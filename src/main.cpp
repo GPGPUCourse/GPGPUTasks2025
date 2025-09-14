@@ -69,7 +69,7 @@ int main()
 
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
-		std::vector<unsigned char> platformName(platformNameSize, 0); 
+		std::vector<unsigned char> platformName(platformNameSize, 0);
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
@@ -77,7 +77,7 @@ int main()
 		// Запросите и напечатайте так же в консоль вендора данной платформы
 		size_t vendorNameSize = 0;
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &vendorNameSize));
-		std::vector<unsigned char> vendorName(vendorNameSize, 0); 
+		std::vector<unsigned char> vendorName(vendorNameSize, 0);
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendorNameSize, vendorName.data(), nullptr));
 		std::cout << "    Vendor name: " << vendorName.data() << std::endl;
 
@@ -97,7 +97,6 @@ int main()
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
 			cl_device_id device = devices[deviceIndex];
-			
 
 			// CL_DEVICE_NAME
 			size_t deviceNameSize = 0;
@@ -115,21 +114,22 @@ int main()
 			std::cout << "       Device name: " << deviceName.data() << std::endl;
 			std::cout << "       Device type: ";
 			// cl_device_type - bitfield @ cl.h
-			switch (deviceType) {
-				case (1 << 0):
-					std::cout << "default";
-					break;
-				case (1 << 1): 
-					std::cout << "CPU";
-					break;
-				case (1 << 2):
-					std::cout << "GPU";
-					break;
-				case (1 << 3):
-					std::cout << "ACCELERATOR";
-					break;
-				default:
-					std::cout << "unknown";
+			switch(deviceType)
+			{
+			case(1 << 0):
+				std::cout << "default";
+				break;
+			case(1 << 1):
+				std::cout << "CPU";
+				break;
+			case(1 << 2):
+				std::cout << "GPU";
+				break;
+			case(1 << 3):
+				std::cout << "ACCELERATOR";
+				break;
+			default:
+				std::cout << "unknown";
 			}
 			std::cout << std::endl;
 			std::cout << "       Device memory (MiB): " << (deviceMem >> 20) << std::endl;
