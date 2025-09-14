@@ -132,7 +132,7 @@ int main()
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, 0, nullptr, &deviceMemSize_size));
 			cl_ulong deviceMemSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, deviceMemSize_size, &deviceMemSize, NULL));
-			std::cout << "            Device memory size: " << (deviceMemSize / (2uLL << 20)) << " MB" << std::endl;
+			std::cout << "            Device memory size: " << (deviceMemSize >> 20) << " MB" << std::endl;
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
 			// - Версия OpenCL 
 			size_t deviceVersionSize = 0;
