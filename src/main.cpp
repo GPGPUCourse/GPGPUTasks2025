@@ -149,7 +149,7 @@ int main()
 
 			size_t PRINTF_BUFFER_SIZE ;
 			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex],CL_DEVICE_PRINTF_BUFFER_SIZE , sizeof(size_t), &PRINTF_BUFFER_SIZE, NULL));
-			std::cout << "        Device printf buffer size  "<< PRINTF_BUFFER_SIZE << "MB" << std::endl;
+			std::cout << "        Device printf buffer size  "<< PRINTF_BUFFER_SIZE /1024 / 1024<< "MB" << std::endl;
 
 
 			// TODO 2.2
