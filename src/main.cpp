@@ -70,18 +70,77 @@ int main()
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), NULL));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		std::size_t platfromVendorSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platfromVendorSize));
 
+		std::vector<unsigned char> platformVendorName(platfromVendorSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platfromVendorSize, platformVendorName.data(), NULL));
+		std::cout << "    Vendor name: " << platformVendorName.data() << std::endl;
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+		std::vector<cl_device_id> deviceIDs(devicesCount, 0);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, deviceIDs.data(), NULL));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
+			cl_device_id deviceID = deviceIDs[deviceIndex];
+
+			std::size_t deviceNameSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+
+			std::vector<unsigned char> deviceName(deviceNameSize, 0);
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), NULL));
+
+			std::cout << "    Device " << deviceIndex + 1 << "/" << devicesCount << ": " << deviceName.data() << " ";
+
+			cl_device_type deviceType = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, NULL));
+
+			if(deviceType & CL_DEVICE_TYPE_GPU)
+			{
+				std::cout << "GPU ";
+			}
+
+			if(deviceType & CL_DEVICE_TYPE_CPU)
+			{
+				std::cout << "CPU ";
+			}
+
+			if(deviceType & CL_DEVICE_TYPE_CUSTOM)
+			{
+				std::cout << "CUSTOM ";
+			}
+
+			if(deviceType & CL_DEVICE_TYPE_ACCELERATOR)
+			{
+				std::cout << "ACCELERATOR ";
+			}
+
+			if(deviceType & CL_DEVICE_TYPE_DEFAULT)
+			{
+				std::cout << "DEFAULT ";
+			}
+
+			std::cout << "with memory size = ";
+
+			cl_ulong deviceMemorySize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(deviceMemorySize), &deviceMemorySize, NULL));
+			std::cout << deviceMemorySize << " bytes" << std::endl;
+
+			cl_uint maxComputeUnitsCount = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(maxComputeUnitsCount), &maxComputeUnitsCount, NULL));
+			std::cout << "       with max compute units size = " << maxComputeUnitsCount << std::endl;
+
+			std::size_t maxWorkGroupSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize), &maxWorkGroupSize, NULL));
+			std::cout << "       with max workgroup size = " << maxWorkGroupSize << std::endl;
 			// TODO 2.2
 			// Запросите и напечатайте в консоль:
 			// - Название устройства
