@@ -110,7 +110,31 @@ int main()
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
 			std::vector<unsigned char> deviceName(deviceNameSize, 0);
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
-			std::cout << "        Device name: " << platformVendor.data() << std::endl;
+			std::cout << "        Device name: " << deviceName.data() << std::endl;
+
+			size_t deviceVendorSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, 0, nullptr, &deviceVendorSize));
+			std::vector<unsigned char> deviceVendor(deviceVendorSize, 0);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, deviceVendorSize, deviceVendor.data(), nullptr));
+			std::cout << "        Device vendor: " << deviceVendor.data() << std::endl;
+
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, nullptr));
+			std::cout << "        Device type: " << deviceType << std::endl;
+
+			cl_ulong memSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &memSize, nullptr));
+			std::cout << "        Memory size: " << memSize / (1024 * 1024) << " mb" << std::endl;
+
+			cl_ulong cacheSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &cacheSize, nullptr));
+			std::cout << "        Cache size: " << cacheSize / 1024 << "kb" << std::endl;
+
+			size_t deviceProfileSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_PROFILE, 0, nullptr, &deviceProfileSize));
+			std::vector<unsigned char> deviceProfile(deviceProfileSize, 0);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_PROFILE, deviceNameSize, deviceProfile.data(), nullptr));
+			std::cout << "        Profile: " << deviceProfile.data() << std::endl;
 		}
 	}
 
