@@ -84,7 +84,7 @@ int main()
 		size_t platformVendorSize = 0;
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platformVendorSize));
 
-		std::vector<unsigned char> platformVendor(platformNameSize, 0);
+		std::vector<unsigned char> platformVendor(platformVendorSize, 0);
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, platformVendor.data(), nullptr));
 		std::cout << "    Platform vendor: " << platformVendor.data() << std::endl;
 		// TODO 2.1
@@ -133,7 +133,7 @@ int main()
 			size_t deviceProfileSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_PROFILE, 0, nullptr, &deviceProfileSize));
 			std::vector<unsigned char> deviceProfile(deviceProfileSize, 0);
-			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_PROFILE, deviceNameSize, deviceProfile.data(), nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_PROFILE, deviceProfileSize, deviceProfile.data(), nullptr));
 			std::cout << "        Profile: " << deviceProfile.data() << std::endl;
 		}
 	}
