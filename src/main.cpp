@@ -97,9 +97,11 @@ int main()
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
 		std::vector<cl_device_id> device_ids(devicesCount, 0);
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, device_ids.data(), nullptr));
+		std::cout << "    Number of devices: " << devicesCount << std::endl;
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
 			cl_device_id device_id = device_ids[deviceIndex];
+			std::cout << "        Device #" << device_id << std::endl;
 			
 			// TODO 2.2
 			// Запросите и напечатайте в консоль:
@@ -108,12 +110,12 @@ int main()
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
 			unsigned char* ptr = getDeviceInfo(device_id, CL_DEVICE_NAME);
-			std::cout << "    Device name: " << *((char*)ptr) << std::endl;
+			std::cout << "        Device name: " << *((char*)ptr) << std::endl;
 			delete[] ptr;
 
 			ptr = getDeviceInfo(device_id, CL_DEVICE_TYPE);
 			cl_device_type device_type = *((cl_device_type*)ptr);
-			std::cout << "    Device type: ";
+			std::cout << "        Device type: ";
 			if (device_type | CL_DEVICE_TYPE_CPU) {
 				std::cout << "CPU ";
 			}
@@ -124,19 +126,19 @@ int main()
 			delete[] ptr;
 
 			ptr = getDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE);
-			std::cout << "    Device memory: " << (*((cl_ulong*)ptr) >> 20) << "MB" << std::endl;
+			std::cout << "        Device memory: " << (*((cl_ulong*)ptr) >> 20) << "MB" << std::endl;
 			delete[] ptr;
 
 			ptr = getDeviceInfo(device_id, CL_DEVICE_AVAILABLE);
-			std::cout << "    Device available: " << *((bool*)ptr) << std::endl;
+			std::cout << "        Device available: " << *((bool*)ptr) << std::endl;
 			delete[] ptr;
 
 			ptr = getDeviceInfo(device_id, CL_DEVICE_OPENCL_C_VERSION);
-			std::cout << "    Device OpenCL C version: " << (char*)ptr << std::endl;
+			std::cout << "        Device OpenCL C version: " << (char*)ptr << std::endl;
 			delete[] ptr;
 
 			ptr = getDeviceInfo(device_id, CL_DEVICE_VENDOR);
-			std::cout << "    Device vendor: " << (char*)ptr << std::endl;
+			std::cout << "        Device vendor: " << (char*)ptr << std::endl;
 		}
 	}
 
