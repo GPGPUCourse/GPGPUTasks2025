@@ -28,6 +28,24 @@ void reportError(cl_int err, const std::string &filename, int line)
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
 
+void printSpecialPlatformInfo(cl_platform_id platform, cl_platform_info param, std::string& message)
+{
+	size_t size = 0;
+	OCL_SAFE_CALL(clGetPlatformInfo(platform, param, 0, nullptr, &size));
+	std::vector<unsigned char> platformData(size, 0);
+	OCL_SAFE_CALL(clGetPlatformInfo(platform, param, size, platformData.data(), nullptr));
+	std::cout << message << platformData.data() << std::endl;	
+}
+
+void printDeviceInfo(cl_device_id device, cl_device_info param, std::string& message)
+{
+	size_t size = 0;
+	OCL_SAFE_CALL(clGetDeviceInfo(device, param, 0, nullptr, &size));
+	std::vector<unsigned char> deviceData(size, 0);
+	OCL_SAFE_CALL(clGetDeviceInfo(device, param, size, deviceData.data(), nullptr));
+	std::cout << message << deviceData.data() << std::endl;
+}
+
 int main()
 {
 	// Пытаемся слинковаться с символами OpenCL API в runtime (через библиотеку libs/clew)
@@ -54,6 +72,7 @@ int main()
 		// Откройте документацию по "OpenCL Runtime" -> "Query Platform Info" -> "clGetPlatformInfo"
 		// Не забывайте проверять коды ошибок с помощью макроса OCL_SAFE_CALL
 		size_t platformNameSize = 0;
+		// OCL_SAFE_CALL(clGetPlatformInfo(platform, 239, 0, nullptr, &platformNameSize));
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &platformNameSize));
 		// TODO 1.1
 		// Попробуйте вместо CL_PLATFORM_NAME передать какое-нибудь случайное число - например 239
@@ -69,17 +88,28 @@ int main()
 
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
-		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
-		std::cout << "    Platform name: " << platformName.data() << std::endl;
+		std::string platformNameMessage = "    Platform name: ";
+		printSpecialPlatformInfo(platform, CL_PLATFORM_NAME, platformNameMessage);
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		std::string platformVendorMessage = "	Platform vendor: ";
+		printSpecialPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorMessage);
+
+		// TODO 1.4
+		// Запросите и напечатайте в консоль версию OpenCL, поддерживаемую данной платформой
+		std::string platformVersionMessage = "	Platform version: ";
+		printSpecialPlatformInfo(platform, CL_PLATFORM_VERSION, platformVersionMessage);
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
-
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+		std::cout << "    Number of devices: " << devicesCount << std::endl;
+		
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
+		
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
 			// TODO 2.2
@@ -88,6 +118,39 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			std::cout << "      Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+			cl_device_id device = devices[deviceIndex];
+			
+			std::string deviceNameMessage = "        Device name: ";
+			printDeviceInfo(device, CL_DEVICE_NAME, deviceNameMessage);
+			
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
+			std::cout << "        Device type: ";
+			switch(deviceType)
+			{
+				case CL_DEVICE_TYPE_CPU:
+					std::cout << "CPU" << std::endl;
+					break;
+				case CL_DEVICE_TYPE_GPU:
+					std::cout << "GPU" << std::endl;
+					break;
+				default:
+					std::cout << "Other (" << deviceType << ")" << std::endl;
+					break;
+			}
+			
+			cl_ulong globalMemSize;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemSize), &globalMemSize, nullptr));
+			std::cout << "        Global memory size: " << globalMemSize / (1024 * 1024) << " MB" << std::endl;
+			
+			size_t maxWorkGroupSize;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr));
+			std::cout << "        Max work group size: " << maxWorkGroupSize << std::endl;
+			
+			cl_uint maxComputeUnits;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(maxComputeUnits), &maxComputeUnits, nullptr));
+			std::cout << "        Max compute units: " << maxComputeUnits << std::endl;
 		}
 	}
 
