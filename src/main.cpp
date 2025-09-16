@@ -101,7 +101,7 @@ int main()
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
 			cl_device_id device_id = device_ids[deviceIndex];
-			std::cout << "        Device #" << device_id << std::endl;
+			std::cout << "        Device #" << deviceIndex + 1 << "/" << devicesCount << std::endl;
 			
 			// TODO 2.2
 			// Запросите и напечатайте в консоль:
