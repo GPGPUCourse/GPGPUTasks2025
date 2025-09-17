@@ -17,4 +17,17 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
     // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
+    const unsigned int x = get_global_id(0);
+    const unsigned int y = get_global_id(1);
+    if (x >= width || y >= height)
+        return;
+
+    const unsigned int linear = y * width + x;
+    const unsigned int i = linear / height;
+    const unsigned int j = linear % height;
+    const unsigned int index = j * width + i;
+    c[index] = a[index] + b[index];
+
+    // нужно было заставить ворк айтемы идти по столбцам, поэтому я высчитала номер потока (linear) и переупорядочила их так, как если бы данные
+    // были линеаризованы по столбцам -- соседние ворк айтемы идут по j (по строкам) внутри одного столбца, получаем шаг в памяти width*4 байта
 }
