@@ -1,4 +1,6 @@
+#ifdef _WIN32
 #include "CL/cl_d3d10.h"
+#endif
 
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
