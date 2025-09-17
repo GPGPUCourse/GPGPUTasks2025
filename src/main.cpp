@@ -110,7 +110,7 @@ int main()
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
-		cl_uint devicesCount = 0;
+		cl_uint devicesCount = CL_UINT_MAX;
 		OCL_SAFE_CALL( clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
 		std::cout << "    Number of OpenCL devices for platform #" << (platformIndex + 1) << " : " << devicesCount << std::endl;
 
@@ -139,31 +139,23 @@ int main()
 				fetch_device_param(device, CL_DEVICE_TYPE, deviceType);
 
 				std::cout << "        Device type: ";
-				switch (deviceType)
-				{
-					case CL_DEVICE_TYPE_DEFAULT:
-						std::cout << "DEFAULT" << std::endl;
-						break;
-					case CL_DEVICE_TYPE_CPU:
-						std::cout << "CPU" << std::endl;
-						break;
-					case CL_DEVICE_TYPE_GPU:
-						std::cout << "GPU" << std::endl;
-						break;
-					case CL_DEVICE_TYPE_ACCELERATOR:
-						std::cout << "ACCELERATOR" << std::endl;
-						break;
-					case CL_DEVICE_TYPE_CUSTOM:
-						std::cout << "CUSTOM" << std::endl;
-						break;
-					default:
-						std::cout << "UNKNOWN" << std::endl;
-						break;
-				}
+
+				if (deviceType & CL_DEVICE_TYPE_DEFAULT)
+					std::cout << "DEFAULT "; 
+				if (deviceType & CL_DEVICE_TYPE_CPU)
+					std::cout << "CPU ";
+				if (deviceType & CL_DEVICE_TYPE_GPU)
+					std::cout << "GPU ";
+				if (deviceType & CL_DEVICE_TYPE_ACCELERATOR)
+					std::cout << "ACCELERATOR ";
+				if (deviceType & CL_DEVICE_TYPE_CUSTOM)
+					std::cout << "CUSTOM ";
+
+				std::cout << std::endl;
 			}
 
 			{
-				cl_ulong deviceGlobalMemory = 0;
+				cl_ulong deviceGlobalMemory = CL_ULONG_MAX;
 				fetch_device_param(device, CL_DEVICE_GLOBAL_MEM_SIZE, deviceGlobalMemory);
 				std::cout << "        Global memory size: " << (deviceGlobalMemory >> 20) << " MB" << std::endl;
 			}
@@ -175,7 +167,7 @@ int main()
 			}
 
 			{
-				cl_uint maxDeviceFrequency = 0;
+				cl_uint maxDeviceFrequency = CL_UINT_MAX;
 				fetch_device_param(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, maxDeviceFrequency);
 				std::cout << "        Max frequency: " << maxDeviceFrequency << std::endl;
 			}
