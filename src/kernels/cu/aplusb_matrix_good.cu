@@ -18,7 +18,17 @@ __global__ void aplusb_matrix_good(const unsigned int* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
+    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int y_start = blockIdx.y * blockDim.y + threadIdx.y;
+    const unsigned int stride_y = blockDim.y * gridDim.y;
+
+    if (x >= width)
+        return;
+
+    for (unsigned int y = y_start; y < height; y += stride_y) {
+        const unsigned int index = x + y * width;
+        c[index] = a[index] + b[index];
+    }
 }
 
 namespace cuda {
