@@ -70,15 +70,37 @@ int main()
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(
+			platform,                 // ID платформы
+			CL_PLATFORM_NAME,         // Запрашиваем имя
+			platformNameSize,         // Размер выделенного буфера
+			platformName.data(),      // Указатель на данные буфера (куда записать)
+			nullptr                   // Нас не интересует размер в этот раз, можно nullptr
+		));
+
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		std::vector<char> vendorName(1024); // или использовать такой же размер как для platformName
+		size_t vendorNameSize = vendorName.size();
 
+		// 2. Вызвать clGetPlatformInfo с параметром CL_PLATFORM_VENDOR
+		OCL_SAFE_CALL(clGetPlatformInfo(
+			platform,                 
+			CL_PLATFORM_VENDOR,       
+			vendorNameSize,           
+			vendorName.data(),        
+			nullptr                   
+		));
+		std::cout << "Platform vendor: " << vendorName.data() << std::endl;
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+		std::cout << "Number of OpenCL devices: " << devicesCount << std::endl;
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
@@ -88,6 +110,16 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			std::cout << "Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+			cl_device_id device = devices[deviceIndex];
+			size_t deviceNameSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+			std::vector<char> deviceName(deviceNameSize);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
+    		std::cout << "  Device name: " << deviceName.data() << std::endl;
+
+
+
 		}
 	}
 
