@@ -1,6 +1,9 @@
+#include "CL/cl_platform.h"
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
 
+#include <climits>
+#include <cstddef>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -55,6 +58,10 @@ int main()
 		// Не забывайте проверять коды ошибок с помощью макроса OCL_SAFE_CALL
 		size_t platformNameSize = 0;
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &platformNameSize));
+
+		// OCL_SAFE_CALL(clGetPlatformInfo(platform, 33, 0, nullptr, &platformNameSize));
+		// Код ошибки -30 CL_INVALID_VALUE
+
 		// TODO 1.1
 		// Попробуйте вместо CL_PLATFORM_NAME передать какое-нибудь случайное число - например 239
 		// Т.к. это некорректный идентификатор параметра платформы - то метод вернет код ошибки
@@ -70,15 +77,24 @@ int main()
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		// clGetPlatformInfo(...);
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		size_t platformVendorSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platformVendorSize));
+		std::vector<unsigned char> platformVendor(platformVendorSize);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, platformVendor.data(), nullptr));
+		std::cout << "    Platform vendor: " << platformVendor.data() << std::endl;
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
@@ -88,6 +104,56 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+
+			std::cout << "      Device #" << deviceIndex + 1 << '/' << devicesCount << std::endl;
+
+			cl_device_id device = devices[deviceIndex];
+			size_t nameSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &nameSize));
+			std::vector<char> deviceName(nameSize);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, nameSize, deviceName.data(), nullptr));
+			std::cout << "        Name: " << deviceName.data() << std::endl;
+
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, nullptr));
+			std::cout << "        Type: ";
+			switch (deviceType) {
+				case CL_DEVICE_TYPE_CPU:
+					std::cout << "CPU";
+					break;
+				case CL_DEVICE_TYPE_GPU:
+					std::cout << "GPU";
+					break;
+				case CL_DEVICE_TYPE_ACCELERATOR:
+					std::cout << "Accelerator";
+					break;
+				case CL_DEVICE_TYPE_CUSTOM:
+					std::cout << "Custom";
+					break;
+				case CL_DEVICE_TYPE_DEFAULT:
+					std::cout << "Default";
+					break;
+				default:
+					std::cout << "Unknown";
+					break;
+			}
+			std::cout << std::endl;
+
+			cl_ulong deviceMem;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMem, nullptr));
+			std::cout << "        Memory: " << deviceMem << std::endl;
+
+			cl_bool deviceImageSupport;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceImageSupport, nullptr));
+			std::cout << "        Image support: " << deviceImageSupport << std::endl;
+
+			cl_uint deviceMaxClockFrequency;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceMaxClockFrequency, nullptr));
+			std::cout << "        Max clock frequency: " << deviceMaxClockFrequency << std::endl;
+		
+			cl_uint deviceMaxComputeUnits;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceMaxComputeUnits, nullptr));
+			std::cout << "        Max compute units: " << deviceMaxComputeUnits << std::endl;
 		}
 	}
 
