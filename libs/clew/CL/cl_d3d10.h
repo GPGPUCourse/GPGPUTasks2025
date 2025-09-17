@@ -17,7 +17,9 @@
 #ifndef __OPENCL_CL_D3D10_H
 #define __OPENCL_CL_D3D10_H
 
+#ifdef _WIN32
 #include <d3d10.h>
+#endif
 #include <CL/cl.h>
 #include <CL/cl_platform.h>
 
