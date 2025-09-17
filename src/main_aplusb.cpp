@@ -57,19 +57,6 @@ void run(int argc, char** argv)
         // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
         gpu::WorkSize workSize(GROUP_SIZE, n);
         ocl_aplusb.exec(workSize, a_gpu, b_gpu, c_gpu, n);
-
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            cuda::aplusb(workSize, a_gpu, b_gpu, c_gpu, n);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            vk_aplusb.exec(n, workSize, a_gpu, b_gpu, c_gpu);
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
-
         times.push_back(t.elapsed());
     }
     std::cout << "a + b kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
