@@ -160,7 +160,7 @@ int main()
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересным
 			//
 			//
-			cl_bool  deviceECC = FALSE;
+			cl_bool  deviceECC = CL_FALSE;
 			OCL_SAFE_CALL( clGetDeviceInfo(deviceIndex, CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool ), &deviceECC, nullptr ));
 			std::cout << "    Device ECC: " << deviceECC << std::endl;
 
