@@ -140,8 +140,9 @@ int main()
 			std::cout << std::endl;
 
 			cl_ulong deviceMem;
+			constexpr int megabyte = (1 << 20);
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMem, nullptr));
-			std::cout << "        Memory: " << deviceMem << std::endl;
+			std::cout << "        Memory: " << deviceMem / megabyte << " MB"<< std::endl;
 
 			cl_bool deviceImageSupport;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceImageSupport, nullptr));
