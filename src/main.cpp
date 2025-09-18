@@ -30,12 +30,12 @@ void reportError(cl_int err, const std::string &filename, int line)
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
 
-unsigned char* getDeviceInfo(cl_device_id device, cl_device_info info) {
+std::vector<unsigned char> getDeviceInfo(cl_device_id device, cl_device_info info) {
 	size_t sz = 0;
 	OCL_SAFE_CALL(clGetDeviceInfo(device, info, 0, nullptr, &sz));
-	unsigned char* ptr = new unsigned char[sz];
-	OCL_SAFE_CALL(clGetDeviceInfo(device, info, sz, (void*)ptr, nullptr));
-	return ptr;
+	std::vector<unsigned char> data(sz, 0);
+	OCL_SAFE_CALL(clGetDeviceInfo(device, info, sz, (void*)data.data(), nullptr));
+	return data;
 }
 
 int main()
@@ -76,6 +76,8 @@ int main()
 		// Затем откройте документацию по clGetPlatformInfo и в секции Errors найдите ошибку, с которой столкнулись
 		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
 		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
+		
+		// Ошибка с кодом -30 CL_INVALID_VALUE
 
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
@@ -109,12 +111,11 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
-			unsigned char* ptr = getDeviceInfo(device_id, CL_DEVICE_NAME);
-			std::cout << "        Device name: " << *((char*)ptr) << std::endl;
-			delete[] ptr;
+			auto data = getDeviceInfo(device_id, CL_DEVICE_NAME);
+			std::cout << "        Device name: " << data.data() << std::endl;
 
-			ptr = getDeviceInfo(device_id, CL_DEVICE_TYPE);
-			cl_device_type device_type = *((cl_device_type*)ptr);
+			data = getDeviceInfo(device_id, CL_DEVICE_TYPE);
+			cl_device_type device_type = *((cl_device_type*)data.data());
 			std::cout << "        Device type: ";
 			if (device_type | CL_DEVICE_TYPE_CPU) {
 				std::cout << "CPU ";
@@ -123,22 +124,18 @@ int main()
 				std::cout << "GPU ";
 			}
 			std::cout << std::endl;
-			delete[] ptr;
 
-			ptr = getDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE);
-			std::cout << "        Device memory: " << (*((cl_ulong*)ptr) >> 20) << "MB" << std::endl;
-			delete[] ptr;
+			data = getDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE);
+			std::cout << "        Device memory: " << (*((cl_ulong*)data.data()) >> 20) << "MB" << std::endl;
 
-			ptr = getDeviceInfo(device_id, CL_DEVICE_AVAILABLE);
-			std::cout << "        Device available: " << *((bool*)ptr) << std::endl;
-			delete[] ptr;
+			data = getDeviceInfo(device_id, CL_DEVICE_AVAILABLE);
+			std::cout << "        Device available: " << *((bool*)data.data()) << std::endl;
 
-			ptr = getDeviceInfo(device_id, CL_DEVICE_OPENCL_C_VERSION);
-			std::cout << "        Device OpenCL C version: " << (char*)ptr << std::endl;
-			delete[] ptr;
+			data = getDeviceInfo(device_id, CL_DEVICE_OPENCL_C_VERSION);
+			std::cout << "        Device OpenCL C version: " << data.data() << std::endl;
 
-			ptr = getDeviceInfo(device_id, CL_DEVICE_VENDOR);
-			std::cout << "        Device vendor: " << (char*)ptr << std::endl;
+			data = getDeviceInfo(device_id, CL_DEVICE_VENDOR);
+			std::cout << "        Device vendor: " << data.data() << std::endl;
 		}
 	}
 
