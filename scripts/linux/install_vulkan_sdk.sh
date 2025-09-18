@@ -19,7 +19,7 @@ sudo apt install -yq build-essential pkg-config libx11-dev libxrandr-dev # to fi
 sudo apt install -yq libx11-xcb-dev libxkbcommon-dev libxrandr-dev libegl1-mesa-dev # to fix "The following required packages were not found: - wayland-client" when compiling Validation-Layers - see https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-ValidationLayers/%2B/refs/tags/v1.1.107/BUILD.md#linux-build-requirements
 
 googletest_version=1.10.0
-vulkan_sdk_version=1.3.283
+vulkan_sdk_version=1.4.321
 vulkan_headers_version=${vulkan_sdk_version}
 vulkan_loader_version=${vulkan_sdk_version}
 vulkan_spirv_reflect_version=${vulkan_sdk_version}
