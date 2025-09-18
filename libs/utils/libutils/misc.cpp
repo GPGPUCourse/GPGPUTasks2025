@@ -2,22 +2,22 @@
 
 #include <libgpu/vulkan/device.h>
 #include <libgpu/vulkan/vulkan_api_headers.h>
-
-#ifdef CUDA_SUPPORT
-#include <cuda_runtime_api.h>
-#endif
+// CUDA отключина но почемуто это флаг пролитает как включный
+// #ifdef CUDA_SUPPORT
+// #include <cuda_runtime_api.h>
+// #endif
 
 void gpu::printDeviceInfo(const gpu::Device& device)
 {
     {
         std::cout << "API: ";
         int count = 0;
-#ifdef CUDA_SUPPORT
-        if (device.supports_cuda) {
-            std::cout << ((count > 0) ? "+" : "") << "CUDA";
-            ++count;
-        }
-#endif
+// #ifdef CUDA_SUPPORT
+//         if (device.supports_cuda) {
+//             std::cout << ((count > 0) ? "+" : "") << "CUDA";
+//             ++count;
+//         }
+// #endif
         if (device.supports_opencl) {
             std::cout << ((count > 0) ? "+" : "") << "OpenCL";
             ++count;
@@ -28,14 +28,14 @@ void gpu::printDeviceInfo(const gpu::Device& device)
         }
         std::cout << ". ";
     }
-
-#ifdef CUDA_SUPPORT
-    if (device.supports_cuda) {
-        int driverVersion = 239;
-        cudaDriverGetVersion(&driverVersion);
-        std::cout << "GPU. " << device.name << " (CUDA " << driverVersion << ").";
-    } else
-#endif
+//
+// #ifdef CUDA_SUPPORT
+//     if (device.supports_cuda) {
+//         int driverVersion = 239;
+//         cudaDriverGetVersion(&driverVersion);
+//         std::cout << "GPU. " << device.name << " (CUDA " << driverVersion << ").";
+//     } else
+// #endif
         if (device.supports_opencl) {
         ocl::DeviceInfo info;
         info.init(device.device_id_opencl);
@@ -129,10 +129,10 @@ gpu::Context gpu::activateContext(const gpu::Device& device, gpu::Context::Type 
         std::cout << "Using OpenCL API..." << std::endl;
         context.init(device.device_id_opencl);
     } else if (api == gpu::Context::TypeCUDA) {
-#ifndef CUDA_SUPPORT
-        // TODO 000 если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-        static_assert(false, "To use CUDA you need to enable CUDA via CMake options: -DCUDA_SUPPORT=ON");
-#endif
+// #ifndef CUDA_SUPPORT
+//         // TODO 000 если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
+//         static_assert(false, "To use CUDA you need to enable CUDA via CMake options: -DCUDA_SUPPORT=ON");
+// #endif
         if (!device.supports_cuda) {
             std::cout << "Device " << device.name << " doesn't support CUDA" << std::endl;
             throw std::runtime_error(DEVICE_NOT_SUPPORT_API);
