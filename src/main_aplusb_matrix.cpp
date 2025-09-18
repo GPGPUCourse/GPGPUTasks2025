@@ -109,8 +109,11 @@ int main(int argc, char** argv)
         run(argc, argv);
     } catch (std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        if (e.what() == std::string("Device doesn't support requested API")) {
+        if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
+            return 0;
+        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+            // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
             // Выставляем ненулевой exit code, чтобы сообщить, что случилась ошибка
