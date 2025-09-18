@@ -66,28 +66,117 @@ int main()
 		// Затем откройте документацию по clGetPlatformInfo и в секции Errors найдите ошибку, с которой столкнулись
 		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
 		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
+		
+		// -30 CL_INVALID_VALUE
 
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
+		//Number of OpenCL platforms: 1
+        // Platform #1/1
+        // Platform name: Apple
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		size_t platformVendorSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platformVendorSize));
+		std::vector<unsigned char> vendorName(platformVendorSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, vendorName.data(), nullptr));
+		std::cout << "    Vendor name: " << vendorName.data() << std::endl;
+		//Number of OpenCL platforms: 1
+        // Platform #1/1
+        // Platform name: Apple
+		// Vendor name: Apple
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
 
-		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
-		{
-			// TODO 2.2
-			// Запросите и напечатайте в консоль:
-			// - Название устройства
-			// - Тип устройства (видеокарта/процессор/что-то странное)
-			// - Размер памяти устройства в мегабайтах
-			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+
+
+		if (devicesCount > 0) {
+			std::vector<cl_device_id> devices(devicesCount);
+			OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
+
+			for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
+			{
+				// TODO 2.2
+				// Запросите и напечатайте в консоль:
+				// - Название устройства
+				// - Тип устройства (видеокарта/процессор/что-то странное)
+				// - Размер памяти устройства в мегабайтах
+				// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+				cl_device_id deviceID = devices[deviceIndex];
+
+				size_t deviceNameSize = 0;
+				OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+				std::vector<unsigned char> deviceName(deviceNameSize, 0);
+                OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
+				std::cout << "	  Device name: " << deviceName.data() << std::endl;
+                
+				cl_device_type deviceType;
+				OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, nullptr));
+
+				bool flag = true;
+				if (deviceType & CL_DEVICE_TYPE_CPU) {
+					std::cout << "	  Type: CPU" << std::endl;
+					flag = false;
+				}
+
+				if (deviceType & CL_DEVICE_TYPE_GPU) {
+					std::cout << "	  Type: GPU" << std::endl;
+					flag = false;
+				}
+
+				if (deviceType & CL_DEVICE_TYPE_ACCELERATOR) {
+					std::cout << "	  Type: Accelerator" << std::endl;
+					flag = false;
+				}
+
+				if (deviceType & CL_DEVICE_TYPE_DEFAULT) {
+					std::cout << "	  Type: Default" << std::endl;
+					flag = false;
+				}
+
+				if (deviceType & CL_DEVICE_TYPE_CUSTOM) {
+					std::cout << "	  Type: Custom" << std::endl;
+					flag = false;
+				}
+
+				if (flag) {
+					std::cout << "    Type: Unknown" << std::endl;
+				}
+
+				cl_ulong deviceMemoryBytes;
+				OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMemoryBytes, nullptr));
+				std::cout << "	  Memory: " << deviceMemoryBytes / (1024 * 1024) << "Mb" << std::endl;
+
+				cl_uint deviceMaxComputeUnits;
+				OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceMaxComputeUnits, nullptr));
+				std::cout << "	  Max Compute Units: " << deviceMaxComputeUnits << std::endl;
+
+				cl_uint deviceMaxClockFreq;
+				OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceMaxClockFreq, nullptr));
+				std::cout << "	  Max Clock Frequency: " << deviceMaxClockFreq << "MHz"<< std::endl;
+				
+				cl_bool deviceIsAvailable;
+				OCL_SAFE_CALL(clGetDeviceInfo(deviceID, CL_DEVICE_AVAILABLE, sizeof(cl_bool), &deviceIsAvailable, nullptr));
+				std::cout << "	  Is available: " << deviceIsAvailable << std::endl;
+				//Number of OpenCL platforms: 1
+				//Platform #1/1
+				//	Platform name: Apple
+				//	Vendor name: Apple
+				//	Device name: Apple M2 Max
+				//	Type: GPU
+				//	Memory: 21845Mb
+				//	Max Compute Units: 30
+				//	Max Clock Frequency: 1000MHz
+				//	Is available: 1
+			
+			}
 		}
 	}
 
