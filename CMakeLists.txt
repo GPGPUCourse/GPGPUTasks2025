@@ -98,7 +98,9 @@ endif ()
 add_executable(main_aplusb src/main_aplusb.cpp)
 add_executable(main_aplusb_matrix src/main_aplusb_matrix.cpp)
 
-target_compile_definitions(main_aplusb_matrix PRIVATE __LOCAL__=${LOCAL})
+if (DEFINED LOCAL_COMPLUTER)
+    target_compile_definitions(main_aplusb_matrix PRIVATE __LOCAL__)
+endif()
 
 target_link_libraries(main_aplusb ${PROJECT_NAME}_core)
 target_link_libraries(main_aplusb_matrix ${PROJECT_NAME}_core )
