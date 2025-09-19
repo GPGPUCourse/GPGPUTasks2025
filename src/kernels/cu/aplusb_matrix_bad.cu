@@ -6,8 +6,6 @@
 
 #include "../defines.h"
 
-#define CACHELINE_SIZE_UINT 32  // (128 / sizeof(unsigned int))
-
 __global__ void aplusb_matrix_bad(const unsigned int* a,
                        const unsigned int* b,
                              unsigned int* c,
