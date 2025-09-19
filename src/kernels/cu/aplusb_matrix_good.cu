@@ -1,16 +1,16 @@
 #include <libgpu/context.h>
-#include <libgpu/shared_device_buffer.h>
 #include <libgpu/work_size.h>
+#include <libgpu/shared_device_buffer.h>
 
 #include <libgpu/cuda/cu/common.cu>
 
 #include "../defines.h"
 
 __global__ void aplusb_matrix_good(const unsigned int* a,
-    const unsigned int* b,
-    unsigned int* c,
-    unsigned int width,
-    unsigned int height)
+                       const unsigned int* b,
+                             unsigned int* c,
+                             unsigned int  width,
+                             unsigned int  height)
 {
     // все три массива - линейно выложенные двумерные матрицы размера width (число столбиков) x height (число рядов)
     // при этом в памяти подряд идут элементы являющимися соседями в рамках одного ряда,
@@ -34,8 +34,8 @@ __global__ void aplusb_matrix_good(const unsigned int* a,
 }
 
 namespace cuda {
-void aplusb_matrix_good(const gpu::WorkSize& workSize,
-    const gpu::gpu_mem_32u& a, const gpu::gpu_mem_32u& b, gpu::gpu_mem_32u& c, unsigned int width, unsigned int height)
+void aplusb_matrix_good(const gpu::WorkSize &workSize,
+            const gpu::gpu_mem_32u &a, const gpu::gpu_mem_32u &b, gpu::gpu_mem_32u &c, unsigned int width, unsigned int height)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
