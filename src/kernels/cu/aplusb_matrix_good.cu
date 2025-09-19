@@ -20,7 +20,7 @@ __global__ void aplusb_matrix_good(const unsigned int* a,
 
     // DONE реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
 
-    // Воркгруппой 32x8 будем одновременно подгружать полные 8 кэш линий, т.к. 32 * 4 = 128.
+    // Ожидаем, что размер воркгруппы будет подгружать кэш линии целиком (напр. подходит 32x8, т.к. 32 * 4 = 128, или 256x1).
     const unsigned int column = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int row = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -28,6 +28,7 @@ __global__ void aplusb_matrix_good(const unsigned int* a,
         return;
     }
 
+    // Один воркайтем вычисляет одно число.
     const unsigned int idx = row * width + column;
     c[idx] = a[idx] + b[idx];
 }
