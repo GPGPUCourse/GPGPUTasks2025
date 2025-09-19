@@ -6,6 +6,9 @@
 #include <stdexcept>
 #include <vector>
 
+#define OFFSET1 "    "
+#define OFFSET2 OFFSET1 "    "
+
 template<typename T>
 std::string to_string(T value)
 {
@@ -27,6 +30,66 @@ void reportError(cl_int err, const std::string &filename, int line)
 }
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
+
+cl_int reportErrorsExceptInvalidValue(cl_int err, const std::string &filename, int line)
+{
+	if(CL_SUCCESS == err || CL_INVALID_VALUE == err)
+		return err;
+	std::string message = "OpenCL error code " + to_string(err) + " encountered at " + filename + ":" + to_string(line);
+	throw std::runtime_error(message);
+}
+
+#define OCL_SEMI_SAFE_CALL(expr) reportErrorsExceptInvalidValue(expr, __FILE__, __LINE__)
+
+
+std::string getPlatformData(cl_platform_id platform, cl_platform_info param_name, size_t size = 256)
+{
+	std::string data(size, 0);
+	size_t real_data_size = 0;
+	auto res = OCL_SEMI_SAFE_CALL(clGetPlatformInfo(platform, param_name, data.size(), data.data(), &real_data_size));
+	if(res == CL_INVALID_VALUE && real_data_size > data.size())
+	{
+		return getPlatformData(platform, param_name, real_data_size);
+	}
+	data.resize(real_data_size);
+	return data;
+}
+
+std::string getDeviceData(cl_device_id device_id, cl_device_info param_name, size_t size = 256)
+{
+	std::string data(size, 0);
+	size_t real_data_size = 0;
+	auto res = OCL_SEMI_SAFE_CALL(clGetDeviceInfo(device_id, param_name, data.size(), data.data(), &real_data_size));
+	if(res == CL_INVALID_VALUE && real_data_size > data.size())
+	{
+		return getDeviceData(device_id, param_name, real_data_size);
+	}
+	data.resize(real_data_size);
+	return data;
+}
+
+std::string getDeviceType(cl_device_id device_id)
+{
+	cl_device_type type;
+	OCL_SAFE_CALL(clGetDeviceInfo(device_id, CL_DEVICE_TYPE, sizeof(cl_device_type), &type, nullptr));
+	switch(type)
+	{
+	case CL_DEVICE_TYPE_CPU:
+		return "CPU";
+	case CL_DEVICE_TYPE_GPU: return "GPU";
+	case CL_DEVICE_TYPE_ACCELERATOR: return "Accelerator";
+	case CL_DEVICE_TYPE_CUSTOM: return "Custom";
+	default:
+		return "Unknown";
+	}
+}
+
+std::string getDeviceMemorySize(cl_device_id device_id)
+{
+	cl_ulong memory;
+	OCL_SAFE_CALL(clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &memory, nullptr));
+	return std::to_string(memory >> 10);
+}
 
 int main()
 {
@@ -50,45 +113,24 @@ int main()
 	{
 		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
 		cl_platform_id platform = platforms[platformIndex];
+		std::cout << OFFSET1 "Platform name: " << getPlatformData(platform, CL_PLATFORM_NAME) << "\n";
+		std::cout << OFFSET1 "Vendor name:   " << getPlatformData(platform, CL_PLATFORM_VENDOR) << "\n";
 
-		// Откройте документацию по "OpenCL Runtime" -> "Query Platform Info" -> "clGetPlatformInfo"
-		// Не забывайте проверять коды ошибок с помощью макроса OCL_SAFE_CALL
-		size_t platformNameSize = 0;
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &platformNameSize));
-		// TODO 1.1
-		// Попробуйте вместо CL_PLATFORM_NAME передать какое-нибудь случайное число - например 239
-		// Т.к. это некорректный идентификатор параметра платформы - то метод вернет код ошибки
-		// Макрос OCL_SAFE_CALL заметит это, и кинет ошибку с кодом
-		// Откройте таблицу с кодами ошибок:
-		// libs/clew/CL/cl.h:103
-		// P.S. Быстрый переход к файлу в CLion: Ctrl+Shift+N -> cl.h (или даже с номером строки: cl.h:103) -> Enter
-		// Найдите там нужный код ошибки и ее название
-		// Затем откройте документацию по clGetPlatformInfo и в секции Errors найдите ошибку, с которой столкнулись
-		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
-		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
-
-		// TODO 1.2
-		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
-		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
-		std::cout << "    Platform name: " << platformName.data() << std::endl;
-
-		// TODO 1.3
-		// Запросите и напечатайте так же в консоль вендора данной платформы
-
-		// TODO 2.1
-		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+		std::vector devices(devicesCount, cl_device_id{});
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devices.size(), devices.data(), 0));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
-			// TODO 2.2
-			// Запросите и напечатайте в консоль:
-			// - Название устройства
-			// - Тип устройства (видеокарта/процессор/что-то странное)
-			// - Размер памяти устройства в мегабайтах
-			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			std::cout << OFFSET1 "Device #" << (deviceIndex + 1) << "/" << devicesCount << "\n";
+			std::cout << OFFSET2 "Device name:    " << getDeviceData(devices[deviceIndex], CL_DEVICE_NAME) << "\n";
+			std::cout << OFFSET2 "Device type:    " << getDeviceType(devices[deviceIndex]) << "\n";
+			std::cout << OFFSET2 "Memory size:    " << getDeviceMemorySize(devices[deviceIndex]) << " mgbt" << "\n";
+			std::cout << OFFSET2 "Device version: " << getDeviceData(devices[deviceIndex], CL_DEVICE_VERSION) << "\n";
+			std::cout << OFFSET2 "Extensions:     " << getDeviceData(devices[deviceIndex], CL_DEVICE_EXTENSIONS) << "\n";
 		}
+		std::cout.flush();
 	}
 
 	return 0;
