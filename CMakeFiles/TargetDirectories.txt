@@ -1,0 +1,8 @@
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/CMakeFiles/enumDevices.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/CMakeFiles/edit_cache.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/CMakeFiles/rebuild_cache.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/libs/CMakeFiles/edit_cache.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/libs/CMakeFiles/rebuild_cache.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/libs/clew/CMakeFiles/libclew.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/libs/clew/CMakeFiles/edit_cache.dir
+/home/zdyaknoivl/VS_code_directory/HSE/gpu_programming/GPGPUTasks2025/libs/clew/CMakeFiles/rebuild_cache.dir
