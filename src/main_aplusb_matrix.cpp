@@ -37,9 +37,9 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_aplusb_matrix_bad(avk2::getAplusBMatrixBad());
     avk2::KernelSource vk_aplusb_matrix_good(avk2::getAplusBMatrixGood());
 
-    unsigned int task_size = 64;  // 64
-    unsigned int width = task_size * 256;  // 256
-    unsigned int height = task_size * 128;  // 128
+    unsigned int task_size = 64;
+    unsigned int width = task_size * 256;
+    unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
 
     std::vector<unsigned int> as(width * height, 0);
