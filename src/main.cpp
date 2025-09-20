@@ -109,14 +109,14 @@ int main()
 
 			// Имя
 			size_t nameSize = 0;
-			clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &nameSize);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &nameSize));
 			std::vector<char> deviceName(nameSize);
-			clGetDeviceInfo(device, CL_DEVICE_NAME, nameSize, deviceName.data(), nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, nameSize, deviceName.data(), nullptr));
 			std::cout << "        Name:             " << deviceName.data() << std::endl;
 
 			// Тип
 			cl_device_type deviceType = 0;
-			clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
 
 			std::string type;
 			auto appendText = [](std::string &s, const std::string &suffix) {
@@ -151,36 +151,37 @@ int main()
 
 			// Память
 			cl_ulong globalMemorySize = 0;
-			clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemorySize), &globalMemorySize, nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemorySize), &globalMemorySize, nullptr));
 			std::cout << "        Memory:           " << (globalMemorySize / (1024 * 1024)) << " MB" << std::endl;
 
 			// Частота
 			cl_uint clockFrequency = 0;
-			clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(clockFrequency), &clockFrequency, nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(clockFrequency), &clockFrequency, nullptr));
 			(clockFrequency != 0)
 			    ? std::cout << "        Frequency:        " << clockFrequency << " MHz" << std::endl
 				: std::cout << "        Frequency:        " << "Undefined" << std::endl;
 
 			// Open CL
 			size_t deviceVersionSize = 0;
-			clGetDeviceInfo(device, CL_DEVICE_VERSION, 0, nullptr, &deviceVersionSize);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VERSION, 0, nullptr, &deviceVersionSize));
 			std::vector<char> deviceVersion(deviceVersionSize);
-			clGetDeviceInfo(device, CL_DEVICE_VERSION, deviceVersionSize, deviceVersion.data(), nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VERSION, deviceVersionSize, deviceVersion.data(), nullptr));
 			std::cout << "        OpenCL version:   " << deviceVersion.data() << std::endl;
 
 			size_t openclCVersionSize = 0;
-			clGetDeviceInfo(device, CL_DEVICE_OPENCL_C_VERSION, 0, nullptr, &openclCVersionSize);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_OPENCL_C_VERSION, 0, nullptr, &openclCVersionSize));
 			std::vector<char> openclCVersion(openclCVersionSize);
-			clGetDeviceInfo(device, CL_DEVICE_OPENCL_C_VERSION, openclCVersionSize, openclCVersion.data(), nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_OPENCL_C_VERSION, openclCVersionSize, openclCVersion.data(), nullptr));
 			std::cout << "        OpenCL C version: " << openclCVersion.data() << std::endl;
 
 			size_t driverVersionSize = 0;
-			clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &driverVersionSize);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &driverVersionSize));
 			std::vector<char> driverVersion(driverVersionSize);
-			clGetDeviceInfo(device, CL_DRIVER_VERSION, driverVersionSize, driverVersion.data(), nullptr);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DRIVER_VERSION, driverVersionSize, driverVersion.data(), nullptr));
 			std::cout << "        Driver version:   " << driverVersion.data() << std::endl;
 		}
 	}
 
 	return 0;
 }
+
