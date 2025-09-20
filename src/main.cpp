@@ -109,7 +109,7 @@ int main()
 			cl_device_type deviceType = CL_DEVICE_TYPE_DEFAULT;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, deviceTypeSize, &deviceType, nullptr));
 			std::cout << "    Device " << deviceIndex << " type: " << deviceType << std::endl;
-			// Надеюсь ничего страшного что я не отобразил чиселку в строку))
+			// Надеюсь ничего страшного что я не отобразил чиселку в строку)
 
 			size_t deviceMemSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, 0, nullptr, &deviceMemSize));
