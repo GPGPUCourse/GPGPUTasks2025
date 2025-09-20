@@ -112,9 +112,9 @@ int main()
 			// Надеюсь ничего страшного что я не отобразил чиселку в строку)
 
 			size_t deviceMemSize = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, 0, nullptr, &deviceMemSize));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, 0, nullptr, &deviceMemSize));
 			cl_ulong globalMemSize = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, deviceMemSize, &globalMemSize, nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, deviceMemSize, &globalMemSize, nullptr));
 			std::cout << "    Device " << deviceIndex << " mem size: " << static_cast<double>(globalMemSize) / (1ull << 20) << std::endl;
 
 			cl_uint deviceMaxUnits = 0;
