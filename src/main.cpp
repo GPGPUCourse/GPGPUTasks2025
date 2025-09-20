@@ -83,15 +83,36 @@ std::string getDeviceType(cl_device_id device_id)
 	}
 }
 
-std::string getDeviceMemorySize(cl_device_id device_id)
+template<typename T>
+std::pair<T, T> div(T x, T y)
+{
+	auto res = std::div(x, y);
+	return { res.quot, res.rem };
+}
+
+std::string getDeviceLocalMemorySize(cl_device_id device_id)
 {
 	cl_ulong memory;
 	OCL_SAFE_CALL(clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &memory, nullptr));
-	if(auto mb = memory >> 20; mb > 0)
+	for(auto suff : { "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" })
 	{
-		return std::to_string(mb) + " mg";
+		if(auto [next, rem] = div(memory, 1024); next > 0 && rem == 0)
+		{
+			memory = next;
+		}
+		else
+		{
+			return std::to_string(memory) + suff;
+		}
 	}
-	return std::to_string(memory >> 10) + " kb";
+	return "undefined";
+}
+
+std::string getDeviceGlobalMemorySize(cl_device_id device_id)
+{
+	cl_ulong memory;
+	OCL_SAFE_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &memory, nullptr));
+	return std::to_string(memory >> 20) + "MB";
 }
 
 int main()
@@ -127,11 +148,12 @@ int main()
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
 			std::cout << OFFSET1 "Device #" << (deviceIndex + 1) << "/" << devicesCount << "\n";
-			std::cout << OFFSET2 "Device name:    " << getDeviceData(devices[deviceIndex], CL_DEVICE_NAME) << "\n";
-			std::cout << OFFSET2 "Device type:    " << getDeviceType(devices[deviceIndex]) << "\n";
-			std::cout << OFFSET2 "Memory size:    " << getDeviceMemorySize(devices[deviceIndex]) << "\n";
-			std::cout << OFFSET2 "Device version: " << getDeviceData(devices[deviceIndex], CL_DEVICE_VERSION) << "\n";
-			std::cout << OFFSET2 "Extensions:     " << getDeviceData(devices[deviceIndex], CL_DEVICE_EXTENSIONS) << "\n";
+			std::cout << OFFSET2 "Device name:      " << getDeviceData(devices[deviceIndex], CL_DEVICE_NAME) << "\n";
+			std::cout << OFFSET2 "Device type:      " << getDeviceType(devices[deviceIndex]) << "\n";
+			std::cout << OFFSET2 "Global memory sz: " << getDeviceGlobalMemorySize(devices[deviceIndex]) << "\n";
+			std::cout << OFFSET2 "Local memory sz:  " << getDeviceLocalMemorySize(devices[deviceIndex]) << "\n";
+			std::cout << OFFSET2 "Device version:   " << getDeviceData(devices[deviceIndex], CL_DEVICE_VERSION) << "\n";
+			std::cout << OFFSET2 "Extensions:       " << getDeviceData(devices[deviceIndex], CL_DEVICE_EXTENSIONS) << "\n";
 		}
 		std::cout.flush();
 	}
