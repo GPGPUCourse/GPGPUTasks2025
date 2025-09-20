@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/enumDevices.dir/src/main.cpp.o -o enumDevices  libs/clew/liblibclew.a -ldl 
