@@ -16,5 +16,13 @@ __kernel void aplusb_matrix_good(__global const uint* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
+    // Код оставили таким же, но изменили размер рабочей группы: теперь GROUP_SIZE x 1 (горизонтально) - что эффективнее с точки зрения coalesced memory access
+    unsigned int col = get_global_id(0);
+    unsigned int row = get_global_id(1);
+    
+    if (row >= height || col >= width) {
+        return;
+    }
+    
+    c[row * width + col] = a[row * width + col] + b[row * width + col];
 }
