@@ -41,7 +41,6 @@ cl_int reportErrorsExceptInvalidValue(cl_int err, const std::string &filename, i
 
 #define OCL_SEMI_SAFE_CALL(expr) reportErrorsExceptInvalidValue(expr, __FILE__, __LINE__)
 
-
 std::string getPlatformData(cl_platform_id platform, cl_platform_info param_name, size_t size = 256)
 {
 	std::string data(size, 0);
@@ -88,7 +87,11 @@ std::string getDeviceMemorySize(cl_device_id device_id)
 {
 	cl_ulong memory;
 	OCL_SAFE_CALL(clGetDeviceInfo(device_id, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &memory, nullptr));
-	return std::to_string(memory >> 10);
+	if(auto mb = memory >> 20; mb > 0)
+	{
+		return std::to_string(mb) + " mg";
+	}
+	return std::to_string(memory >> 10) + " kb";
 }
 
 int main()
@@ -126,7 +129,7 @@ int main()
 			std::cout << OFFSET1 "Device #" << (deviceIndex + 1) << "/" << devicesCount << "\n";
 			std::cout << OFFSET2 "Device name:    " << getDeviceData(devices[deviceIndex], CL_DEVICE_NAME) << "\n";
 			std::cout << OFFSET2 "Device type:    " << getDeviceType(devices[deviceIndex]) << "\n";
-			std::cout << OFFSET2 "Memory size:    " << getDeviceMemorySize(devices[deviceIndex]) << " mgbt" << "\n";
+			std::cout << OFFSET2 "Memory size:    " << getDeviceMemorySize(devices[deviceIndex]) << "\n";
 			std::cout << OFFSET2 "Device version: " << getDeviceData(devices[deviceIndex], CL_DEVICE_VERSION) << "\n";
 			std::cout << OFFSET2 "Extensions:     " << getDeviceData(devices[deviceIndex], CL_DEVICE_EXTENSIONS) << "\n";
 		}
