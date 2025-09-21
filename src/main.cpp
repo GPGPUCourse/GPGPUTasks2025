@@ -142,7 +142,7 @@ int main()
 			// Кэш
 			cl_ulong cacheSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(devices[deviceIndex], CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cacheSize), &cacheSize, nullptr));
-			std::cout << "        Device global cache size: " << cacheSize << std::endl;
+			std::cout << "        Device global cache size: " << cacheSize / 1024 << " KB" << std::endl;
 
 			// Compute units
 			cl_uint unitsCount = 0;
