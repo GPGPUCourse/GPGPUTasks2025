@@ -95,7 +95,7 @@ int main()
 		std::vector<cl_device_id> deviceIds(devicesCount, 0);
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_DEFAULT, devicesCount, deviceIds.data(), nullptr));
 		//
-		// std::cout << "    Devices count: " << devicesCount << std::endl;
+		std::cout << "    Devices count: " << devicesCount << std::endl;
 		//
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
