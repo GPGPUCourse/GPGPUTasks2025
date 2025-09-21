@@ -110,11 +110,11 @@ int main()
 
 			cl_ulong deviceMemory;
 			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMemory, nullptr));
-			std::cout << "Device memory: " << deviceMemory / 1024 / 1024 << std::endl;
+			std::cout << "Device memory: " << deviceMemory / 1024 / 1024 << " MB" << std::endl;
 
 			cl_uint clockFrequency;
 			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &clockFrequency, nullptr));
-			std::cout << "Device frequency: " << clockFrequency << std::endl;
+			std::cout << "Device frequency: " << clockFrequency << " MHz" << std::endl;
 
 
 
