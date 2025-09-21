@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc liblibclew.a CMakeFiles/libclew.dir/libclew/ocl_init.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib liblibclew.a

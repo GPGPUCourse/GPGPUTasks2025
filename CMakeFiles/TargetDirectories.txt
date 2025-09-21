@@ -1,8 +1,0 @@
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/CMakeFiles/enumDevices.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/CMakeFiles/edit_cache.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/CMakeFiles/rebuild_cache.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/libs/CMakeFiles/edit_cache.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/libs/CMakeFiles/rebuild_cache.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/libs/clew/CMakeFiles/libclew.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/libs/clew/CMakeFiles/edit_cache.dir
-/Users/vikria/Desktop/CSC/GPGPUTasks2025/libs/clew/CMakeFiles/rebuild_cache.dir
