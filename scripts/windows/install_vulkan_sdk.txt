@@ -3,9 +3,9 @@
     -DCMAKE_TOOLCHAIN_FILE=C:\...\.vcpkg-clion\vcpkg\scripts\buildsystems\vcpkg.cmake
 3) Download and install Vulkan SDK (make sure to tick "Vulkan Memory Allocator header" - see screen /.figures/vulkan_sdk_installer_windows.png):
     https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe
-4) Add to CMake options (to find Vulkan pacakge and Vulkan headers):
+4) Add to CMake options (to find Vulkan package and Vulkan headers):
     -DCMAKE_PREFIX_PATH="C:\VulkanSDK\1.3.283.0"
-4) Add to CMake options (Vulkan shaders compiler):
+5) Add to CMake options (Vulkan shaders compiler):
     -DGLSLC_BIN=C:\VulkanSDK\1.3.283.0\Bin\glslc.exe
 
 Finally, CMake options should look similar to this (note that -DSPIR_CLANG_BIN="C:\Program Files\LLVM\bin\clang.exe" is a result of install_opencl_preprocessor.txt):

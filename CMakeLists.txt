@@ -84,7 +84,8 @@ if (GPU_CUDA_SUPPORT)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
             src/kernels/cu/aplusb_matrix_bad.cu
-            src/kernels/cu/aplusb_matrix_good.cu)
+            src/kernels/cu/aplusb_matrix_good.cu
+            src/kernels/cu/aplusb.cu)
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})

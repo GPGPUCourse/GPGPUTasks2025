@@ -13,12 +13,12 @@
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
-    // - Если не доступо ни одного устройства - кинет ошибку
+    // - Если не доступно ни одного устройства - кинет ошибку
     // - Если доступно ровно одно устройство - вернет это устройство
     // - Если доступно N>1 устройства:
     //   - Если аргументов запуска нет или переданное число не находится в диапазоне от 0 до N-1 - кинет ошибку
     //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
-    gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
+        gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
@@ -57,19 +57,6 @@ void run(int argc, char** argv)
         // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
         gpu::WorkSize workSize(GROUP_SIZE, n);
         ocl_aplusb.exec(workSize, a_gpu, b_gpu, c_gpu, n);
-
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            cuda::aplusb(workSize, a_gpu, b_gpu, c_gpu, n);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            vk_aplusb.exec(n, workSize, a_gpu, b_gpu, c_gpu);
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
-
         times.push_back(t.elapsed());
     }
     std::cout << "a + b kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
