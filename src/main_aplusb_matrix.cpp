@@ -56,8 +56,8 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u a_gpu(width * height), b_gpu(width * height), c_gpu(width * height);
 
     // TODO Удалите этот rassert - прогрузите входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    a_gpu.copyFrom(as.data(), as.size());
-    b_gpu.copyFrom(bs.data(), bs.size());
+    a_gpu.writeN(as.data(), as.size());
+    b_gpu.writeN(bs.data(), bs.size());
 
     {
         std::cout << "Running BAD matrix kernel..." << std::endl;
@@ -94,9 +94,9 @@ void run(int argc, char** argv)
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
         // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
-        double avg_time = stats::average(times);
+        double median_time = stats::median(times);
         double total_bytes = 12.0 * width * height;
-        double bandwidthGBs = total_bytes / avg_time / 1e9;
+        double bandwidthGBs = total_bytes / median_time / 1e9;
         std::cout << "Effective bandwidth: " << bandwidthGBs << " GB/s" << std::endl;
 
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
@@ -144,9 +144,9 @@ void run(int argc, char** argv)
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
         // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
-        double avg_time = stats::average(times);
+        double median_time = stats::median(times);
         double total_bytes = 12.0 * width * height;
-        double bandwidthGBs = total_bytes / avg_time / 1e9;
+        double bandwidthGBs = total_bytes / median_time / 1e9;
         std::cout << "Effective bandwidth: " << bandwidthGBs << " GB/s" << std::endl;
 
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
