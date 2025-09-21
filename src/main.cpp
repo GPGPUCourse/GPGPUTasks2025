@@ -126,7 +126,7 @@ int main()
 				std::cout << "  Device type: unknown" << std::endl;
 			}
 
-			// print device memory size
+			// print device global memory size
 			cl_ulong globalMemorySize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &globalMemorySize, nullptr));
 			std::cout << "  Device global memory size: " << globalMemorySize / 1024 / 1024 << "MB" << std::endl;
