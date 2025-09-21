@@ -30,7 +30,6 @@ void reportError(cl_int err, const std::string &filename, int line)
 
 int main()
 {
-	std::cout << "test";
 	// Пытаемся слинковаться с символами OpenCL API в runtime (через библиотеку libs/clew)
 	if(!ocl_init())
 		throw std::runtime_error("Can't init OpenCL driver!");
@@ -106,15 +105,15 @@ int main()
 			std::cout << "Device name: " << deviceName.data() << std::endl;
 
 			cl_device_type deviceType;
-			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_TYPE, sizeof cl_device_type, &deviceType, nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, nullptr));
 			std::cout << "Device type: " << deviceType << std::endl;
 
 			cl_ulong deviceMemory;
-			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof cl_ulong, &deviceMemory, nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMemory, nullptr));
 			std::cout << "Device memory: " << deviceMemory / 1024 / 1024 << std::endl;
 
 			cl_uint clockFrequency;
-			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof cl_uint, &clockFrequency, nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(id, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &clockFrequency, nullptr));
 			std::cout << "Device frequency: " << clockFrequency << std::endl;
 
 
