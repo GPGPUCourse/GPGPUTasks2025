@@ -17,4 +17,13 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
     // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
+    const unsigned int x = get_global_id(0);
+    const unsigned int y = get_global_id(1);
+
+    if (y >= height || x >= width)
+       return;
+    const unsigned int index = y+ x*height;
+    c[index] = a[index] + b[index];
+
+
 }
