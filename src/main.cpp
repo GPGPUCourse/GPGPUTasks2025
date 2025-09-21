@@ -115,9 +115,9 @@ int main()
 
 			size_t deviceTypeSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(deviceIds[deviceIndex], CL_DEVICE_TYPE, 0, nullptr, &deviceTypeSize));
-			std::vector<unsigned char> deviceType(deviceTypeSize, 0);
-			OCL_SAFE_CALL(clGetDeviceInfo(deviceIds[deviceIndex], CL_DEVICE_TYPE, deviceTypeSize, deviceName.data(), nullptr));
-			std::cout << "    		Device type: " << deviceType.data() << std::endl;
+			cl_device_type deviceType = CL_DEVICE_TYPE_DEFAULT;
+			OCL_SAFE_CALL(clGetDeviceInfo(deviceIds[deviceIndex], CL_DEVICE_TYPE, deviceTypeSize, &deviceType, nullptr));
+			std::cout << "    		Device type: " << deviceType << std::endl;
 
 			// размер памяти в байтах
 			cl_ulong deviceGlobalMemorySize = 0;
