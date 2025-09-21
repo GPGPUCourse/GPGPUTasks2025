@@ -43,7 +43,6 @@ void run(int argc, char** argv)
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
 
     // TODO Удалите эту строку, она для того чтобы моя заготовка (не работающий код) не пыталась запуститься на CI
-    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
     std::vector<unsigned int> as(width * height, 0);
     std::vector<unsigned int> bs(width * height, 0);
