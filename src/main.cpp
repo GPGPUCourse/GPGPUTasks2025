@@ -124,6 +124,11 @@ int main()
 			cl_uint deviceCacheLine = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceCacheLine, nullptr));
 			std::cout << "    Device " << deviceIndex << " cache line size: " << deviceCacheLine << std::endl;
+
+			cl_uint deviceWorkItemDim = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceWorkItemDim, nullptr));
+			std::cout << "    Device " << deviceIndex << " max item dim: " << deviceWorkItemDim << std::endl;
+
 		}
 	}
 
