@@ -25,38 +25,35 @@ namespace {
 	// see https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Validation_layers
 	// this is a debug callback for Vulkan Validation Layers
 	// when they find any problems - this callback will be triggered
-	static VKAPI_ATTR VkBool32 VKAPI_CALL
-	debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
-				  const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
-	{
-		avk2::InstanceContext *instance_context = (avk2::InstanceContext*) pUserData;
+        static VKAPI_ATTR VkBool32 VKAPI_CALL
+        debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+              vk::DebugUtilsMessageTypeFlagsEXT messageType,
+              const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+              void* pUserData)
+        {
+            avk2::InstanceContext *instance_context = (avk2::InstanceContext*) pUserData;
 
-		bool message_is_suppressed = false;
-		if (avk2::isMoltenVK()) {
-			std::string message_id_name = std::string(pCallbackData->pMessageIdName);
-			std::string message = std::string(pCallbackData->pMessage);
+            bool message_is_suppressed = false;
+            if (avk2::isMoltenVK()) {
+                std::string message_id_name(pCallbackData->pMessageIdName);
+                std::string message(pCallbackData->pMessage);
+                std::string geom_feature_id = "VUID-VkShaderModuleCreateInfo-pCode-08740";
+                std::string geom_feature_msg = "SPIR-V Capability Geometry was declared";
 
-			std::string message_id_name_about_geometry_shader_feature = "VUID-VkShaderModuleCreateInfo-pCode-08740";
-			std::string message_about_geometry_shader_feature = "SPIR-V Capability Geometry was declared, but one of the following requirements is required (VkPhysicalDeviceFeatures::geometryShader)";
+                if (message_id_name == geom_feature_id &&
+                    message.find(geom_feature_msg) != std::string::npos) {
+                    message_is_suppressed = true;
+                    }
+            }
 
-			if (message_id_name == message_id_name_about_geometry_shader_feature && message.find(message_about_geometry_shader_feature) != std::string::npos) {
-				message_is_suppressed = true;
-				// note that for now we need geometry shader ONLY for gl_PrimitiveID
-				// but there is no geometry shader support on MoltenVK,
-				// so we rely on fact that it seems that gl_PrimitiveID can be used on MoltenVK even without geometry shader feature requested
-				// https://computergraphics.stackexchange.com/questions/9449/vulkan-using-gl-primitiveid-without-geometryshader-feature#comment14810_9449
-			}
-		}
+            if (!message_is_suppressed) {
+                std::cerr << "Vulkan debug callback: " << pCallbackData->pMessage << std::endl;
+                instance_context->setDebugCallbackTriggered(true);
+            }
 
-		if (!message_is_suppressed) {
-			std::cerr << "Vulkan debug callback triggered with " << pCallbackData->pMessage << std::endl;
-			instance_context->setDebugCallbackTriggered(true);
-		} else {
-			std::cout << "Vulkan debug callback triggered with suppressed message " << pCallbackData->pMessage << std::endl;
-		}
+            return VK_FALSE;
+        }
 
-		return VK_FALSE; // put debug point here to catch any validation error when it happens
-	}
 
 	VkDebugUtilsMessengerEXT setupDebugCallback(avk2::InstanceContext *instance_context)
 	{

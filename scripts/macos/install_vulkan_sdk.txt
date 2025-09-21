@@ -1,4 +1,4 @@
-1) Download Vulkan SDK (it includes MoltenVK) - https://sdk.lunarg.com/sdk/download/1.3.283.0/mac/vulkansdk-macos-1.3.283.0.dmg
+1) Download Vulkan SDK (it includes MoltenVK) - https://sdk.lunarg.com/sdk/download/1.3.283.0/mac/vulkansdk-macos-1.4.321.0.dmg
 
 2) Install Vulkan SDK:
 2.1) Into directory /opt/vulkansdk
