@@ -11,7 +11,7 @@ __kernel void aplusb(__global const uint* a,
                      unsigned int n)
 {
     const unsigned int index = get_global_id(0);
-
+    
     if (index >= n)
         return;
 
