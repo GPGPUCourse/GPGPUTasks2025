@@ -4,3 +4,6 @@
 build*
 cmake-build*
 .vs
+.vscode/settings.json
+src/main.cpp
+scripts/linux/googletest-release-1.10.0*
