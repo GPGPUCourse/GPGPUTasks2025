@@ -88,6 +88,10 @@ int main()
 		clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount);
 		std::cout << "    Number of devices: " << devicesCount << std::endl;
 
+		std::vector<cl_device_id> devices(devicesCount, 0);
+		clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr);
+		// clGetDeviceIDs(devicesCount, devices.data(), nullptr);
+
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
 			// TODO 2.2
@@ -96,6 +100,36 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			std::cout << "    Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+			cl_device_id device = devices[deviceIndex];
+
+			// query device name
+			size_t deviceNameSize = 0;
+			clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize);
+			std::vector<unsigned char> deviceName(deviceNameSize, 0);
+			clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), 0);
+			std::cout << "        Device name: " << deviceName.data() << std::endl;
+
+			// query device type
+			size_t deviceTypeSize = 0;
+			clGetDeviceInfo(device, CL_DEVICE_TYPE, 0, nullptr, &deviceTypeSize);
+			cl_device_type deviceType;
+			clGetDeviceInfo(device, CL_DEVICE_TYPE, deviceTypeSize, &deviceType, 0);
+			std::cout << "        Device type: " << deviceType << std::endl;
+
+			// query device memory size
+			size_t deviceGlobalMemSize = 0;
+			clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, 0, nullptr, &deviceGlobalMemSize);
+			cl_ulong deviceGlobalMem;
+			clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, deviceGlobalMemSize, &deviceGlobalMem, 0);
+			std::cout << "        Global memory size: " << deviceGlobalMem / 1024 / 1024 << "MB" << std::endl;
+
+			// query max number of images in an image array
+			size_t imageMaxArraySize = 0;
+			clGetDeviceInfo(device, CL_DEVICE_IMAGE_MAX_ARRAY_SIZE, 0, nullptr, &imageMaxArraySize);
+			size_t imageMaxArray;
+			clGetDeviceInfo(device, CL_DEVICE_IMAGE_MAX_ARRAY_SIZE, deviceGlobalMemSize, &imageMaxArraySize, 0);
+			std::cout << "        Image max array size: " << imageMaxArray << std::endl; // I don't know what it means
 		}
 	}
 
