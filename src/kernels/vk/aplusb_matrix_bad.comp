@@ -22,13 +22,12 @@ void main()
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
     const uint x = gl_GlobalInvocationID.x;
     const uint y = gl_GlobalInvocationID.y;
     if (x >= params.width || y>=params.height)
         return;
 
-    const uint index = y*params.width+ x;
+    const uint index = (y*params.width+ x)/params.height + (y*params.width+ x)%params.height*params.width;
 
     cs[index] = as[index] + bs[index];
 
