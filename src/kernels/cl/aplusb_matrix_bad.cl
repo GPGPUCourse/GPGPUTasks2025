@@ -10,6 +10,13 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
                      unsigned int width,
                      unsigned int height)
 {
+    const unsigned int x = get_global_id(0);
+    const unsigned int y = get_global_id(1);
+    if (x >= width || y >= height) {
+        return;
+    }
+    const unsigned index = x * height + y;
+    c[index] = a[index] + b[index];
     // все три массива - линейно выложенные двумерные матрицы размера width (число столбиков) x height (число рядов)
     // при этом в памяти подряд идут элементы являющимися соседями в рамках одного ряда,
     // т.е. матрица выложена в памяти линейно ряд за рядом
