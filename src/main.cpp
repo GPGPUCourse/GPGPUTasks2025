@@ -115,7 +115,7 @@ int main()
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, 0, nullptr, &deviceMemSize));
 			cl_ulong globalMemSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, deviceMemSize, &globalMemSize, nullptr));
-			std::cout << "    Device " << deviceIndex << " mem size: " << static_cast<double>(globalMemSize) / (1ull << 20) << std::endl;
+			std::cout << "    Device " << deviceIndex << " mem size: " << static_cast<double>(globalMemSize) / (1ull << 20) << " MB" << std::endl;
 
 			cl_uint deviceMaxUnits = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceMaxUnits, nullptr));
@@ -123,7 +123,7 @@ int main()
 
 			cl_uint deviceCacheLine = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceCacheLine, nullptr));
-			std::cout << "    Device " << deviceIndex << " cache line size: " << deviceCacheLine << std::endl;
+			std::cout << "    Device " << deviceIndex << " cache line size: " << deviceCacheLine << " bytes" << std::endl;
 
 			cl_uint deviceWorkItemDim = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceWorkItemDim, nullptr));
