@@ -29,11 +29,10 @@ void reportError(cl_int err, const std::string &filename, int line)
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
 static const char* deviceTypeToString(cl_device_type t)
 {
-    // t — битовое поле, но чаще это одно значение
     if (t & CL_DEVICE_TYPE_GPU)         return "GPU";
     if (t & CL_DEVICE_TYPE_CPU)         return "CPU";
     if (t & CL_DEVICE_TYPE_ACCELERATOR) return "Accelerator";
-#ifdef CL_DEVICE_TYPE_CUSTOM // в OpenCL 1.2 присутствует
+#ifdef CL_DEVICE_TYPE_CUSTOM
     if (t & CL_DEVICE_TYPE_CUSTOM)      return "Custom";
 #endif
     if (t & CL_DEVICE_TYPE_DEFAULT)     return "Default";
