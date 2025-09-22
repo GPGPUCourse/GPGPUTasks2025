@@ -121,7 +121,7 @@ int main() {
 		    device_type_str.pop_back();
 
 		    std::cout << "\t\t\tdevice name: " << device_name.data() << "\n\t\t\tdevice type:" << device_type_str <<\
-			    "\n\t\t\tdevice memory size: " << std::fixed << static_cast<cl_ulong>(device_memory_size / 1024.0f) << " bytes" << std::endl;
+			    "\n\t\t\tdevice memory size: " << std::fixed << static_cast<cl_ulong>(device_memory_size / (1024.0f * 1024.0f)) << " mbytes" << std::endl;
 
 		    // xtra
 		    // last lecture touched on work groups
