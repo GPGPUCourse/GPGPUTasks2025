@@ -9,5 +9,8 @@ add_subdirectory(libs)
 # Компилируем исполняемый файл нашей программы
 add_executable(enumDevices src/main.cpp)
 
-# Мы линкуемся с библиотекой clew (см. папку libs/clew) - она содержит в себе OpenCL headers + позволяет в runtime слинковаться с OpenCL API функциями
-target_link_libraries(enumDevices libclew)
+if(APPLE)
+    target_link_libraries(enumDevices "-framework OpenCL")
+else()
+    target_link_libraries(enumDevices libclew)
+endif()
