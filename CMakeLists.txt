@@ -4,6 +4,20 @@ project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# I could not install googletest locally so it added to libs directory & compiled manualy:)
+option(CMAKE_LOCAL_RUN "Is build runs localy." OFF)
+
+if (CMAKE_LOCAL_RUN)
+    set(CMAKE_BUILD_TYPE Debug)
+    set(GTEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}\\libs\\googletest)
+    set(GTEST_ROOT ${GTEST_DIR}\\googletest)
+    set(GTEST_LIBRARY ${GTEST_DIR}\\build\\lib\\${CMAKE_BUILD_TYPE}\\gtest.lib)
+    set(GTEST_MAIN_LIBRARY ${GTEST_DIR}\\build\\lib\\${CMAKE_BUILD_TYPE}\\gtest_main.lib)
+endif()
+
+message(WARNING Library: ${GTEST_LIBRARY})
+message(WARNING Main library: ${GTEST_MAIN_LIBRARY})
+
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
 option(GPU_CUDA_SUPPORT "CUDA support." OFF)
 
