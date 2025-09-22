@@ -62,14 +62,14 @@ int main()
 
 		// Название платформы
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformName.size(), platformName.data(), nullptr));
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// Вендор платформы
 		size_t platformVendorSize = 0;
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, std::addressof(platformVendorSize)));
-		std::vector<unsigned char> vendorName(platformNameSize, 0);
-		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendorName.size(), vendorName.data(), nullptr));
+		std::vector<unsigned char> vendorName(platformVendorSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, vendorName.data(), nullptr));
 		std::cout << "    Vendor name: " << vendorName.data() << std::endl;
 
 		// Число доступных устройств данной платформы
@@ -86,7 +86,7 @@ int main()
 			size_t deviceNameSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, std::addressof(deviceNameSize)));
 			std::vector<unsigned char> deviceName(deviceNameSize, 0);
-			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceName.size(), deviceName.data(), nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
 			std::cout << "        Device name: " << deviceName.data() << std::endl;
 
 			// - Тип устройства (видеокарта/процессор/что-то странное)
