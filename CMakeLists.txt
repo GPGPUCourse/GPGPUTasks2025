@@ -99,7 +99,7 @@ add_executable(main_aplusb src/main_aplusb.cpp)
 add_executable(main_aplusb_matrix src/main_aplusb_matrix.cpp)
 
 target_link_libraries(main_aplusb ${PROJECT_NAME}_core)
-target_link_libraries(main_aplusb_matrix ${PROJECT_NAME}_core)
+target_link_libraries(main_aplusb_matrix ${PROJECT_NAME}_core )
 
 if (GPU_CUDA_SUPPORT)
     target_include_directories(main_aplusb PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
