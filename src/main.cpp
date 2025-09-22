@@ -27,6 +27,18 @@ void reportError(cl_int err, const std::string &filename, int line)
 }
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
+static const char* deviceTypeToString(cl_device_type t)
+{
+    // t — битовое поле, но чаще это одно значение
+    if (t & CL_DEVICE_TYPE_GPU)         return "GPU";
+    if (t & CL_DEVICE_TYPE_CPU)         return "CPU";
+    if (t & CL_DEVICE_TYPE_ACCELERATOR) return "Accelerator";
+#ifdef CL_DEVICE_TYPE_CUSTOM // в OpenCL 1.2 присутствует
+    if (t & CL_DEVICE_TYPE_CUSTOM)      return "Custom";
+#endif
+    if (t & CL_DEVICE_TYPE_DEFAULT)     return "Default";
+    return "Unknown";
+}
 
 int main()
 {
@@ -66,7 +78,7 @@ int main()
 		// Затем откройте документацию по clGetPlatformInfo и в секции Errors найдите ошибку, с которой столкнулись
 		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
 		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
-        OCL_SAFE_CALL(clGetPlatformInfo(platform, 239, 0, nullptr, &platformNameSize));
+        // OCL_SAFE_CALL(clGetPlatformInfo(platform, 239, 0, nullptr, &platformNameSize));
 
         // TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
