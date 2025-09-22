@@ -3,6 +3,7 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/aplusb_matrix_bad.h"
 #include "cl/generated_kernels/aplusb_matrix_good.h"
+#include "cl/generated_kernels/aplusb_matrix_good_forloop.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/aplusb_matrix_bad_comp.h"
@@ -43,6 +44,10 @@ const ocl::ProgramBinaries& getAplusBMatrixBad()
 const ocl::ProgramBinaries& getAplusBMatrixGood()
 {
     return opencl_binaries_aplusb_matrix_good;
+}
+const ocl::ProgramBinaries& getAplusBMatrixGoodForloop()
+{
+    return opencl_binaries_aplusb_matrix_good_forloop;
 }
 } // namespace ocl
 
