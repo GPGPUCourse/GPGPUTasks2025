@@ -137,7 +137,7 @@ int main()
 			// размер памяти
 			cl_ulong memorySize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &memorySize, nullptr));
-			std::cout << "		Global memory: " << memorySize / (1024 * 1024) << std::endl;
+			std::cout << "		Global memory: " << memorySize / (1024 * 1024) << " MB" << std::endl;
 
 			// др. свойства
 			cl_uint computeUnits = 0;
