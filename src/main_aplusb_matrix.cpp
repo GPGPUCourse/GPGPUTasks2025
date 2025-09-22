@@ -37,11 +37,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_aplusb_matrix_bad(avk2::getAplusBMatrixBad());
     avk2::KernelSource vk_aplusb_matrix_good(avk2::getAplusBMatrixGood());
 
-    #if __LOCAL__
-    unsigned int task_size = 2; // Intel(R) Core(TM) i7-8665U CPU @ 1.90GHz Thanks Huawei!!!
-    #else
     unsigned int task_size = 64;
-    #endif
     unsigned int width = task_size * 256;
     unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024.0 / 1024.0) << " MB" << std::endl;
