@@ -80,6 +80,8 @@ int main()
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
+			std::cout << "    Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+
 			cl_device_id device = deviceIDs[deviceIndex];
 
 			// - Название устройства
