@@ -83,7 +83,6 @@ int main()
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
-		OCL_SAFE_CALL(clGetPlatformIDs(platformsCount, platforms.data(), nullptr));
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU,0, nullptr, &devicesCount));
 
 		std::vector<cl_device_id > devices(devicesCount);
