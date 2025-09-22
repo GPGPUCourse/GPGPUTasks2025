@@ -8,10 +8,19 @@
 
 <pre>
 $ ./enumDevices
-Number of OpenCL platforms: 1
-Platform #1/1
-    Platform name: 
-The command "./enumDevices" exited with 0.
+Number of OpenCL platforms: 2
+Platform #1/2
+    Platform name: NVIDIA CUDA
+    Vendor name: NVIDIA Corporation
+        Device name: NVIDIA GeForce RTX 3050 Ti Laptop GPU
+        Device type: GPU
+        Global memory size: 3768Mb
+Platform #2/2
+    Platform name: Portable Computing Language
+    Vendor name: The pocl project
+        Device name: cpu-haswell-AMD Ryzen 7 5800HS with Radeon Graphics
+        Device type: CPU
+        Global memory size: 11292Mb
 </pre>
 
 </p></details>
