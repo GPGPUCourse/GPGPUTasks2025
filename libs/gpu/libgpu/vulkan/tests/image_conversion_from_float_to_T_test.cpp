@@ -5,6 +5,7 @@
 #include <libbase/math.h>
 
 #include <random>
+#include <algorithm>
 
 #include "test_utils.h"
 #include "kernels/kernels.h"

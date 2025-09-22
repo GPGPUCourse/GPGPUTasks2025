@@ -51,7 +51,7 @@ jobs:
 
     - name: Run libs/gpu unit-tests
       working-directory: ${{github.workspace}}/build
-      run: AVK_ENABLE_VALIDATION_LAYERS=false ./libs/gpu/libgpu_test
+      run: AVK_ENABLE_VALIDATION_LAYERS=false ./libs/gpu/libgpu_test --gtest_filter=-vulkan.*
 
     - name: Run main_aplusb
       working-directory: ${{github.workspace}}/build

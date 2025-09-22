@@ -13,6 +13,7 @@ googletest_version=1.10.0
 echo "Downloading sources"
 curl -O https://github.com/google/googletest/archive/refs/tags/release-${googletest_version}.zip
 
+# Alternatively you can install googletest simply via: "brew install googletest" - but if you do - you do it on your own risk (version incompatibility is possible)
 echo "Installing googletest"
 unzip release-${googletest_version}.zip
 rm release-${googletest_version}.zip
