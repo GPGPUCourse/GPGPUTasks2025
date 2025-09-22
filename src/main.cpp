@@ -70,7 +70,7 @@ int main()
 	{
 		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
 		cl_platform_id platform = platforms[platformIndex];
-
+		//
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::cout << "    Platform name: " << getPlatformProperty(CL_PLATFORM_NAME, platform).data() << std::endl;
