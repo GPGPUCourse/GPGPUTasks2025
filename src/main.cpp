@@ -28,6 +28,8 @@ void reportError(cl_int err, const std::string &filename, int line)
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
 
+std::string get_device_type(cl_device_type deviceType);
+
 int main()
 {
 	// Пытаемся слинковаться с символами OpenCL API в runtime (через библиотеку libs/clew)
@@ -55,41 +57,87 @@ int main()
 		// Не забывайте проверять коды ошибок с помощью макроса OCL_SAFE_CALL
 		size_t platformNameSize = 0;
 		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &platformNameSize));
-		// TODO 1.1
-		// Попробуйте вместо CL_PLATFORM_NAME передать какое-нибудь случайное число - например 239
-		// Т.к. это некорректный идентификатор параметра платформы - то метод вернет код ошибки
-		// Макрос OCL_SAFE_CALL заметит это, и кинет ошибку с кодом
-		// Откройте таблицу с кодами ошибок:
-		// libs/clew/CL/cl.h:103
-		// P.S. Быстрый переход к файлу в CLion: Ctrl+Shift+N -> cl.h (или даже с номером строки: cl.h:103) -> Enter
-		// Найдите там нужный код ошибки и ее название
-		// Затем откройте документацию по clGetPlatformInfo и в секции Errors найдите ошибку, с которой столкнулись
-		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
-		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
 
-		// TODO 1.2
-		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
+		// ANS: Заменив на `OCL_SAFE_CALL(clGetPlatformInfo(platform, 0xBEEF, 0, nullptr, &platformNameSize));` получил код ошибки -30, что соответствует CL_INVALID_VALUE
+
+		// Название платформы
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformName.size(), platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
-		// TODO 1.3
-		// Запросите и напечатайте так же в консоль вендора данной платформы
+		// Вендор платформы
+		size_t platformVendorSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, std::addressof(platformVendorSize)));
+		std::vector<unsigned char> vendorName(platformNameSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendorName.size(), vendorName.data(), nullptr));
+		std::cout << "    Vendor name: " << vendorName.data() << std::endl;
 
-		// TODO 2.1
-		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
+		// Число доступных устройств данной платформы
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, std::addressof(devicesCount)));
+		std::vector<cl_device_id> deviceIDs(devicesCount, 0);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, deviceIDs.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
-			// TODO 2.2
-			// Запросите и напечатайте в консоль:
+			cl_device_id device = deviceIDs[deviceIndex];
+
 			// - Название устройства
+			size_t deviceNameSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, std::addressof(deviceNameSize)));
+			std::vector<unsigned char> deviceName(deviceNameSize, 0);
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceName.size(), deviceName.data(), nullptr));
+			std::cout << "        Device name: " << deviceName.data() << std::endl;
+
 			// - Тип устройства (видеокарта/процессор/что-то странное)
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), std::addressof(deviceType), nullptr));
+			std::string deviceTypeName = get_device_type(deviceType);
+			std::cout << "        Device type: " << deviceTypeName << std::endl;
+
 			// - Размер памяти устройства в мегабайтах
+			cl_ulong deviceGlobalMemSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(deviceGlobalMemSize), std::addressof(deviceGlobalMemSize), nullptr));
+			std::cout << "        Device global memory size: " << (deviceGlobalMemSize / (1024 * 1024)) << " MB" << std::endl;
+
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			cl_uint computeUnits = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(computeUnits), std::addressof(computeUnits), nullptr));
+			std::cout << "        Device max compute units: " << computeUnits << std::endl;
+			cl_uint maxClockFrequency = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(maxClockFrequency), std::addressof(maxClockFrequency), nullptr));
+			std::cout << "        Device max clock frequency: " << maxClockFrequency << " MHz" << std::endl;
+			cl_uint addressBits = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_ADDRESS_BITS, sizeof(addressBits), std::addressof(addressBits), nullptr));
+			std::cout << "        Device address bits: " << addressBits << std::endl;
+			cl_ulong localMemSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(localMemSize), std::addressof(localMemSize), nullptr));
+			std::cout << "        Device local memory size: " << (localMemSize / 1024) << " KB" << std::endl;
 		}
 	}
 
 	return 0;
+}
+
+std::string get_device_type(cl_device_type deviceType)
+{
+	std::string deviceTypeName;
+	for(auto [mask, type] : { std::pair{ CL_DEVICE_TYPE_CPU, "CPU" },
+	                          { CL_DEVICE_TYPE_GPU, "GPU" },
+	                          { CL_DEVICE_TYPE_ACCELERATOR, "ACCELERATOR" },
+	                          { CL_DEVICE_TYPE_DEFAULT, "DEFAULT" },
+	                          { CL_DEVICE_TYPE_CUSTOM, "CUSTOM" } })
+	{
+		if(deviceType & mask)
+		{
+			deviceTypeName += type;
+			deviceTypeName += " ";
+		}
+	}
+
+	if(deviceTypeName.empty())
+	{
+		return "[Unknown type]";
+	}
+	return deviceTypeName;
 }
