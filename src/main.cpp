@@ -48,7 +48,7 @@ int main()
 
 	for(int platformIndex = 0; platformIndex < platformsCount; ++platformIndex)
 	{
-		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount << std::endl;
+		std::cout << "Platform #" << (platformIndex + 1) << "/" << platformsCount  <<  ":"<< std::endl;
 		cl_platform_id platform = platforms[platformIndex];
 
 		// Откройте документацию по "OpenCL Runtime" -> "Query Platform Info" -> "clGetPlatformInfo"
@@ -78,7 +78,7 @@ int main()
 			nullptr                   // Нас не интересует размер в этот раз, можно nullptr
 		));
 
-		std::cout << "    Platform name: " << platformName.data() << std::endl;
+		std::cout << "	Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
@@ -93,12 +93,12 @@ int main()
 			vendorName.data(),        
 			nullptr                   
 		));
-		std::cout << "Platform vendor: " << vendorName.data() << std::endl;
+		std::cout << "	Platform vendor: " << vendorName.data() << std::endl;
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
-		std::cout << "Number of OpenCL devices: " << devicesCount << std::endl;
+		std::cout << "	Number of OpenCL devices: " << devicesCount << std::endl;
 		std::vector<cl_device_id> devices(devicesCount);
 		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
@@ -110,13 +110,48 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
-			std::cout << "Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+			std::cout << "	Device #" << (deviceIndex + 1) << "/" << devicesCount << ":"  << std::endl;
 			cl_device_id device = devices[deviceIndex];
+
+			// Device name
 			size_t deviceNameSize = 0;
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
 			std::vector<char> deviceName(deviceNameSize);
 			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
-    		std::cout << "  Device name: " << deviceName.data() << std::endl;
+    		std::cout << "		Device name: " << deviceName.data() << std::endl;
+
+			// Device type 
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
+			std::string deviceTypeStr;
+
+			if (deviceType == CL_DEVICE_TYPE_CPU)
+				deviceTypeStr = "CPU";
+			else if (deviceType == CL_DEVICE_TYPE_GPU)
+				deviceTypeStr = "GPU";
+			else
+				deviceTypeStr = "Unknown";
+			std::cout << "		Device type: " << deviceTypeStr << std::endl;
+
+			// Global memory 
+			cl_ulong globalMemSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemSize), &globalMemSize, nullptr));
+			std::cout << "		Global memory size: " << (globalMemSize / (1024 * 1024)) << " MB" << std::endl;
+
+			// Max compute units 
+			cl_uint maxComputeUnits = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(maxComputeUnits), &maxComputeUnits, nullptr));
+			std::cout << "		Max compute units: " << maxComputeUnits << std::endl;
+
+			// Cache line size
+			cl_uint cacheLineSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cacheLineSize), &cacheLineSize, nullptr));
+			std::cout << "		Cache line size: " << cacheLineSize << " bytes" << std::endl;
+
+			// Cache size 
+			cl_ulong cacheSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cacheSize), &cacheSize, nullptr));
+			std::cout << "		L1 cache size (estimated): " << (cacheSize / 1024) << " KB" << std::endl;
 
 
 
