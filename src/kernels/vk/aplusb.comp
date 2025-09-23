@@ -1,0 +1,40 @@
+#version 450
+
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "../defines.h"
+
+layout (std430, binding = 0) readonly	buffer AsIn		{	uint as[];	};
+layout (std430, binding = 1) readonly	buffer BsIn		{	uint bs[];	};
+layout (std430, binding = 2) writeonly	buffer CsOut	{	uint cs[];	};
+
+layout (push_constant) uniform PushConstants {
+	uint n;
+} params;
+
+layout (local_size_x = GROUP_SIZE) in;
+void main()
+{
+	const uint i = gl_GlobalInvocationID.x;
+	if (i >= params.n)
+		return;
+
+	// We use a library that has implementation of GPU-side rasserts, so we can check that buffers have expected values:
+	// You can init buffers with other values on CPU-side code and see what happends (wrong buffers values will be detected on GPU-side)
+	rassert(as[i] == 3 * (i + 5) + 7, 435234223);
+	rassert(bs[i] == 11 * (i + 13) + 17, 435432367);
+
+	cs[i] = as[i] + bs[i];
+
+	if (i == 0) {
+		// Note that debugPrintfEXT is enabled automatically for Debug build
+		// and is disabled for Release build (via empty macros),
+		// but it can be enabled for local dev purposes for Release build too in common.vk
+		// (note that common.vk also already declared this line: #extension GL_EXT_debug_printf : enable)
+		// (so you don't need to declare it in your kernels)
+		// Note that validation layers should be enabled for debugPrintfEXT to work
+		#if DEBUG_PRINTF_EXT_ENABLED
+		debugPrintfEXT("Hello world! debugPrintfEXT works! i=%d as[i]+bs[i]=%d+%d=%d\n", i, as[i], bs[i], as[i] + bs[i]);
+		#endif
+	}
+}

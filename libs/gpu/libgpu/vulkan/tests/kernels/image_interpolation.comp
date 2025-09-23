@@ -1,0 +1,84 @@
+#version 450
+
+#define REQUIRE_TEMPLATE_T
+#define REQUIRE_TEMPLATE_NCHANNELS
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "defines.h"
+
+layout (binding = 0)							uniform				sampler2DArray	input_image;
+layout (binding = 1, IMAGE_FORMAT_QUALIFIER_T)	uniform writeonly	image2DArray	output_image;
+
+layout (push_constant) uniform PushConstants {
+	uint	width, height;
+	float	scale;
+	float	dx, dy;
+	uint	is_zero_shift;
+} params;
+
+layout (local_size_x = VK_GROUP_SIZE_X, local_size_y = VK_GROUP_SIZE_Y) in;
+
+void main()
+{
+	const uint x = gl_GlobalInvocationID.x;
+	const uint y = gl_GlobalInvocationID.y;
+
+	rassert(params.width  == 2*1025, 443159585);
+	rassert(params.height == 2*1023, 443159585);
+	rassert(params.scale  == 1.0f, 526322509);
+	if (params.is_zero_shift > 0) {
+		rassert(params.dx == 11.0f, 563424509);
+		rassert(params.dy == -5.0f, 563232509);
+	}
+	if (x >= params.width || y >= params.height) {
+		// return if we are out of bounds from the output_image
+		return;
+	}
+
+	vec2 pt1 = vec2(x + 0.5f, y + 0.5f);
+	vec2 pt0 = (pt1 / params.scale) - vec2(params.dx, params.dy);
+	float res_channels[NCHANNELS];
+	if (pt0.x < 0.0f || pt0.x >= textureSize(input_image, 0).x || pt0.y < 0.0f || pt0.y >= textureSize(input_image, 0).y) {
+		// use default color if we are out of bounds from the input_image
+		for (int c = 0; c < NCHANNELS; ++c) {
+			res_channels[c] = SPECIAL_EMPTY_VALUE / IMAGE_FORMAT_NORMALIZER;
+		}
+	} else {
+		for (int c = 0; c < NCHANNELS; ++c) {
+			res_channels[c] = texture(input_image, vec3(pt0 / textureSize(input_image, 0).xy, c)).r;
+#ifdef T_32F
+			rassert(res_channels[c] >= -MAX_F32_USED_VALUE, 503255321);
+			rassert(res_channels[c] <=  MAX_F32_USED_VALUE, 573248561);
+#else
+			rassert(res_channels[c] >= 0.0f, 507325321);
+			rassert(res_channels[c] <= 1.0f, 507324561);
+#endif
+		}
+	}
+
+	// output pixel into result image + create border for safe later interpolation of the result image in following kernels
+	{
+		#define IMAGE_STORE_CHANNELS(X, Y) { \
+			for (int c = 0; c < NCHANNELS; ++c) {\
+				imageStore(output_image, ivec3(X, Y, c), vec4(res_channels[c]));\
+			}\
+		}
+		uint output_x = x;
+		uint output_y = y;
+		ivec2 output_used_image_size = ivec2(params.width, params.height);
+		ivec2 output_total_image_size = imageSize(output_image).xy;
+		{
+			IMAGE_STORE_CHANNELS(output_x,		output_y);		// store the output value itself
+		}
+		if (output_x + 1 == output_used_image_size.x && output_x + 1 < output_total_image_size.x) {
+			IMAGE_STORE_CHANNELS(output_x + 1,	output_y);		// right border
+		}
+		if (output_y + 1 == output_used_image_size.y && output_y + 1 < output_total_image_size.y) {
+			IMAGE_STORE_CHANNELS(output_x,		output_y + 1);	// bottom border
+		}
+		if (output_x + 1 == output_used_image_size.x && output_x + 1 < output_total_image_size.x &&
+			output_y + 1 == output_used_image_size.y && output_y + 1 < output_total_image_size.y) {
+			IMAGE_STORE_CHANNELS(output_x + 1,	output_y + 1);	// right-bottom-corner pixel on border
+		}
+	}
+}

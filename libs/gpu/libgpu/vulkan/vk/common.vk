@@ -1,0 +1,130 @@
+#ifndef common_vk // pragma once
+#define common_vk
+
+#include "rassert.vk" // set=RASSERT_CODE_SET binding=RASSERT_CODE_BINDING_SLOT
+#include "limits.vk"
+
+//______________________________________________Device and Host code____________________________________________________
+#define VK_MAX_NCHANNELS							4 // if this value is changed - CMakeLists.txt should be updated (see IMAGE_NCHANNELS list - it enumerates all possible nchannel values)
+
+#define VK_MAX_FRAGMENT_OUTPUT_ATTACHMENTS_USED		(VK_MAX_NCHANNELS + 1) // required in texturing shader that enblends VK_MAX_NCHANNELS+1=(camera image)+(camera weight) outputs into atlas
+#define VK_MAX_IMAGE_ARRAY_LAYERS_USED				20 // required in texturing shader that aggregates 20 best similarities from all neighbors
+
+#define VK_MAX_COMPUTE_WORK_GROUP_COUNT_X			32768 // thanks to automatic subdivision - we can run even large compute workloads on GPU with any workgroup count limit
+#define VK_MAX_COMPUTE_WORK_GROUP_COUNT_Y			16384
+#define VK_MAX_COMPUTE_WORK_GROUP_COUNT_Z			16384
+
+#ifndef NDEBUG
+	#define DEBUG_PRINTF_EXT_ENABLED		1 // enable in Debug build
+#else
+	#define DEBUG_PRINTF_EXT_ENABLED		0 // disable in Release build
+#endif
+
+#if !(DEBUG_PRINTF_EXT_ENABLED)
+	// if printf is disabled - debugPrintfEXT(...) should not be used
+	// so this macro will raise compilation error if it is used
+	#define debugPrintfEXT()
+#endif
+
+#ifdef HOST_CODE
+//______________________________________________Host-only code__________________________________________________________
+
+#endif // HOST_CODE
+
+#ifndef HOST_CODE
+//______________________________________________Device-only code________________________________________________________
+
+#define loadVec3(points, i) vec3(points[3 * i + 0], points[3 * i + 1], points[3 * i + 2])
+
+#define storeVec3(points, i, p)		\
+	{	points[3 * i + 0] = p.x;	\
+		points[3 * i + 1] = p.y;	\
+		points[3 * i + 2] = p.z; }	\
+
+#define norm2(v) dot(v, v)
+
+int div_ceil(int num, int denom) {
+	return (num + denom - 1) / denom;
+}
+
+uint div_ceil(uint num, uint denom) {
+	return (num + denom - 1) / denom;
+}
+
+vec2 toGLPositionRange(vec2 px) // px is in [0, 1] range
+{
+	return px.xy * 2.0f - 1.0f; // converting to gl_Position which is in [-1, 1] range - see about NDC in https://github.com/gpuweb/gpuweb/issues/416
+}
+
+vec2 transformPoint_f3x3(const mat3 m, const vec2 p)
+{
+	vec3 temp = m * vec3(p.x, p.y, 1.0f);
+	return vec2(temp.x, temp.y) / temp.z;
+}
+
+#if DEBUG_PRINTF_EXT_ENABLED
+	#extension GL_EXT_debug_printf : enable
+#endif
+
+#ifdef T_32F
+	#define IMAGE_FORMAT_QUALIFIER_T	R32f
+	#define IMAGE_FORMAT_NORMALIZER		1.0f
+	#define IMAGE_FORMAT_EPSILON		(FLT_EPSILON) // this value will be non-zero after cast into unsigned char - ensured with unit-test image_conversion_from_float_to_T_test.cpp
+#endif
+#ifdef T_16U
+	#define IMAGE_FORMAT_QUALIFIER_T	R16
+	#define IMAGE_FORMAT_NORMALIZER		65535.0f
+	#define IMAGE_FORMAT_EPSILON		(1.0f/IMAGE_FORMAT_NORMALIZER) // this value will be non-zero after cast into unsigned short - ensured with unit-test image_conversion_from_float_to_T_test.cpp
+#endif
+#ifdef T_8U
+	#define IMAGE_FORMAT_QUALIFIER_T	R8
+	#define IMAGE_FORMAT_NORMALIZER		255.0f
+	#define IMAGE_FORMAT_EPSILON		(1.0f/IMAGE_FORMAT_NORMALIZER) // this value will be non-zero after cast into unsigned char - ensured with unit-test image_conversion_from_float_to_T_test.cpp
+#endif
+
+#ifdef REQUIRE_TEMPLATE_T
+	#ifndef IMAGE_FORMAT_QUALIFIER_T
+		raise compilation error // COMPILATION ERROR! T_32F or T_16U or T_8U should be defined for this shader compilation
+	#endif
+#endif
+
+#ifdef REQUIRE_TEMPLATE_NCHANNELS
+	#ifndef NCHANNELS
+		raise compilation error // COMPILATION ERROR! NCHANNELS=N should be defined for this shader compilation
+	#endif
+	#if NCHANNELS > VK_MAX_NCHANNELS
+		raise compilation error // COMPILATION ERROR! NCHANNELS VALUES SHOULD BE IN RANGE FROM 1 TO VK_MAX_NCHANNELS - CHECK THAT LIST OF NCHANNEL VALUES IS IN SYNC WITH VK_MAX_NCHANNELS
+	#endif
+
+	#if		NCHANNELS == 1
+		#define LAYOUT_NCHANNELS(base_location, name)		layout (location = base_location+0)	out	float		 name##0
+		#define ASSIGN_NCHANNELS(name, colors)																	{name##0 = colors[0];}
+	#elif	NCHANNELS == 2
+		#define LAYOUT_NCHANNELS(base_location, name)		layout (location = base_location+0)	out	float		 name##0; \
+															layout (location = base_location+1)	out	float		 name##1
+		#define ASSIGN_NCHANNELS(name, colors)																	{name##0 = colors[0];\
+																												 name##1 = colors[1];}
+	#elif	NCHANNELS == 3
+		#define LAYOUT_NCHANNELS(base_location, name)		layout (location = base_location+0)	out	float		 name##0; \
+															layout (location = base_location+1)	out	float		 name##1; \
+															layout (location = base_location+2)	out	float		 name##2
+		#define ASSIGN_NCHANNELS(name, colors)																	{name##0 = colors[0];\
+																												 name##1 = colors[1];\
+																												 name##2 = colors[2];}
+	#elif	NCHANNELS == 4
+		#define LAYOUT_NCHANNELS(base_location, name)		layout (location = base_location+0)	out	float		 name##0; \
+															layout (location = base_location+1)	out	float		 name##1; \
+															layout (location = base_location+2)	out	float		 name##2; \
+															layout (location = base_location+3)	out	float		 name##3
+		#define ASSIGN_NCHANNELS(name, colors)																	{name##0 = colors[0];\
+																												 name##1 = colors[1];\
+																												 name##2 = colors[2];\
+																												 name##3 = colors[3];}
+	#else
+		raise compilation error // COMPILATION ERROR! SOME NCHANNELS CASE IS NOT IMPLEMENTED YET
+	#endif
+#endif
+
+#endif // not HOST_CODE
+
+#endif // pragma once
