@@ -117,7 +117,7 @@ void run(int argc, char** argv)
             timer t;
             gpu::WorkSize workSize(16, 16, width, height);
             if (context.type() == gpu::Context::TypeOpenCL) {
-                ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+                ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 // cuda::aplusb_matrix_bad(workSize, a_gpu, ...);
             } else if (context.type() == gpu::Context::TypeVulkan) {
