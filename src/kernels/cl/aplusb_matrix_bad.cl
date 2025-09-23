@@ -21,7 +21,7 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
     int row = get_global_id(1);
     
     if (col < width && row < height) {
-        int idx = row + col*height;
+        int idx = col + row*width;
         c[idx] = a[idx] + b[idx];
     }
     
