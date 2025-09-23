@@ -2,9 +2,18 @@
 
 [Остальные задания](https://github.com/GPGPUCourse/GPGPUTasks2025/).
 
-# Задание 1. A + B.
+# Задание 1. A + B сложение матриц (*coalesced memory access*)
 
 [![Build Status](https://github.com/GPGPUCourse/GPGPUTasks2025/actions/workflows/cmake.yml/badge.svg?branch=task01&event=push)](https://github.com/GPGPUCourse/GPGPUTasks2025/actions/workflows/cmake.yml)
+
+В этом задании вам предлагается выбрать API (OpenCL, CUDA или Vulkan) и попробовать написать два кернела поэлементного сложения двумерных матриц:
+
+1) один кернел максимально эффективный с точки зрения *coalesced memory access*
+2) и второй кернел - максимально неэффективный
+
+Таким образом хочется провести эксперимент и на практике проверить - а есть ли разница? И если есть - то насколько эта разница в достигнутой пропускной способности памяти заметна?
+
+Для примера в [исходном коде](/src/main_aplusb.cpp) уже реализованы кернелы сложения двух массивов на всех трех API ([OpenCL](src/kernels/cl/aplusb.cl), [CUDA](src/kernels/cu/aplusb.cu), [Vulkan](src/kernels/vk/aplusb.comp)).
 
 Установка зависимостей
 ========================================
@@ -38,11 +47,10 @@
 
 7.3. **macOS** - вероятно что-то очень похожее на Linux, напишите если будут трудности
 
-8. ``cmake ..``
-9. ``make -j8``
-10. ``./libs/gpu/libgpu_test`` прогонит unit-test-ы покрывающие OpenCL и Vulkan
-11. ``./main_aplusb`` убедится что программа-пример работает корректно на OpenCL
-12. ``./main_aplusb_matrix`` убедится что программа-задание запускается и пока что не выполнена
+8. ``make -j8``
+9. ``./libs/gpu/libgpu_test`` прогонит unit-test-ы покрывающие OpenCL и Vulkan
+10. ``./main_aplusb`` убедится что программа-пример работает корректно на OpenCL
+11. ``./main_aplusb_matrix`` убедится что программа-задание запускается и пока что не выполнена
 
 Задание
 =======

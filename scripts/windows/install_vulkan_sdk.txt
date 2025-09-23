@@ -1,7 +1,7 @@
 1) Install vcpkg
 2) In CLion GUI: install gtest into vcpkg and (automatically) add to CMake options:
     -DCMAKE_TOOLCHAIN_FILE=C:\...\.vcpkg-clion\vcpkg\scripts\buildsystems\vcpkg.cmake
-3) Download and install Vulkan SDK (make sure to tick "Vulkan Memory Allocator header"):
+3) Download and install Vulkan SDK (make sure to tick "Vulkan Memory Allocator header" - see screen /.figures/vulkan_sdk_installer_windows.png):
     https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe
 4) Add to CMake options (to find Vulkan pacakge and Vulkan headers):
     -DCMAKE_PREFIX_PATH="C:\VulkanSDK\1.3.283.0"
