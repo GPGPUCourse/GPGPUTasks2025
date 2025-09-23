@@ -139,7 +139,7 @@ void run(int argc, char** argv)
 
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(width * height, 0);
-        c_gpu.readN(cs.data(), width * height);
+        c_gpu.readN(cs.data(), cs.size());
 
         // Сверяем результат
         for (size_t i = 0; i < width * height; ++i) {
