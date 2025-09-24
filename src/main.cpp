@@ -1,6 +1,7 @@
 #include <CL/cl.h>
 #include <libclew/ocl_init.h>
 
+#include <cassert>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -27,6 +28,26 @@ void reportError(cl_int err, const std::string &filename, int line)
 }
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
+
+std::string getStrParam(cl_device_id dev, cl_device_info param) {
+	// не понял почему в примере кода используется std::vector<unsigned char> -- в документации написано про обычный char
+	size_t len = 0;
+	OCL_SAFE_CALL(clGetDeviceInfo(dev, param, 0, nullptr, &len));
+	assert(len > 0);
+	std::string value(len - 1, 0);
+	OCL_SAFE_CALL(clGetDeviceInfo(dev, param, len, value.data(), &len));
+	// (стандарт C++ разрешает пезаписывать нулевой байт в конце std::string::data() нулевым байтом)
+	return value;
+};
+
+template<typename T>
+T getParam(cl_device_id dev, cl_device_info param) {
+	T ret;
+	size_t len;
+	OCL_SAFE_CALL(clGetDeviceInfo(dev, param, sizeof(ret), &ret, &len));
+	assert(len == sizeof(ret));
+	return ret;
+};
 
 int main()
 {
@@ -67,18 +88,32 @@ int main()
 		// в документации подробно объясняется, какой ситуации соответствует данная ошибка, и это позволит, проверив код, понять, чем же вызвана данная ошибка (некорректным аргументом param_name)
 		// Обратите внимание, что в этом же libs/clew/CL/cl.h файле указаны всевоможные defines, такие как CL_DEVICE_TYPE_GPU и т.п.
 
+		// (я надеюсь, что вы поверите мне, что я проделал процедуру, описанную выше)
+
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
 		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), &platformNameSize));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		size_t vendorNameSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &vendorNameSize));
+		std::vector<unsigned char> vendorName(vendorNameSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendorNameSize, vendorName.data(), &vendorNameSize));
+		// clGetPlatformInfo(...);
+		std::cout << "    Vendor name: " << vendorName.data() << std::endl;
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetPlatformIDs(0, nullptr, &devicesCount));
+		std::cout << "    Number of devices: " << devicesCount << std::endl;
+
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
@@ -88,6 +123,21 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			cl_device_id dev = devices[deviceIndex];
+			std::cout << "    Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
+			std::cout << "        Name: " << getStrParam(dev, CL_DEVICE_NAME) << std::endl;
+			cl_device_type type = getParam<cl_device_type>(dev, CL_DEVICE_TYPE);
+			std::string typeName = "unknown";
+			if(type == CL_DEVICE_TYPE_CPU)
+				typeName = "CPU";
+			else if(type == CL_DEVICE_TYPE_GPU)
+				typeName = "GPU";
+			std::cout << "        Type: " << typeName << std::endl;
+			std::cout << "        Memory: " << getParam<cl_ulong>(dev, CL_DEVICE_GLOBAL_MEM_SIZE) / 1048576 << " MB" << std::endl;
+			std::cout << "        Max compute units: " << getParam<cl_uint>(dev, CL_DEVICE_MAX_COMPUTE_UNITS) << std::endl;
+			std::cout << "        Max work group size: " << getParam<size_t>(dev, CL_DEVICE_MAX_WORK_GROUP_SIZE) << std::endl;
+			std::cout << "        Max clock frequency: " << getParam<cl_uint>(dev, CL_DEVICE_MAX_CLOCK_FREQUENCY) << std::endl;
+			std::cout << "        Cache line size: " << getParam<cl_uint>(dev, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE) << std::endl;
 		}
 	}
 
