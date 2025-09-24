@@ -14,7 +14,7 @@ layout (push_constant) uniform PushConstants {
 } params;
 
 // TODO не забудьте тут указать размер рабочей группы:
-layout (local_size_x = 1, local_size_y = 1) in;
+layout (local_size_x = GROUP_SIZE, local_size_y = 1) in;
 void main()
 {
     // все три массива - линейно выложенные двумерные матрицы размера width (число столбиков) x height (число рядов)
@@ -24,4 +24,13 @@ void main()
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
     // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
+
+	const uint y = gl_GlobalInvocationID.x;
+	const uint x = gl_GlobalInvocationID.y;
+	uint i = y * params.height + x;
+
+	if (i >= params.width * params.height)
+		return;
+
+	cs[i] = as[i] + bs[i];
 }
