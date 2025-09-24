@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__kernel void aplusb_matrix_good(__global const uint* a,
+__kernel void aplusb_matrix_bad(__global const uint* a,
                      __global const uint* b,
                      __global       uint* c,
                      unsigned int width,
@@ -16,5 +16,14 @@ __kernel void aplusb_matrix_good(__global const uint* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
+    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
+    const unsigned int index_row = get_global_id(0);
+    const unsigned int index_column = get_global_id(1);
+
+    if (index_row >= width || index_column >= height) {
+        return;
+    }
+    const unsigned int index = index_row * height + index_column;
+
+    *(c + index) = *(a + index) + *(b + index);
 }
