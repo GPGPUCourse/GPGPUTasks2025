@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__kernel void aplusb_matrix_bad(__global const uint* a,
+__kernel void aplusb_matrix_good(__global const uint* a,
                      __global const uint* b,
                      __global       uint* c,
                      unsigned int width,
