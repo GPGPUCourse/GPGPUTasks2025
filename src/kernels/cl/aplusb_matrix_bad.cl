@@ -9,7 +9,7 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
                      __global       uint* c,
                      unsigned int width,
                      unsigned int height)
-{
+{          
     const unsigned int index_x = get_global_id(0);
     const unsigned int index_y = get_global_id(1);
 
