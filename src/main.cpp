@@ -28,6 +28,18 @@ void reportError(cl_int err, const std::string &filename, int line)
 
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
 
+std::string deviceType2String(cl_device_type deviceType)
+{
+	switch(deviceType)
+	{
+	case CL_DEVICE_TYPE_CPU: return "CPU";
+	case CL_DEVICE_TYPE_GPU: return "GPU";
+	case CL_DEVICE_TYPE_ACCELERATOR: return "ACCELERATOR";
+	case CL_DEVICE_TYPE_DEFAULT: return "DEFAULT";
+	default: throw std::invalid_argument("UNKNOWN DEVICE TYPE: " + to_string(deviceType));
+	}
+}
+
 int main()
 {
 	// Пытаемся слинковаться с символами OpenCL API в runtime (через библиотеку libs/clew)
@@ -39,7 +51,7 @@ int main()
 	// Нажмите слева: "OpenCL Runtime" -> "Query Platform Info" -> "clGetPlatformIDs"
 	// Прочитайте документацию clGetPlatformIDs и убедитесь, что этот способ узнать, сколько есть платформ, соответствует документации:
 	cl_uint platformsCount = 0;
-	OCL_SAFE_CALL( clGetPlatformIDs(0, nullptr, &platformsCount));
+	OCL_SAFE_CALL(clGetPlatformIDs(0, nullptr, &platformsCount));
 	std::cout << "Number of OpenCL platforms: " << platformsCount << std::endl;
 
 	// Тот же метод используется для того, чтобы получить идентификаторы всех платформ - сверьтесь с документацией, что это сделано верно:
@@ -83,15 +95,15 @@ int main()
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
-		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL,0, nullptr, &devicesCount));
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
 
-		std::vector<cl_device_id > devices(devicesCount);
-		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL,devicesCount, devices.data(), nullptr));
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		std::cout << "Number of OpenCL platforms: " << devicesCount << std::endl;
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
-			const auto& device = devices[deviceIndex];
+			const auto &device = devices[deviceIndex];
 			// TODO 2.2
 			// Запросите и напечатайте в консоль:
 			// - Название устройства
@@ -99,17 +111,20 @@ int main()
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
 			size_t deviceNameSize = 0;
-			OCL_SAFE_CALL( clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
 			std::vector<unsigned char> deviceName(deviceNameSize, 0);
-			OCL_SAFE_CALL( clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
-			cl_ulong deviceMemSize = 0;
-			OCL_SAFE_CALL( clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMemSize, nullptr));
-			cl_uint maxNum_workers = 0;
-			OCL_SAFE_CALL( clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &maxNum_workers, nullptr));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
+			cl_device_type deviceType = CL_DEVICE_TYPE_ALL;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
 
+			cl_ulong deviceMemSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceMemSize, nullptr));
+			cl_uint maxNum_workers = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &maxNum_workers, nullptr));
 
 			std::cout << "Device name: " << deviceName.data() << std::endl;
-			std::cout << "Device memory size: " << deviceMemSize/(1024*1024) << std::endl;
+			std::cout << "Device type: " << deviceType2String(deviceType) << std::endl;
+			std::cout << "Device memory size: " << deviceMemSize / (1024 * 1024) << " MB" << std::endl;
 			std::cout << "Device workers number: " << maxNum_workers << std::endl;
 		}
 	}
