@@ -16,7 +16,31 @@ __global__ void mandelbrot(float* results,
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    // TODO
+	float x0 = fromX + (i + 0.5f) * sizeX / width;
+    float y0 = fromY + (j + 0.5f) * sizeY / height;
+
+    float x = x0;
+    float y = y0;
+
+    const float threshold = 256.0f;
+    const float threshold2 = threshold * threshold;
+
+    unsigned int iter = 0;
+    for (; iter < iters; ++iter) {
+        float xPrev = x;
+        x = x * x - y * y + x0;
+        y = 2.0f * xPrev * y + y0;
+        if ((x * x + y * y) > threshold2) {
+            break;
+        }
+    }
+    float result = iter;
+    if (isSmoothing && iter != iters) {
+        result = result - logf(logf(sqrtf(x * x + y * y)) / logf(threshold)) / logf(2.0f);
+    }
+
+    result = 1.0f * result / iters;
+    results[j * width + i] = result;
 }
 
 namespace cuda {
