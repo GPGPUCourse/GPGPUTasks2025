@@ -65,9 +65,13 @@ void run(int argc, char** argv)
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
-            gpu::WorkSize workSize(16, 16, width, height);
 
-            // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
+            // Для идеального случая нам подойдет вариант, когда мы делаем группу 32 * 8,
+            // чтобы грузилось 8 кеш линий и каждый элемент в них использовался
+            // (32 числа * 4 байта для 32 лилипутов, каждому по чиселке, внутри каждой кеш линии)
+            // Для плохого расчета можно просто изменить размер группы на 1 * 256 и использовать тот же алгоритм,
+            // но попробуем поиграться именно с алгоритмом, а поэтому тут так же используем 32 * 8
+            gpu::WorkSize workSize(32, 8, width, height);
             ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             times.push_back(t.elapsed());
         }
@@ -79,12 +83,10 @@ void run(int argc, char** argv)
 
         // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(width * height, 0);
-        //c_gpu.read2D(width, cs.data(), width, width, height);
         c_gpu.readN(cs.data(), width * height);
 
         // Сверяем результат
         for (size_t i = 0; i < width * height; ++i) {
-            // std::cout << cs[i] << " " << as[i] + bs[i] << " " <<  as[i] << " " <<  bs[i] << " " <<  i << std::endl;
             rassert(cs[i] == as[i] + bs[i], 321418230421312512, cs[i], as[i] + bs[i], i);
         }
     }
@@ -95,8 +97,8 @@ void run(int argc, char** argv)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
-            gpu::WorkSize workSize(16, 16, width, height);
-            ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+            gpu::WorkSize workSize(32, 8, width, height);
+            ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             times.push_back(t.elapsed());
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
