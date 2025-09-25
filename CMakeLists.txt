@@ -61,6 +61,7 @@ set(OPENCL_DEFINES)
 compile_opencl(HEADERS src/kernels/cl/aplusb.cl OPENCL_SOURCES OPENCL_DEFINES)
 compile_opencl(HEADERS src/kernels/cl/aplusb_matrix_bad.cl OPENCL_SOURCES OPENCL_DEFINES)
 compile_opencl(HEADERS src/kernels/cl/aplusb_matrix_good.cl OPENCL_SOURCES OPENCL_DEFINES)
+compile_opencl(HEADERS src/kernels/cl/aplusb_matrix_good_forloop.cl OPENCL_SOURCES OPENCL_DEFINES)
 
 # compile_vulkan CMake-функция объявлена в libs/gpu/libgpu/vulkan/CMakeLists.txt:97
 # Она считывает все байты из файла src/kernels/vk/aplusb.comp (т.е. весь исходный код кернела), компилирует с помощью glslc компилятора (в т.ч. выполняя все #include)

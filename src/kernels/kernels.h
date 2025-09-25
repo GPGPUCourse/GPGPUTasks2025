@@ -12,6 +12,7 @@ namespace ocl {
 const ProgramBinaries& getAplusB();
 const ProgramBinaries& getAplusBMatrixBad();
 const ProgramBinaries& getAplusBMatrixGood();
+const ProgramBinaries& getAplusBMatrixGoodForloop();
 }
 
 namespace avk2 {

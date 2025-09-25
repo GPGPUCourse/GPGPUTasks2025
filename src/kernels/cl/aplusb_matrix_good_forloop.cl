@@ -4,9 +4,9 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
-aplusb_matrix_good(__global const uint* a,
+aplusb_matrix_good_forloop(__global const uint* a,
     __global const uint* b,
     __global uint* c,
     unsigned int width,
@@ -18,10 +18,11 @@ aplusb_matrix_good(__global const uint* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
+    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
     const unsigned int x = get_global_id(0);
-    const unsigned int y = get_global_id(1);
-    const unsigned int index = y * width + x;
-    if (y < height && x < width)
-        c[index] = a[index] + b[index];
+    for (uint y = 0; y < height; ++y) {
+        const unsigned int index = y * width + x;
+        if (y < height)
+            c[index] = a[index] + b[index];
+    }
 }

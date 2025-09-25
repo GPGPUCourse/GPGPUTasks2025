@@ -27,8 +27,7 @@ namespace {
 	// when they find any problems - this callback will be triggered
 	static VKAPI_ATTR VkBool32 VKAPI_CALL
 	debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
-				  const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
-	{
+				  const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData) {
 		avk2::InstanceContext *instance_context = (avk2::InstanceContext*) pUserData;
 
 		bool message_is_suppressed = false;
