@@ -3,6 +3,15 @@ cmake_minimum_required(VERSION 3.20)
 project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Использовать libc++ на macOS
+if(APPLE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
+endif()
+
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
 option(GPU_CUDA_SUPPORT "CUDA support." OFF)
@@ -18,10 +27,19 @@ else ()
 endif ()
 
 # GTest позволяет писать удобные unit-test-ы
-find_package(GTest REQUIRED)
-set(GTEST_LIBRARIES GTest::gtest)
-set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
+set(GTEST_INCLUDE_DIR "/opt/homebrew/Cellar/googletest/1.17.0/include")
+include_directories(${GTEST_INCLUDE_DIR})
+
+set(GTEST_LIB_DIR "/opt/homebrew/Cellar/googletest/1.17.0/lib")
+set(GTEST_LIBRARIES ${GTEST_LIB_DIR}/libgtest.a)
+set(GTEST_MAIN_LIBRARIES ${GTEST_LIB_DIR}/libgtest_main.a)
 set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+
+#find_package(GTest REQUIRED)
+#set(GTEST_LIBRARIES GTest::gtest)
+#set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
+#set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+
 
 # OpenMP позволит распараллеливать циклы на все ядра процессора простыми директивами
 find_package(OpenMP)
@@ -34,6 +52,13 @@ else ()
 endif ()
 
 add_subdirectory(libs)
+
+find_package(OpenMP REQUIRED)
+if(OpenMP_CXX_FOUND)
+    separate_arguments(OpenMP_FLAGS_LIST UNIX_COMMAND "${OpenMP_CXX_FLAGS}")
+    target_compile_options(libgpu PRIVATE ${OpenMP_FLAGS_LIST})
+    target_link_libraries(libgpu ${OpenMP_CXX_LIBRARIES})
+endif()
 
 set(HEADERS
         src/kernels/kernels.h
