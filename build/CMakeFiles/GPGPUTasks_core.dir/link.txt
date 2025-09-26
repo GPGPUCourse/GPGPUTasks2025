@@ -1,2 +1,0 @@
-/usr/bin/ar qc libGPGPUTasks_core.a CMakeFiles/GPGPUTasks_core.dir/src/kernels/kernels.cpp.o
-/usr/bin/ranlib libGPGPUTasks_core.a
