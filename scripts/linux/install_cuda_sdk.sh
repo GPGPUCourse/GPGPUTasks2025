@@ -8,6 +8,6 @@ sudo apt install linux-headers-$(uname -r)
 chmod +x ${CUDA_RUNFILE}
 sudo ./${CUDA_RUNFILE} --silent --toolkit
 # permamently add NVCC to PATH:
-echo "export CUDA_HOME=/usr/local/cuda" >> ~/.zshrc
-echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda/lib64" >> ~/.zshrc
-echo "export PATH=\$PATH:\$CUDA_HOME/bin" >> ~/.zshrc
+echo "export CUDA_HOME=/usr/local/cuda" | tee -a ~/.bashrc ~/.zshrc
+echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda/lib64" | tee -a ~/.bashrc ~/.zshrc
+echo "export PATH=\$PATH:\$CUDA_HOME/bin" | tee -a ~/.bashrc ~/.zshrc
