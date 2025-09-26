@@ -1,0 +1,2 @@
+/usr/bin/ar qc liblibbase.a CMakeFiles/libbase.dir/libbase/gtest_utils.cpp.o CMakeFiles/libbase.dir/libbase/omp_utils.cpp.o CMakeFiles/libbase.dir/libbase/string_utils.cpp.o CMakeFiles/libbase.dir/libbase/thread_mutex.cpp.o
+/usr/bin/ranlib liblibbase.a

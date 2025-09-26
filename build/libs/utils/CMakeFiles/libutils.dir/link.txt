@@ -1,0 +1,2 @@
+/usr/bin/ar qc liblibutils.a CMakeFiles/libutils.dir/libutils/misc.cpp.o CMakeFiles/libutils.dir/__/base/libbase/string_utils.cpp.o
+/usr/bin/ranlib liblibutils.a

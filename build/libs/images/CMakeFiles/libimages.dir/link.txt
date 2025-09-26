@@ -1,0 +1,2 @@
+/usr/bin/ar qc liblibimages.a CMakeFiles/libimages.dir/libimages/debug_io.cpp.o CMakeFiles/libimages.dir/libimages/images.cpp.o
+/usr/bin/ranlib liblibimages.a
