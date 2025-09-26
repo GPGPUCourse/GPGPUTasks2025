@@ -69,16 +69,6 @@ void run(int argc, char** argv)
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
                 ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
-            } else if (context.type() == gpu::Context::TypeCUDA) {
-                // cuda::aplusb_matrix_bad(workSize, a_gpu, ...);
-            } else if (context.type() == gpu::Context::TypeVulkan) {
-                struct {
-                    unsigned int width;
-                    unsigned int height;
-                } params = { width, height };
-                // vk_aplusb_matrix_bad.exec(params, workSize, a_gpu, ...);
-            } else {
-                rassert(false, 4531412341, context.type());
             }
 
             times.push_back(t.elapsed());
@@ -100,6 +90,9 @@ void run(int argc, char** argv)
 
     {
         std::cout << "Running GOOD matrix kernel..." << std::endl;
+        a_gpu.writeN(as.data(), width * height); // гпт предложила так решить проблему с тем что кернелы могли ломаться
+        b_gpu.writeN(bs.data(), width * height);
+
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
@@ -107,17 +100,17 @@ void run(int argc, char** argv)
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
             // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
-            const unsigned int group_size_x = 16;
-            const unsigned int group_size_y = 16;
-            const unsigned int WORK_SIZE_X = (width + group_size_x - 1) / group_size_x * group_size_x;
+            const unsigned int group_size_x = 16, group_size_y = 16;
+            const unsigned int WORK_SIZE_X = (width  + group_size_x - 1) / group_size_x * group_size_x;
             const unsigned int WORK_SIZE_Y = (height + group_size_y - 1) / group_size_y * group_size_y;
             gpu::WorkSize workSize(group_size_x, group_size_y, WORK_SIZE_X, WORK_SIZE_Y);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
-                ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+                ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             }
+
             times.push_back(t.elapsed());
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
