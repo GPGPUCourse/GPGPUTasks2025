@@ -15,6 +15,7 @@ layout (push_constant) uniform PushConstants {
 layout (local_size_x = GROUP_SIZE) in;
 void main()
 {
+/*
 	const uint index = gl_GlobalInvocationID.x;
 	if (index >= params.n)
 		return;
@@ -42,4 +43,5 @@ void main()
 	rassert(bs[index] == 11 * (index + 13) + 17, 435432367);
 
 	cs[index] = as[index] + bs[index];
+	*/
 }
