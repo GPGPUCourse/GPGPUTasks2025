@@ -24,7 +24,7 @@ std::vector<Device> enumDevices(bool cuda_silent, bool opencl_silent, bool vk_si
 
 	timer tm_total, tm_cuda, tm_opencl, tm_vulkan;
 	tm_total.start();
-
+	
 #ifdef CUDA_SUPPORT
 	bool cuda_device_found = false;
 	if (Device::enable_cuda) {
