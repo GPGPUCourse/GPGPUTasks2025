@@ -23,10 +23,10 @@ __global__ void aplusb_matrix_bad(const unsigned int* a,
     unsigned int total = width * height;
     if (tid >= total) return;
 
-    unsigned int x = tid / height;  
-    unsigned int y = tid % height;   
+    unsigned int y = tid / width;  
+    unsigned int x = tid % width;   
 
-    unsigned int idx = y * width + x;  
+    unsigned int idx = x * height + y;  
     c[idx] = a[idx] + b[idx];
 }
 
