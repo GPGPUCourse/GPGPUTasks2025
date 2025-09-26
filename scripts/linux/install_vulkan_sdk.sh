@@ -2,7 +2,6 @@
 
 # exit script on failure
 set -ev
-export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Parse script arguments to skip validation layers if --no-validation-layers is present
 SKIP_VALIDATION_LAYERS=0
