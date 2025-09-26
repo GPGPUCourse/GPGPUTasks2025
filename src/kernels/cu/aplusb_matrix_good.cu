@@ -26,7 +26,7 @@ __global__ void aplusb_matrix_good(const unsigned int* a,
     unsigned int y = tid / width;  
     unsigned int x = tid % width;   
 
-    unsigned int idx = y * width + x; 
+    unsigned int idx = y * height + x; 
     c[idx] = a[idx] + b[idx];
 }
 
