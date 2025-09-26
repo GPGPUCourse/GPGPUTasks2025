@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CUDA_COMPILER  /usr/local/cuda-12.9/bin/nvcc)
+set(CMAKE_CUDA_COMPILER  /usr/local/cuda-13/bin/nvcc)
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
 option(GPU_CUDA_SUPPORT "CUDA support." ON)
