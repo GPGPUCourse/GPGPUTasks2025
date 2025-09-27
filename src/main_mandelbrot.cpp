@@ -119,10 +119,15 @@ void run(int argc, char** argv)
                 if (iter == 0) std::cout << "OpenMP threads: x" << getOpenMPThreadsCount() << " threads" << std::endl;
                 cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, true);
             } else if (algorithm == "GPU") {
+                gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
+                    if (iter == 0) std::cout << "Using OpenCL" << std::endl;
+                    ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
+
                     // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
