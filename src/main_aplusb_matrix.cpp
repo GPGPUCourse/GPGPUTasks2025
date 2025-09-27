@@ -112,6 +112,7 @@ void run(int argc, char** argv)
     {
         std::cout << "Running GOOD matrix kernel..." << std::endl;
 
+        // TODO Почти тот же код что с плохим кернелом, но теперь с хорошим, рекомендуется копи-паста
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
