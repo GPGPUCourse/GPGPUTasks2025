@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "any": "cpp",
+        "filesystem": "cpp",
+        "random": "cpp",
+        "queue": "cpp",
+        "stack": "cpp",
+        "iostream": "cpp",
+        "ios": "cpp"
+    }
+}
