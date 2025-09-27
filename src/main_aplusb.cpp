@@ -49,6 +49,7 @@ void run(int argc, char** argv)
     a_gpu.writeN(as.data(), n);
     b_gpu.writeN(bs.data(), n);
 
+    // TODO Почти тот же код что с плохим кернелом, но теперь с хорошим, рекомендуется копи-паста
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
