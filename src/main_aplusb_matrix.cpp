@@ -19,6 +19,7 @@ void run(int argc, char** argv)
     //   - Если аргументов запуска нет или переданное число не находится в диапазоне от 0 до N-1 - кинет ошибку
     //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
+    bool isCPU = device.isCPU(); // если не заработает удалю
 
 
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
@@ -62,8 +63,13 @@ void run(int argc, char** argv)
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
             // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
+
+            // удалю если не сработает -- гпт написала что падает возможно из за того что ci бежит по цпу
+            // и там не получается разбить на группы по 256 потоков поэтому предложил взять 1 поток на группу
             const unsigned int n = width * height;
-            gpu::WorkSize workSize(GROUP_SIZE, n);
+            gpu::WorkSize workSize = isCPU
+                ? gpu::WorkSize(1, n)
+                : gpu::WorkSize(GROUP_SIZE, n);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
@@ -103,7 +109,13 @@ void run(int argc, char** argv)
             const unsigned int group_size_x = 16, group_size_y = 16;
             const unsigned int WORK_SIZE_X = (width  + group_size_x - 1) / group_size_x * group_size_x;
             const unsigned int WORK_SIZE_Y = (height + group_size_y - 1) / group_size_y * group_size_y;
-            gpu::WorkSize workSize(group_size_x, group_size_y, WORK_SIZE_X, WORK_SIZE_Y);
+
+            // удалю если не сработает -- так же идея что и в bad описал
+            gpu::WorkSize workSize = isCPU
+                ? gpu::WorkSize(1, 1, width, height)
+                : gpu::WorkSize(group_size_x, group_size_y, WORK_SIZE_X, WORK_SIZE_Y);
+
+            //gpu::WorkSize workSize(group_size_x, group_size_y, WORK_SIZE_X, WORK_SIZE_Y);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
