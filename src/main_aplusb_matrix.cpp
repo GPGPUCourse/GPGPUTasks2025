@@ -38,7 +38,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_aplusb_matrix_good(avk2::getAplusBMatrixGood());
 
     // unsigned int task_size = 64;
-    unsigned int task_size = 2;
+    unsigned int task_size = 1;
     unsigned int width = task_size * 256;
     unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
@@ -67,13 +67,13 @@ void run(int argc, char** argv)
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
-        // for (int iter = 0; iter < 10; ++iter) {
+        for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
             // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
             // TODO И в плохом и в хорошем кернеле рабочая группа обязана состоять из 256 work-items
-            gpu::WorkSize workSize(1, 256, (width + 255) / 256, (height + 255) / 256);
+            gpu::WorkSize workSize(1, 256, (width + 255) / 256, height);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
@@ -81,7 +81,7 @@ void run(int argc, char** argv)
             ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
 
             times.push_back(t.elapsed());
-        // }
+        }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
         // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
@@ -115,7 +115,7 @@ void run(int argc, char** argv)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
-            gpu::WorkSize workSize(1, 256, height,width);
+            gpu::WorkSize workSize(256, 1, width, (height + 255) / 256);
             ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             times.push_back(t.elapsed());
         }
