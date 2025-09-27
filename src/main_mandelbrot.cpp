@@ -1,3 +1,4 @@
+#include <iostream>
 #include <libbase/stats.h>
 #include <libbase/timer.h>
 #include <libutils/misc.h>
@@ -7,6 +8,8 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
@@ -121,8 +124,8 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    gpu::WorkSize work_size(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+                    ocl_mandelbrot.exec(work_size, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
