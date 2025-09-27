@@ -21,7 +21,6 @@ void run(int argc, char** argv)
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
     bool isCPU = device.isCPU(); // если не заработает удалю
 
-
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
@@ -71,12 +70,14 @@ void run(int argc, char** argv)
             gpu::WorkSize workSize = isCPU
                 ? gpu::WorkSize(1, n)
                 : gpu::WorkSize(GROUP_SIZE, n);
+            ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
-            }
+//            if (context.type() == gpu::Context::TypeOpenCL) {
+//                ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+//            }
 
             times.push_back(t.elapsed());
         }
@@ -115,14 +116,15 @@ void run(int argc, char** argv)
             gpu::WorkSize workSize = isCPU
                 ? gpu::WorkSize(1, 1, width, height)
                 : gpu::WorkSize(group_size_x, group_size_y, WORK_SIZE_X, WORK_SIZE_Y);
+            ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
 
             //gpu::WorkSize workSize(group_size_x, group_size_y, WORK_SIZE_X, WORK_SIZE_Y);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
-            }
+//            if (context.type() == gpu::Context::TypeOpenCL) {
+//                ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+//            }
 
             times.push_back(t.elapsed());
         }
