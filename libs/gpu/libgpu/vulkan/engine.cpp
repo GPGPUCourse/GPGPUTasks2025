@@ -67,7 +67,8 @@ namespace {
 		create_info.messageSeverity = any_severity;
 		vk::DebugUtilsMessageTypeFlagsEXT any_type = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding;
 		create_info.messageType = any_type;
-		create_info.pfnUserCallback = debugCallback;
+		// create_info.pfnUserCallback = vk::PFN_DebugUtilsMessengerCallbackEXT (debugCallback);
+		// I AM NOT USING VULKAN SO I WILL JUST COMMENT THIS LINE
 		create_info.pUserData = (void*) instance_context;
 
 		rassert(VKF.vkCreateDebugUtilsMessengerEXT, 378392459011272);
