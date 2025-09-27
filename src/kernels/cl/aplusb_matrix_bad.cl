@@ -17,27 +17,10 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
         return;
     }
 
-    int correct_index = index_y * width + index_x;
+    int index = index_x * height + index_y;
 
-    uint val_a = 0, val_b = 0;
 
-    for(int i = 0; i < 8; i++) {
-        int huge_stride = (i * 1024 + correct_index * 17) % (width * height);
-        int random_offset = (correct_index * 31 + i * 127) % (width * height);
-
-        val_a += a[(correct_index + huge_stride) % (width * height)];
-        val_b += b[(correct_index + random_offset) % (width * height)];
-
-        int transpose_x = index_x % height;
-        int transpose_y = index_y % width;
-        int transpose_idx = transpose_x * width + transpose_y;
-        if(transpose_idx < width * height) {
-            val_a += a[transpose_idx];
-            val_b += b[transpose_idx];
-        }
-    }
-
-    c[correct_index] = a[correct_index] + b[correct_index];
+    c[index] = a[index] + b[index];
 
     // все три массива - линейно выложенные двумерные матрицы размера width (число столбиков) x height (число рядов)
     // при этом в памяти подряд идут элементы являющимися соседями в рамках одного ряда,
