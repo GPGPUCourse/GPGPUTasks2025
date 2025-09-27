@@ -35,6 +35,7 @@ void run(int argc, char** argv)
 
 
     unsigned int task_size = 64;
+    if (isCPU) task_size = 4;
     unsigned int width = task_size * 256;
     unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
