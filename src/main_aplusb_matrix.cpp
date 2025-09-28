@@ -42,9 +42,6 @@ void run(int argc, char** argv)
     unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
 
-    // TODO Удалите эту строку, она для того чтобы моя заготовка (не работающий код) не пыталась запуститься на CI
-    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
     std::vector<unsigned int> as(width * height, 0);
     std::vector<unsigned int> bs(width * height, 0);
     for (size_t i = 0; i < width * height; ++i) {
@@ -98,6 +95,7 @@ void run(int argc, char** argv)
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(width * height, 0);
 
+        c_gpu.readN(cs.data(), width * height);
         // Сверяем результат
         for (size_t i = 0; i < width * height; ++i) {
             rassert(cs[i] == as[i] + bs[i], 321418230421312512, cs[i], as[i] + bs[i], i);
@@ -142,6 +140,7 @@ void run(int argc, char** argv)
 
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(width * height, 0);
+        c_gpu.readN(cs.data(), width * height);
 
         // Сверяем результат
         for (size_t i = 0; i < width * height; ++i) {
