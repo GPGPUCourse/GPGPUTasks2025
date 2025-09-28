@@ -13,10 +13,10 @@ njobs=`grep -c '^processor' /proc/cpuinfo`
 
 install_prefix=/usr/local
 
-# sudo apt update
-# sudo apt install -yq graphicsmagick-libmagick-dev-compat # we need Magick++.h so that CImg.h can load jpg files
-# sudo apt install -yq build-essential pkg-config libx11-dev libxrandr-dev # to fix #include <X11/extensions/Xrandr.h> when compiling Vulkan-Loader
-# sudo apt install -yq libx11-xcb-dev libxkbcommon-dev libxrandr-dev libegl1-mesa-dev # to fix "The following required packages were not found: - wayland-client" when compiling Validation-Layers - see https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-ValidationLayers/%2B/refs/tags/v1.1.107/BUILD.md#linux-build-requirements
+sudo apt update
+sudo apt install -yq graphicsmagick-libmagick-dev-compat # we need Magick++.h so that CImg.h can load jpg files
+sudo apt install -yq build-essential pkg-config libx11-dev libxrandr-dev # to fix #include <X11/extensions/Xrandr.h> when compiling Vulkan-Loader
+sudo apt install -yq libx11-xcb-dev libxkbcommon-dev libxrandr-dev libegl1-mesa-dev # to fix "The following required packages were not found: - wayland-client" when compiling Validation-Layers - see https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-ValidationLayers/%2B/refs/tags/v1.1.107/BUILD.md#linux-build-requirements
 
 googletest_version=1.10.0
 vulkan_sdk_version=1.3.283
@@ -25,25 +25,25 @@ vulkan_loader_version=${vulkan_sdk_version}
 vulkan_spirv_reflect_version=${vulkan_sdk_version}
 vulkan_validation_layers_version=${vulkan_sdk_version}
 
-# echo "Downloading sources"
-# wget https://github.com/google/googletest/archive/refs/tags/release-${googletest_version}.zip
-# wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v${vulkan_headers_version}.zip -O Vulkan-Headers-${vulkan_headers_version}.zip
-# wget https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/v${vulkan_loader_version}.zip -O Vulkan-Loader-${vulkan_loader_version}.zip
-# wget https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/19b940e864bd3a5afb3c79e3c6788869d01a19eb/include/vk_mem_alloc.h -O vk_mem_alloc.h
-# wget https://github.com/KhronosGroup/Vulkan-ValidationLayers/archive/refs/tags/v${vulkan_validation_layers_version}.zip -O Vulkan-ValidationLayers-${vulkan_validation_layers_version}.zip
-# wget https://github.com/KhronosGroup/SPIRV-Reflect/archive/refs/tags/vulkan-sdk-${vulkan_spirv_reflect_version}.0.zip -O SPIRV-Reflect-${vulkan_spirv_reflect_version}.zip
-# wget https://github.com/google/shaderc/archive/v2020.2.zip
+echo "Downloading sources"
+wget https://github.com/google/googletest/archive/refs/tags/release-${googletest_version}.zip
+wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v${vulkan_headers_version}.zip -O Vulkan-Headers-${vulkan_headers_version}.zip
+wget https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/v${vulkan_loader_version}.zip -O Vulkan-Loader-${vulkan_loader_version}.zip
+wget https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/19b940e864bd3a5afb3c79e3c6788869d01a19eb/include/vk_mem_alloc.h -O vk_mem_alloc.h
+wget https://github.com/KhronosGroup/Vulkan-ValidationLayers/archive/refs/tags/v${vulkan_validation_layers_version}.zip -O Vulkan-ValidationLayers-${vulkan_validation_layers_version}.zip
+wget https://github.com/KhronosGroup/SPIRV-Reflect/archive/refs/tags/vulkan-sdk-${vulkan_spirv_reflect_version}.0.zip -O SPIRV-Reflect-${vulkan_spirv_reflect_version}.zip
+wget https://github.com/google/shaderc/archive/v2020.2.zip
 
-# echo "Installing googletest"
-# unzip release-${googletest_version}.zip
-# rm release-${googletest_version}.zip
-# pushd googletest-release-${googletest_version}
-# mkdir releasebuild
-# cd releasebuild
-# cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=${install_prefix}  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
-# make -j${njobs} install
-# popd
-# rm -rf googletest-release-${googletest_version}
+echo "Installing googletest"
+unzip release-${googletest_version}.zip
+rm release-${googletest_version}.zip
+pushd googletest-release-${googletest_version}
+mkdir releasebuild
+cd releasebuild
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=${install_prefix} ..
+make -j${njobs} install
+popd
+rm -rf googletest-release-${googletest_version}
 
 echo "Installing Vulkan Headers"
 unzip Vulkan-Headers-${vulkan_headers_version}.zip
