@@ -29,9 +29,9 @@ void main()
 		// но он может быть включен для локальной разработки и в Release - см. common.vk
 		// (обратите внимание что common.vk так же требует необходимое расширение: #extension GL_EXT_debug_printf : enable)
 		// Необзодимо чтобы validation layers были включены, иначе debugPrintfEXT не заработает
-		#if DEBUG_PRINTF_EXT_ENABLED
-		printf("Vulkan debugPrintfEXT test in aplusb.comp kernel! a[index]=%d b[index]=%d \n", a[index], b[index]);
-		#endif
+		// #if DEBUG_PRINTF_EXT_ENABLED
+		// printf("Vulkan debugPrintfEXT test in aplusb.comp kernel! a[index]=%d b[index]=%d \n", a[index], b[index]);
+		// #endif
 	}
 
 	// rassert-ы - это способ легко проверить инвариант, если вдруг он будет нарушен - в консоль будет напечатан код этого инварианта
