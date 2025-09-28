@@ -6,7 +6,8 @@
 
 #include "../defines.h"
 
-__global__ void aplusb_matrix_good(const unsigned int* a,
+
+__global__ __kernel void aplusb_matrix_good(const unsigned int* a,
                        const unsigned int* b,
                              unsigned int* c,
                              unsigned int  width,
@@ -19,6 +20,11 @@ __global__ void aplusb_matrix_good(const unsigned int* a,
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
     // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
+    for (int k = 0; k < height, ++k){
+        unsigned int col = idx
+        unsigned int row = k
+        c[row * width + col] = a[row * width + col] + b[row * width + col]
+    }
 }
 
 namespace cuda {

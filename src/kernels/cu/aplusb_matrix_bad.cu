@@ -8,7 +8,7 @@
 
 __global__ void aplusb_matrix_bad(const unsigned int* a,
                        const unsigned int* b,
-                             unsigned int* c,
+                             unsigned int* c,    
                              unsigned int  width,
                              unsigned int  height)
 {
@@ -16,9 +16,14 @@ __global__ void aplusb_matrix_bad(const unsigned int* a,
     // при этом в памяти подряд идут элементы являющимися соседями в рамках одного ряда,
     // т.е. матрица выложена в памяти линейно ряд за рядом
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
-    // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
-
+    // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта 
     // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
+    const unsigned int idx = blockIdx.x
+    for (int k = 0; k < width, ++k){
+        unsigned int col = k
+        unsigned int row = idx
+        c[row * width + col] = a[row * width + col] + b[row * width + col]
+    }
 }
 
 namespace cuda {
