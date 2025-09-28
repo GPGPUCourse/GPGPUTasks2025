@@ -56,7 +56,6 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum04LocalReduction(avk2::getSum04LocalReduction());
 
     unsigned int n = 100 * 1000 * 1000;
-    // uint n = 258 * 256;
     rassert(n % LOAD_K_VALUES_PER_ITEM == 0, 4356345432524); // for simplicity
     std::vector<unsigned int> values(n, 0);
     size_t cpu_sum = 0;
@@ -101,7 +100,7 @@ void run(int argc, char** argv)
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         unsigned int gpu_sum = 0;
-        for (int iter = 0; iter < 1; ++iter) {
+        for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
             if (algorithm == "CPU") {
@@ -137,7 +136,7 @@ void run(int argc, char** argv)
                                     ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), reduction_buffer2_gpu, reduction_buffer1_gpu, work_size);
                                 }
                             }
-                            work_size = (work_size + 255) / 256;
+                            work_size = (work_size + GROUP_SIZE - 1) / GROUP_SIZE;
                             idx++;
                         }
                         if (idx % 2 == 0) {
