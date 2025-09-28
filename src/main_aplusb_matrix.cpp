@@ -92,7 +92,7 @@ void run(int argc, char** argv)
             gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
 
             if (context.type() == gpu::Context::TypeOpenCL) {
-                ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
+                ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             } else {
                 rassert(false, 4531412341, context.type());
             }
