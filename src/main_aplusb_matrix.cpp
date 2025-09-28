@@ -45,7 +45,7 @@ void run(int argc, char** argv)
     // TODO Удалите эту строку, она для того чтобы моя заготовка (не работающий код) не пыталась запуститься на CI  
 
     std::vector<unsigned int> as(width * height, 0);
-    std::vector<unsigned int> bs(width * height, 0);
+    std::vector<unsigned int> bs(width * height, 0);  
     for (size_t i = 0; i < width * height; ++i) {
         as[i] = 3 * (i + 5) + 7;
         bs[i] = 11 * (i + 13) + 17;
