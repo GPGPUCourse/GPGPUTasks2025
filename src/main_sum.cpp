@@ -11,7 +11,7 @@
 #include <fstream>
 #include <iomanip>
 
-#define PCI_BANDWIDTH_ITER_COUNT 1
+#define PCI_BANDWIDTH_ITER_COUNT 3
 
 unsigned int cpu::sum(const unsigned int* values, unsigned int n)
 {
