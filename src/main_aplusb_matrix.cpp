@@ -42,7 +42,7 @@ void run(int argc, char** argv)
         std::cout << "Running BAD matrix kernel..." << std::endl;
 
         std::vector<double> times;
-        for (int iter = 0; iter < 10; ++iter) {
+        for (int iter = 0; iter < 100; ++iter) {
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
@@ -70,9 +70,8 @@ void run(int argc, char** argv)
             times.push_back(t.elapsed());
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
-
-        // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
-        // rassert(false, 54623414231);
+        double vramSize = sizeof(unsigned int) * 3 * width * height / 1024.0 / 1024.0 / 1024.0;
+        std::cout << "a + b kernel median VRAM bandwidth: " << vramSize / stats::median(times) << " GB/s" << std::endl;
 
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(width * height, 0);
@@ -87,7 +86,7 @@ void run(int argc, char** argv)
     {
         std::cout << "Running GOOD matrix kernel..." << std::endl;
         std::vector<double> times;
-        for (int iter = 0; iter < 10; ++iter) {
+        for (int iter = 0; iter < 100; ++iter) {
             timer t;
             gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
 
@@ -100,7 +99,8 @@ void run(int argc, char** argv)
             times.push_back(t.elapsed());
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
-
+        double vramSize = sizeof(unsigned int) * 3 * width * height / 1024.0 / 1024.0 / 1024.0;
+        std::cout << "a + b kernel median VRAM bandwidth: " << vramSize / stats::median(times) << " GB/s" << std::endl;
         // TODO Почти тот же код что с плохим кернелом, но теперь с хорошим, рекомендуется копи-паста
 
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
