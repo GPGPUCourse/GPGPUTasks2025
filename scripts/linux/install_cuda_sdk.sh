@@ -4,8 +4,8 @@
 set -ev
 
 CUDA_RUNFILE=cuda_13.0.0_580.65.06_linux.run
-# wget https://developer.download.nvidia.com/compute/cuda/13.0.0/local_installers/${CUDA_RUNFILE}
-# sudo apt install linux-headers-$(uname -r)
+wget https://developer.download.nvidia.com/compute/cuda/13.0.0/local_installers/${CUDA_RUNFILE}
+sudo apt install linux-headers-$(uname -r)
 chmod +x ${CUDA_RUNFILE}
 sudo ./${CUDA_RUNFILE} --silent --toolkit
 # permamently add NVCC to PATH:
