@@ -5,10 +5,10 @@
 #include "../defines.h"
 
 __kernel void aplusb_matrix_bad(__global const uint* a,
-                     __global const uint* b,
-                     __global       uint* c,
-                     unsigned int width,
-                     unsigned int height)
+    __global const uint* b,
+    __global uint* c,
+    unsigned int width,
+    unsigned int height)
 {
     // все три массива - линейно выложенные двумерные матрицы размера width (число столбиков) x height (число рядов)
     // при этом в памяти подряд идут элементы являющимися соседями в рамках одного ряда,
@@ -16,5 +16,13 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ПЛОХУЮ производительность с точки зрения memory coalesced паттерна доступа
+    const unsigned int idxX = get_global_id(0);
+
+    if (idxX >= width)
+        return;
+
+    // суммируем вдоль столбца
+    for (int i = 0; i < height; i++) {
+        c[i * width + idxX] = a[i * width + idxX] + b[i * width + idxX];
+    }
 }
