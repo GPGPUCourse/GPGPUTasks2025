@@ -55,7 +55,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u a_gpu(n), b_gpu(n), c_gpu(n);
-    
+
     // TODO Удалите этот rassert - прогрузите входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     // rassert(false, 5462345134123);
     a_gpu.writeN(as.data(), n);
@@ -72,7 +72,7 @@ void run(int argc, char** argv)
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
             // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
             // TODO И в плохом и в хорошем кернеле рабочая группа обязана состоять из 256 work-items
-            gpu::WorkSize workSize(GROUP_SIZE, 1, width, (height + GROUP_SIZE - 1) / GROUP_SIZE);
+            gpu::WorkSize workSize(1, GROUP_SIZE, (width + GROUP_SIZE - 1) / GROUP_SIZE, height);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
@@ -102,11 +102,11 @@ void run(int argc, char** argv)
         std::cout << "Running GOOD matrix kernel..." << std::endl;
 
         // TODO Почти тот же код что с плохим кернелом, но теперь с хорошим, рекомендуется копи-паста
-        
+
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
-            gpu::WorkSize workSize(1, GROUP_SIZE, (width + GROUP_SIZE - 1) / GROUP_SIZE, height);
+            gpu::WorkSize workSize(GROUP_SIZE, 1, width, (height + GROUP_SIZE - 1) / GROUP_SIZE);
             ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             times.push_back(t.elapsed());
         }
@@ -135,7 +135,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
