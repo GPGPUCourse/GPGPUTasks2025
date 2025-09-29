@@ -5,3 +5,5 @@ build*
 cmake-build*
 .vs
 .DS_Store
+*.swp
+*.cpp.swp
