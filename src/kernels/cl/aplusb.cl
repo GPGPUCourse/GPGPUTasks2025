@@ -14,6 +14,5 @@ __kernel void aplusb(__global const uint* a,
 
     if (index >= n)
         return;
-
     c[index] = a[index] + b[index];
 }

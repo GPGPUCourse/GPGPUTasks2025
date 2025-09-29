@@ -32,7 +32,7 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_aplusb(ocl::getAplusB());
-    avk2::KernelSource vk_aplusb(avk2::getAplusB());
+    // avk2::KernelSource vk_aplusb(avk2::getAplusB());
 
     unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
@@ -65,11 +65,10 @@ void run(int argc, char** argv)
         } else if (context.type() == gpu::Context::TypeCUDA) {
             cuda::aplusb(workSize, a_gpu, b_gpu, c_gpu, n);
         } else if (context.type() == gpu::Context::TypeVulkan) {
-            vk_aplusb.exec(n, workSize, a_gpu, b_gpu, c_gpu);
+            // vk_aplusb.exec(n, workSize, a_gpu, b_gpu, c_gpu);
         } else {
             rassert(false, 4531412341, context.type());
         }
-
         times.push_back(t.elapsed());
     }
     std::cout << "a + b kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
