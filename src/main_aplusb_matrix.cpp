@@ -61,7 +61,7 @@ void run(int argc, char** argv)
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
-            gpu::WorkSize workSize(1, 256, width, height);
+            gpu::WorkSize workSize(256, 1, width, height);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
