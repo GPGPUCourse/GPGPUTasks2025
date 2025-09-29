@@ -22,11 +22,11 @@ __global__ void aplusb_matrix_bad(const unsigned int* a,
     const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (x >= height || y >= width) {
+    if (x >= width || y >= height) {
         return;
     }
 
-    const unsigned int index = y + x * width;
+    const unsigned int index = y + x * height;
     c[index] = a[index] + b[index];
 }
 
