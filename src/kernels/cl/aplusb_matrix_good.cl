@@ -18,7 +18,7 @@ __kernel __attribute__((reqd_work_group_size(256, 1, 1))) void aplusb_matrix_goo
 
     const unsigned int index_x = get_global_id(0);
     const unsigned int index_y = get_global_id(1);
-    const unsigned int index = index_x * width + index_y;
+    const unsigned int index = index_y * width + index_x;
     
     if (index >= width * height) {
         return;
