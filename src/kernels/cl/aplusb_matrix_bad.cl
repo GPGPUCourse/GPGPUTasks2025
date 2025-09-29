@@ -19,10 +19,10 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
     unsigned int gid_x = get_global_id(0);
     unsigned int gid_y = get_global_id(1);
     
-    if (gid_x >= height || gid_y >= width) {
+    if (gid_x >= width || gid_y >= height) {
         return;
     }
     
-    unsigned int index = gid_x * width + gid_y;
+    unsigned int index = gid_x * height + gid_y;
     c[index] = a[index] + b[index];
 }

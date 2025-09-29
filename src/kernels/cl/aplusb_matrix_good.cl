@@ -24,6 +24,5 @@ __kernel void aplusb_matrix_good(__global const uint* a,
     }
     
     unsigned int index = gid_y * width + gid_x;
-    
     c[index] = a[index] + b[index];
 }
