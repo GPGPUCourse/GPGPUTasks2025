@@ -42,7 +42,7 @@ void run(int argc, char** argv)
         std::cout << "Running BAD matrix kernel..." << std::endl;
 
         std::vector<double> times;
-        for (int iter = 0; iter < 100; ++iter) {
+        for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
@@ -86,7 +86,7 @@ void run(int argc, char** argv)
     {
         std::cout << "Running GOOD matrix kernel..." << std::endl;
         std::vector<double> times;
-        for (int iter = 0; iter < 100; ++iter) {
+        for (int iter = 0; iter < 10; ++iter) {
             timer t;
             gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
 
