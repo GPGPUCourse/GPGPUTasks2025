@@ -72,7 +72,7 @@ void run(int argc, char** argv)
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
             // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
             // TODO И в плохом и в хорошем кернеле рабочая группа обязана состоять из 256 work-items
-            gpu::WorkSize workSize(1, 256, (width + 255) / 256, height);
+            gpu::WorkSize workSize(GROUP_SIZE, 1, width, (height + GROUP_SIZE - 1) / GROUP_SIZE);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
@@ -106,7 +106,7 @@ void run(int argc, char** argv)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
-            gpu::WorkSize workSize(256, 1, width, (height + 255) / 256);
+            gpu::WorkSize workSize(1, GROUP_SIZE, (width + GROUP_SIZE - 1) / GROUP_SIZE, height);
             ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
             times.push_back(t.elapsed());
         }
