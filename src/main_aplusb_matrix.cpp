@@ -37,8 +37,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_aplusb_matrix_bad(avk2::getAplusBMatrixBad());
     avk2::KernelSource vk_aplusb_matrix_good(avk2::getAplusBMatrixGood());
 
-    // unsigned int task_size = 64;
-    unsigned int task_size = 1;
+    unsigned int task_size = 64;
     unsigned int width = task_size * 256;
     unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
@@ -93,14 +92,6 @@ void run(int argc, char** argv)
         std::vector<unsigned int> cs(n, 0);
         c_gpu.readN(cs.data(), n);
 
-        // for (int i = 0; i < height; ++i) {
-        //     for (int j = 0; j < width; ++j) {
-        //         std::cout << cs[i * height + width] << ' '; 
-        //     }
-        //     std::cout << std::endl;
-        // }
-        // std::cout << std::endl;
-
         // Сверяем результат
         for (size_t i = 0; i < n; ++i) {
             rassert(cs[i] == as[i] + bs[i], 321418230421312512, cs[i], as[i] + bs[i], i);
@@ -127,11 +118,6 @@ void run(int argc, char** argv)
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(n, 0);
         c_gpu.readN(cs.data(), n);
-
-        // for (int i = 0; i < 100; ++i) {
-        //     std::cout << cs[i] << ' '; 
-        // }
-        // std::cout << std::endl;
 
         // Сверяем результат
         for (size_t i = 0; i < n; ++i) {
