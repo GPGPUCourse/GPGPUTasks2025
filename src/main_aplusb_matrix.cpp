@@ -10,6 +10,10 @@
 
 #include <fstream>
 
+static inline unsigned int round_up(unsigned int v, unsigned int multiple) {
+    return ((v + multiple - 1) / multiple) * multiple;
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -42,9 +46,6 @@ void run(int argc, char** argv)
     unsigned int height = task_size * 128;
     std::cout << "matrices size: " << width << "x" << height << " = 3 * " << (sizeof(unsigned int) * width * height / 1024 / 1024) << " MB" << std::endl;
 
-    // TODO Удалите эту строку, она для того чтобы моя заготовка (не работающий код) не пыталась запуститься на CI
-    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
     std::vector<unsigned int> as(width * height, 0);
     std::vector<unsigned int> bs(width * height, 0);
     for (size_t i = 0; i < width * height; ++i) {
@@ -55,66 +56,123 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u a_gpu(width * height), b_gpu(width * height), c_gpu(width * height);
 
-    // TODO Удалите этот rassert - прогрузите входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    rassert(false, 5462345134123);
+    a_gpu.writeN(as.data(), width * height);
+    b_gpu.writeN(bs.data(), width * height);
 
-    {
-        std::cout << "Running BAD matrix kernel..." << std::endl;
+/* проводил эксперименты с разными workSize. Исходя из того, как я понял теорию, хуже всего должно быть при
+ * 256x1 потому что при 32x8 и тем более 16x16 что-то попадает в кеш. Я почитал, в реальности же похоже, что
+ * разница в производительности будет настолько мала, что из-за погрешности таймера ее просто не будет видно.
+ * Это так? Если обратите внимание на этот комментарий, ответьте, пожалуйста, после ревью.
+ * */
+//    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 1; i++) {
+        {
+            std::cout << "Running BAD matrix kernel..." << std::endl;
 
-        // Запускаем кернел (несколько раз и с замером времени выполнения)
-        std::vector<double> times;
-        for (int iter = 0; iter < 10; ++iter) {
-            timer t;
+            // Запускаем кернел (несколько раз и с замером времени выполнения)
+            std::vector<double> times;
+            for (int iter = 0; iter < 10; ++iter) {
+                timer t;
 
-            // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
-            // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
-            // TODO И в плохом и в хорошем кернеле рабочая группа обязана состоять из 256 work-items
-            gpu::WorkSize workSize(1, 1, width, height);
+                // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
+                // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
+                // TODO И в плохом и в хорошем кернеле рабочая группа обязана состоять из 256 work-items
+                unsigned int localX = 256, localY = 1;
+                unsigned int globalX = round_up(width, 256), globalY = round_up(height, 1);
+                switch(i)
+                {
+                    case 0:
+                        localX = 256; localY = 1;
+                        globalX = round_up(width, 256);
+                        globalY = round_up(height, 1);
+                        break;
+                    case 1:
+                        localX = 32; localY = 8;
+                        globalX = round_up(width, 32);
+                        globalY = round_up(height, 8);
+                        break;
+                    case 2:
+                        localX = 16; localY = 16;
+                        globalX = round_up(width, 16);
+                        globalY = round_up(height, 16);
+                        break;
+                    default:
+                        localX = 256; localY = 1;
+                        globalX = round_up(width, 256);
+                        globalY = round_up(height, 1);
+                        break;
+                }
+                gpu::WorkSize workSize(localX, localY, globalX, globalY);
+                ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
 
-            // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-            // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            // TODO раскомментируйте вызов вашего API и поправьте его
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                // ocl_aplusb_matrix_bad.exec(workSize, a_gpu, ...);
-            } else if (context.type() == gpu::Context::TypeCUDA) {
-                // cuda::aplusb_matrix_bad(workSize, a_gpu, ...);
-            } else if (context.type() == gpu::Context::TypeVulkan) {
-                struct {
-                    unsigned int width;
-                    unsigned int height;
-                } params = { width, height };
-                // vk_aplusb_matrix_bad.exec(params, workSize, a_gpu, ...);
-            } else {
-                rassert(false, 4531412341, context.type());
+                times.push_back(t.elapsed());
             }
+            std::cout << "a + b matrix (BAD) kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-            times.push_back(t.elapsed());
+            double memory_size_gb = double(sizeof(unsigned int)) * 3.0 * double(width) * double(height) / 1024.0 / 1024.0 / 1024.0;
+            std::cout << "a + b matrix (BAD) median VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+
+            std::vector<unsigned int> cs(width * height, 0);
+            c_gpu.readN(cs.data(), width * height);
+
+            // Сверяем результат
+            for (size_t i = 0; i < width * height; ++i) {
+                rassert(cs[i] == as[i] + bs[i], 321418230421312512, cs[i], as[i] + bs[i], i);
+            }
         }
-        std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-        // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
-        rassert(false, 54623414231);
+        {
+            std::cout << "Running GOOD matrix kernel..." << std::endl;
+            // Запускаем кернел (несколько раз и с замером времени выполнения)
+            std::vector<double> times;
+            for (int iter = 0; iter < 10; ++iter) {
+                timer t;
 
-        // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-        std::vector<unsigned int> cs(width * height, 0);
+                // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
+                // Обратите внимание что сейчас указана рабочая группа размера 1х1 в рабочем пространстве width x height, это не то что вы хотите
+                // TODO И в плохом и в хорошем кернеле рабочая группа обязана состоять из 256 work-items
+                unsigned int localX = 256, localY = 1;
+                unsigned int globalX = round_up(width, 256), globalY = round_up(height, 1);
+                switch(i)
+                {
+                    case 0:
+                        localX = 256; localY = 1;
+                        globalX = round_up(width, 256);
+                        globalY = round_up(height, 1);
+                        break;
+                    case 1:
+                        localX = 32; localY = 8;
+                        globalX = round_up(width, 32);
+                        globalY = round_up(height, 8);
+                        break;
+                    case 2:
+                        localX = 16; localY = 16;
+                        globalX = round_up(width, 16);
+                        globalY = round_up(height, 16);
+                        break;
+                    default:
+                        localX = 256; localY = 1;
+                        globalX = round_up(width, 256);
+                        globalY = round_up(height, 1);
+                        break;
+                }
+                gpu::WorkSize workSize(localX, localY, globalX, globalY);
+                ocl_aplusb_matrix_good.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
 
-        // Сверяем результат
-        for (size_t i = 0; i < width * height; ++i) {
-            rassert(cs[i] == as[i] + bs[i], 321418230421312512, cs[i], as[i] + bs[i], i);
-        }
-    }
+                times.push_back(t.elapsed());
+            }
+            std::cout << "a + b matrix (GOOD) kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-    {
-        std::cout << "Running GOOD matrix kernel..." << std::endl;
+            double memory_size_gb = double(sizeof(unsigned int)) * 3.0 * double(width) * double(height) / 1024.0 / 1024.0 / 1024.0;
+            std::cout << "a + b matrix (GOOD) median VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
 
-        // TODO Почти тот же код что с плохим кернелом, но теперь с хорошим, рекомендуется копи-паста
+            std::vector<unsigned int> cs(width * height, 0);
+            c_gpu.readN(cs.data(), width * height);
 
-        // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-        std::vector<unsigned int> cs(width * height, 0);
-
-        // Сверяем результат
-        for (size_t i = 0; i < width * height; ++i) {
-            rassert(cs[i] == as[i] + bs[i], 321418230365731436, cs[i], as[i] + bs[i], i);
+            // Сверяем результат
+            for (size_t i = 0; i < width * height; ++i) {
+                rassert(cs[i] == as[i] + bs[i], 321418230365731436, cs[i], as[i] + bs[i], i);
+            }
         }
     }
 }
