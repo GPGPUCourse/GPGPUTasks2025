@@ -5,7 +5,7 @@ project(GPGPUTasks)
 set(CMAKE_CXX_STANDARD 17)
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
-option(GPU_CUDA_SUPPORT "CUDA support." OFF)
+option(GPU_CUDA_SUPPORT "CUDA support." ON)
 
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
 if (NOT DEFINED GLSLC_BIN)
@@ -77,6 +77,9 @@ compile_vulkan(HEADERS src/kernels/vk/aplusb_matrix_good.comp VULKAN_DEFINES)
 if (GPU_CUDA_SUPPORT)
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
+    
+    set(CMAKE_CUDA_ARCHITECTURES 75)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_75")
 
     # Компиляция CUDA происходит NVCC компилятором, все файлы с расширением .cu компилируются два раза:
     # 1) один раз обычным компилятором - для HOST-side кода, компилируются только те функции которые не помечены специально что они для видеокарты (или помечены что они и для видеокарты и для HOST-side кода)
