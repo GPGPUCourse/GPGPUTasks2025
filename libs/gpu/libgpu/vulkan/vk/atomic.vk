@@ -1,0 +1,42 @@
+#ifndef atomic_vk // pragma once
+#define atomic_vk
+
+// Note that if it will be declared as function - we will encounter this compilation error:
+//> shaderc: internal error: compilation succeeded but failed to optimize: AtomicCompareExchange: Function storage class forbidden when the Shader capability is declared.
+//>  %158 = OpAtomicCompareExchange %uint %interpreted_as_float_pointer %uint_1 %uint_0 %uint_0 %155 %154
+// See also https://github.com/KhronosGroup/glslang/issues/2735
+#define atomicMinFloat(/*inout uint*/ interpreted_as_float_pointer, /*float*/ value)			\
+{																								\
+	uint expected_val = interpreted_as_float_pointer;											\
+																								\
+	while (uintBitsToFloat(expected_val) > value) {												\
+		uint new_val = floatBitsToUint(value);													\
+		uint found_val = atomicCompSwap(interpreted_as_float_pointer, expected_val, new_val);	\
+		if (found_val == expected_val) {														\
+			break;																				\
+		} else {																				\
+			expected_val = found_val;															\
+		}																						\
+	};																							\
+}
+
+// Note that if it will be declared as function - we will encounter this compilation error:
+//> shaderc: internal error: compilation succeeded but failed to optimize: AtomicCompareExchange: Function storage class forbidden when the Shader capability is declared.
+//>  %158 = OpAtomicCompareExchange %uint %interpreted_as_float_pointer %uint_1 %uint_0 %uint_0 %155 %154
+// See also https://github.com/KhronosGroup/glslang/issues/2735
+#define atomicMaxFloat(/*inout uint*/ interpreted_as_float_pointer, /*float*/ value)			\
+{																								\
+	uint expected_val = interpreted_as_float_pointer;											\
+																								\
+	while (uintBitsToFloat(expected_val) < value) {												\
+		uint new_val = floatBitsToUint(value);													\
+		uint found_val = atomicCompSwap(interpreted_as_float_pointer, expected_val, new_val);	\
+		if (found_val == expected_val) {														\
+			break;																				\
+		} else {																				\
+			expected_val = found_val;															\
+		}																						\
+	};																							\
+}
+
+#endif // pragma once

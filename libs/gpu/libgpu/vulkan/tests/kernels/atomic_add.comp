@@ -1,0 +1,60 @@
+#version 450
+
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "defines.h"
+
+#extension GL_EXT_shader_atomic_float : enable
+
+#define USE_NATIVE_ATOMIC_ADD_FLOAT 1 // relies on VK_EXT_shader_atomic_float
+
+// Input
+layout (std430,	binding = 0)		buffer	readonly		IndexToAddIn		{	int		index_to_add[];		};
+layout (std430,	binding = 1)		buffer	readonly		ValueToAddIn		{	float	value_to_add[];		};
+
+// Output
+#if USE_NATIVE_ATOMIC_ADD_FLOAT
+layout (std430, binding = 2)		buffer					ValuesTableInOut	{	float	table_values[];		};
+#else
+layout (std430, binding = 2)		buffer					ValuesTableInOut	{	uint/*in-fact it is float*/ table_values[]; };
+
+#define atomicAddFloat(mem, data) \
+{																				\
+	uint expected_val = mem;													\
+																				\
+	do {																		\
+		uint new_val = floatBitsToUint(data + uintBitsToFloat(expected_val));	\
+		uint found_val = atomicCompSwap(mem, expected_val, new_val);			\
+		if (found_val == expected_val) {										\
+			break;																\
+		} else {																\
+			expected_val = found_val;											\
+		}																		\
+	} while (true);																\
+}
+#endif
+
+layout (push_constant) uniform PushConstants {
+	int n;
+	int table_size;
+} params;
+
+layout (local_size_x = VK_GROUP_SIZE) in;
+void main()
+{
+	const int i = int(gl_GlobalInvocationID.x);
+	if (i >= params.n) {
+		return;
+	}
+
+	int index = index_to_add[i];
+	float value = value_to_add[i];
+	rassert(index >= 0 && index < params.table_size, 354134122);
+	rassert(float(int(value)) == value, 265234290);
+
+#if USE_NATIVE_ATOMIC_ADD_FLOAT
+	atomicAdd(table_values[index], value);
+#else
+	atomicAddFloat(table_values[index], value);
+#endif
+}

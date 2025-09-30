@@ -1,0 +1,36 @@
+#ifndef limits_vk // pragma once
+#define limits_vk
+
+//______________________________________________Device and Host code____________________________________________________
+
+#ifdef FLT_EPSILON
+static_assert(	FLT_EPSILON						==	1.19209290E-07f, "");
+#else
+#define			FLT_EPSILON							1.19209290E-07f // mimics OpenCL, definition - https://frama-c.com/2013/05/09/Definition-of-FLT_EPSILON.html and http://web.archive.org/web/20170916030913/http://blog.frama-c.com/index.php?post/2013/05/09/FLT_EPSILON
+#endif
+
+#ifdef FLT_MAX
+static_assert(	FLT_MAX							==	3.402823466e+38f, "");
+#else
+#define			FLT_MAX								3.402823466e+38f
+#endif
+
+#ifdef UCHAR_MAX
+static_assert(	UCHAR_MAX						==	255, "");
+#else
+#define			UCHAR_MAX							255
+#endif
+
+#ifdef UINT_MAX
+static_assert(	UINT_MAX						==	4294967295U, "");
+#else
+#define			UINT_MAX							4294967295U
+#endif
+
+#ifdef INT_MAX
+static_assert(	INT_MAX							==	2147483647, "");
+#else
+#define			INT_MAX								2147483647
+#endif
+
+#endif // pragma once

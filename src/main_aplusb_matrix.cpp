@@ -1,4 +1,3 @@
-// Комментарий для того чтобы сделать коммит и пул реквест
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 

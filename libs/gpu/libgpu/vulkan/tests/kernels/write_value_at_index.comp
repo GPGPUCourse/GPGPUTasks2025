@@ -1,0 +1,33 @@
+#version 450
+
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "defines.h"
+
+layout (local_size_x = VK_GROUP_SIZE) in;
+
+layout (std430, binding = 0) writeonly buffer Buffer0Out {
+	uint buffer0[];
+};
+
+layout (std430, binding = 1) writeonly buffer Buffer1Out {
+	uint buffer1[];
+};
+
+layout (push_constant) uniform PushConstants {
+	uint chosenBuffer;
+	int index;
+	uint value;
+} params;
+
+void main()
+{
+	if (gl_GlobalInvocationID.x == 0) {
+		rassert(params.chosenBuffer < 2, 859856150);
+		if (params.chosenBuffer == 0) {
+			buffer0[params.index] = params.value;
+		} else if (params.chosenBuffer == 1) {
+			buffer1[params.index] = params.value;
+		}
+	}
+}
