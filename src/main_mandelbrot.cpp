@@ -11,10 +11,10 @@
 #include <fstream>
 
 void cpu::mandelbrot(float* results,
-                   unsigned int width, unsigned int height,
-                   float fromX, float fromY,
-                   float sizeX, float sizeY,
-                   unsigned int iters, unsigned int isSmoothing,
+                   const unsigned int width, const unsigned int height,
+                   const float fromX, const float fromY,
+                   const float sizeX, const float sizeY,
+                   const unsigned int iters, const unsigned int isSmoothing,
                    bool useOpenMP)
 {
     const float threshold = 256.0f;
@@ -23,15 +23,15 @@ void cpu::mandelbrot(float* results,
     #pragma omp parallel for if(useOpenMP)
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
-            float x0 = fromX + (i + 0.5f) * sizeX / width;
-            float y0 = fromY + (j + 0.5f) * sizeY / height;
+            const float x0 = fromX + (i + 0.5f) * sizeX / width;
+            const float y0 = fromY + (j + 0.5f) * sizeY / height;
 
             float x = x0;
             float y = y0;
 
             int iter = 0;
             for (; iter < iters; ++iter) {
-                float xPrev = x;
+                const float xPrev = x;
                 x = x * x - y * y + x0;
                 y = 2.0f * xPrev * y + y0;
                 if ((x * x + y * y) > threshold2) {
@@ -55,16 +55,9 @@ void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
-    // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
-    // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
-    //          если же вас это не останавливает - профилировщик (nsight-systems) при запуске на NVIDIA тоже работает (хоть и менее мощный чем nsight-compute)
-    //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
-    //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     unsigned int benchmarkingIters = 10;
 
@@ -88,8 +81,6 @@ void run(int argc, char** argv)
     image32f cpu_results;
 
     ocl::KernelSource ocl_mandelbrot(ocl::getMandelbrot());
-
-    avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
 
     // Аллоцируем буфер в VRAM
     gpu::gpu_mem_32f gpu_results(width * height);
@@ -121,25 +112,8 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    // TODO cuda::mandelbrot(..);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    typedef unsigned int uint;
-                    struct {
-                        uint width; uint height;
-                       float fromX; float fromY;
-                       float sizeX; float sizeY;
-                        uint iters; uint isSmoothing;
-                    } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
-                    // TODO vk_mandelbrot.exec(params, ...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    gpu::WorkSize workSize(GROUP_SIZE, 1, width, height);
+                    ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
                 } else {
                     rassert(false, 546345243, context.type());
                 }
@@ -186,7 +160,7 @@ void run(int argc, char** argv)
     // если захотите сделать интерактивное красивое - скажите, я дам вам заготовку которую будет несложно доделать
 }
 
-int main(int argc, char** argv)
+int main(const int argc, char** argv)
 {
     try {
         run(argc, argv);
