@@ -73,7 +73,7 @@ void run(int argc, char** argv)
     unsigned int iterationsLimit = 256;
     unsigned int isSmoothing = false;
 
-#if 1
+#if 0
     float centralX = -0.789136f;
     float centralY = -0.150316f;
     float sizeX = 0.00239f;
@@ -121,8 +121,10 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+                    ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
+                    
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -160,8 +162,8 @@ void run(int argc, char** argv)
         std::cout << "Mandelbrot effective algorithm GFlops: " << maxApproximateFlops / gflops / stats::median(times) << " GFlops" << std::endl;
 
         // Сохраняем картинку
-        image8u image = renderToColor(cpu_results.ptr(), width, height);
-        std::string filename = "mandelbrot " + algorithm + ".bmp";
+        image8u image = renderToColor(current_results.ptr(), width, height); // was a bug here(?)
+        std::string filename = "mandelbrot " + algorithm + (isSmoothing ? "smooth" : "notsmooth") + ".bmp";
         std::cout << "saving image to '" << filename << "'..." << std::endl;
         image.saveBMP(filename);
 
