@@ -118,13 +118,13 @@ int main()
 			std::cout << "        Device name: " << deviceName.data() << std::endl;
 
 			cl_device_type deviceType = 0;
-			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, 0, nullptr, &deviceType));
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, nullptr));
 			std::cout << "        Device type: ";
-			if (deviceType & CL_DEVICE_TYPE_CPU) std::cout << "CPU, ";
-			if (deviceType & CL_DEVICE_TYPE_GPU) std::cout << "GPU, ";
-			if (deviceType & CL_DEVICE_TYPE_ACCELERATOR) std::cout << "accelerator, ";
-			if (deviceType & CL_DEVICE_TYPE_CUSTOM) std::cout << "custom, ";
-			if (deviceType & CL_DEVICE_TYPE_DEFAULT) std::cout << "default, ";
+			if (deviceType == CL_DEVICE_TYPE_CPU) std::cout << "CPU, ";
+			if (deviceType == CL_DEVICE_TYPE_GPU) std::cout << "GPU, ";
+			if (deviceType == CL_DEVICE_TYPE_ACCELERATOR) std::cout << "accelerator, ";
+			if (deviceType == CL_DEVICE_TYPE_CUSTOM) std::cout << "custom, ";
+			if (deviceType == CL_DEVICE_TYPE_DEFAULT) std::cout << "default, ";
 			std::cout << std::endl;
 
 			cl_ulong deviceMemorySize = 0;
