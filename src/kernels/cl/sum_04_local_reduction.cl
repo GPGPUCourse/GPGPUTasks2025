@@ -4,18 +4,42 @@
 
 #include "../defines.h"
 
-#define WARP_SIZE 32
-
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void sum_04_local_reduction(__global const uint* a,
                                      __global       uint* b,
                                             unsigned int  n)
 {
-    // Подсказки:
-    // const uint index = get_global_id(0);
-    // const uint local_index = get_local_id(0);
-    // __local uint local_data[GROUP_SIZE];
-    // barrier(CLK_LOCAL_MEM_FENCE);
+    const uint index = get_global_id(0);
+    const uint local_index = get_local_id(0);
+    __local uint local_data[GROUP_SIZE];
+    if (index < n) {
+        local_data[local_index] = a[index];
+    } else {
+        local_data[local_index] = 0;
+    }
 
-    // TODO
+    // да, то что ниже не очень красиво, но это дало увеличение bandwidth примерно в два раза (с ~55 до >100 Gb/s)
+    // цикл не хотел использовать, потому что от него алгоритм упрется больше в alu-сложность, преимущество
+    // перед тем что ниже у него только в компактности написания
+    if (!(local_index & 7)) {
+        local_data[local_index] += local_data[local_index + 1];
+        local_data[local_index] += local_data[local_index + 2];
+        local_data[local_index] += local_data[local_index + 3];
+        local_data[local_index] += local_data[local_index + 4];
+        local_data[local_index] += local_data[local_index + 5];
+        local_data[local_index] += local_data[local_index + 6];
+        local_data[local_index] += local_data[local_index + 7];
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_index == 0) {
+        const unsigned int index_for_subsum = get_group_id(0);
+        b[index_for_subsum] = 0;
+        for (uint i = 0; i < GROUP_SIZE; i += 8) {
+            b[index_for_subsum] += local_data[i];
+        }
+    }
+
+
 }
