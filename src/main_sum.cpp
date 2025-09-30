@@ -133,7 +133,7 @@ void run(int argc, char** argv)
                         auto output_ptr = &reduction_buffer2_gpu;
 
                         while (current_size > 1) {
-                            ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), *input_ptr, *output_ptr, current_size);
+                            ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, current_size), *input_ptr, *output_ptr, current_size);
                             std::swap(input_ptr, output_ptr);
                             current_size = (current_size + GROUP_SIZE - 1) / GROUP_SIZE;
                         }
