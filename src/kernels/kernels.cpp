@@ -2,6 +2,7 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/mandelbrot.h"
+#include "cl/generated_kernels/mandelbrot_int.h"
 #include "cl/generated_kernels/sum_01_atomics.h"
 #include "cl/generated_kernels/sum_02_atomics_load_k.h"
 #include "cl/generated_kernels/sum_03_local_memory_atomic_per_workgroup.h"
@@ -67,6 +68,11 @@ const ocl::ProgramBinaries& getAplusB()
 const ocl::ProgramBinaries& getMandelbrot()
 {
     return opencl_binaries_mandelbrot;
+}
+
+const ocl::ProgramBinaries& getMandelbrotInt()
+{
+    return opencl_binaries_mandelbrot_int;
 }
 const ProgramBinaries& getSum01Atomics()
 {

@@ -33,6 +33,8 @@ namespace ocl {
 const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getMandelbrot();
+const ProgramBinaries& getMandelbrotInt();
+
 
 const ProgramBinaries& getSum01Atomics();
 const ProgramBinaries& getSum02AtomicsLoadK();

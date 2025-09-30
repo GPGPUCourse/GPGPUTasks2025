@@ -15,8 +15,6 @@ __kernel void mandelbrot(__global float* results,
     const unsigned int i = get_global_id(0);
     const unsigned int j = get_global_id(1);
 
-
-    // TODO
     if ( i >= width || j >= height)
         return;
     const float threshold = 256.0f;
@@ -44,8 +42,4 @@ __kernel void mandelbrot(__global float* results,
 
     result = 1.0f * result / iters;
     results[j * width + i] = result;
-////
-
-
-/////TODO
 }

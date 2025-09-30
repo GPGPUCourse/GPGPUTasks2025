@@ -60,6 +60,7 @@ set(LIBRARIES
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/mandelbrot.cl
+        src/kernels/cl/mandelbrot_int.cl
         src/kernels/cl/sum_01_atomics.cl
         src/kernels/cl/sum_02_atomics_load_k.cl
         src/kernels/cl/sum_03_local_memory_atomic_per_workgroup.cl

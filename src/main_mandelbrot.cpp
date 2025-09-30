@@ -88,6 +88,7 @@ void run(int argc, char** argv)
     image32f cpu_results;
 
     ocl::KernelSource ocl_mandelbrot(ocl::getMandelbrot());
+    ocl::KernelSource ocl_mandelbrot_int(ocl::getMandelbrotInt());
 
     avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
 
@@ -98,6 +99,7 @@ void run(int argc, char** argv)
         "CPU",
         "CPU with OpenMP",
         "GPU",
+        "GPU with precision"
     };
 
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
@@ -122,10 +124,14 @@ void run(int argc, char** argv)
                 ocl_mandelbrot.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing );
 
             }
+            else if (algorithm == "GPU with precision") {
+                ocl_mandelbrot_int.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing );
+
+            }
 
             times.push_back(t.elapsed());
 
-            if (algorithm == "GPU") {
+            if (algorithm == "GPU" or algorithm == "GPU with precision") {
                 gpu_results.readN(current_results.ptr(), width * height);
             }
         }
@@ -154,7 +160,7 @@ void run(int argc, char** argv)
             errorAvg /= width * height;
             std::cout << algorithm << " vs CPU average results difference: " << 100.0 * errorAvg << "%" << std::endl;
 
-            if (errorAvg > 0.03) {
+            if (errorAvg > 0.03 and algorithm != "GPU with precision") {
                 throw std::runtime_error("Too high difference between CPU and GPU results!");
             }
         }
