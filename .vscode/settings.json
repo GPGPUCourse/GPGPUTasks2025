@@ -1,11 +1,19 @@
 {
     "files.associations": {
+        "array": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "iterator": "cpp",
+        "vector": "cpp",
         "any": "cpp",
         "filesystem": "cpp",
         "random": "cpp",
-        "queue": "cpp",
-        "stack": "cpp",
-        "iostream": "cpp",
-        "ios": "cpp"
+        "algorithm": "cpp",
+        "__bit_reference": "cpp",
+        "ios": "cpp",
+        "variant": "cpp",
+        "chrono": "cpp"
     }
 }

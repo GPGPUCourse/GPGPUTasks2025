@@ -17,8 +17,8 @@ __global__ void mandelbrot(float* results,
     const unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (i >= width || j >= height) return;
-    float x0 = (fromX - sizeX/2.0f) + (i + 0.5f) * sizeX / width;
-    float y0 = (fromY - sizeY/2.0f) + (j + 0.5f) * sizeY / height;
+    float x0 = fromX + (i + 0.5f) * sizeX / width;
+    float y0 = fromY + (j + 0.5f) * sizeY / height;
     float x = x0;
     float y = y0;
 

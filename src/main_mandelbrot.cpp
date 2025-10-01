@@ -111,7 +111,7 @@ void run(int argc, char** argv)
         int iters_count = (algorithm == "CPU") ? 1 : 10; // single-threaded CPU is too slow
         for (int iter = 0; iter < iters_count; ++iter) {
             timer t;
-            gpu::WorkSize workSize(16, 16, width, height);
+            gpu::WorkSize workSize(16, 16, width, height); // тот же 256
             if (algorithm == "CPU") {
                 cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, false);
                 cpu_results = current_results;
@@ -126,16 +126,12 @@ void run(int argc, char** argv)
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
-                    auto grid = workSize.cuGridSize();
-                    auto block = workSize.cuBlockSize();
-                    std::cout << "Grid: (" << grid.x << ", " << grid.y << ", " << grid.z
-                            << "), Block: (" << block.x << ", " << block.y << ", " << block.z << ")\n";
-                                        //throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    //throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
                     cuda::mandelbrot(
                         workSize,
-                        gpu_results,   // используем GPU буфер
+                        gpu_results,   
                         width, height,
-                        centralX, centralY,
+                        centralX - sizeX / 2.0f, centralY - sizeY / 2.0f,
                         sizeX, sizeY,
                         iterationsLimit,
                         isSmoothing
