@@ -94,6 +94,8 @@ void run(int argc, char** argv)
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
+        double bw = sizeof(unsigned int) * width * height  * 3 / stats::median(times) / 1024 / 1024 / 1024;
+        std::cout << " bandwidth bad matrix: " << bw << " GB/s" << std::endl;
         // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
         //rassert(false, 54623414231);
 
@@ -139,6 +141,8 @@ void run(int argc, char** argv)
             times.push_back(t.elapsed());
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
+        double bw = sizeof(unsigned int) * width * height  * 3 / stats::median(times) / 1024 / 1024 / 1024;
+        std::cout << " bandwidth good matrix: " << bw << " GB/s" << std::endl;
         // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> cs(width * height, 0);
         c_gpu.readN(cs.data(), cs.size());
