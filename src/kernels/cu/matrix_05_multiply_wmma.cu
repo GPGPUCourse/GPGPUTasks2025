@@ -8,8 +8,9 @@
 #include "../defines.h"
 
 // Include WMMA header with nvcuda::wmma namespace
+#include <cuda_fp16.h>   // ДО <mma.h>
 #include <mma.h>
-using namespace nvcuda;
+using namespace nvcuda::wmma ;
 
 __global__ void matrix_multiply_wmma(
                        const float* a, // rows=h x cols=k
