@@ -11,5 +11,14 @@ __kernel void matrix_01_transpose_naive(
                                 unsigned int w,
                                 unsigned int h)
 {
-    // TODO
+    unsigned int i = get_global_id(0);
+    unsigned int j = get_global_id(1);
+
+    if ((j * w + i) < w * h) {
+        transposed_matrix[j + i * h] = matrix[j * w + i];
+        // вопрос смешнявка для студентов, почему нельзя так???)))
+        // transposed_matrix[j * w + i] = matrix[j + i * h];
+        // казалось бы просто теперь мы пишем coalesced, а не читаем
+    }
+
 }
