@@ -18,6 +18,10 @@ __kernel void mandelbrot(__global float* results,
     const unsigned int i = get_global_id(0);
     const unsigned int j = get_global_id(1);
 
+    if (i >= width || j >= height) {
+        return;
+    }
+    
     float x0 = fromX + (i + 0.5f) * sizeX / width;
     float y0 = fromY + (j + 0.5f) * sizeY / height;
 
