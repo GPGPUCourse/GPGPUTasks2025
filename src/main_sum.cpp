@@ -23,7 +23,7 @@ unsigned int cpu::sum(const unsigned int* values, unsigned int n)
 unsigned int cpu::sumOpenMP(const unsigned int* values, unsigned int n)
 {
     unsigned int sum = 0;
-    #pragma omp parallel for schedule(dynamic, 1024) reduction(+ : sum)
+#pragma omp parallel for schedule(dynamic, 1024) reduction(+ : sum)
     for (ptrdiff_t i = 0; i < n; ++i) {
         sum += values[i];
     }
@@ -113,11 +113,29 @@ void run(int argc, char** argv)
                         ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
-                        // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        unsigned int k = div_ceil(n, static_cast<unsigned int>(GROUP_SIZE));
+                        reduction_buffer1_gpu.fill(0);
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, n);
+                        unsigned int i = 1;
+                        while (k > 1) {
+                            if (i % 2 == 1) {
+                                ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, k), reduction_buffer1_gpu, reduction_buffer2_gpu, k);
+                            } else {
+                                ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, k), reduction_buffer2_gpu, reduction_buffer1_gpu, k);
+                            }
+                            k = div_ceil(k, static_cast<unsigned int>(GROUP_SIZE));
+                            ++i;
+                        }
+
+                        if (i % 2 == 1) {
+                            reduction_buffer1_gpu.readN(&gpu_sum, 1);
+                        } else {
+                            reduction_buffer2_gpu.readN(&gpu_sum, 1);
+                        }
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
