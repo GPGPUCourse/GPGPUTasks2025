@@ -89,8 +89,6 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_mandelbrot(ocl::getMandelbrot());
 
-    avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
-
     // Аллоцируем буфер в VRAM
     gpu::gpu_mem_32f gpu_results(width * height);
 
@@ -120,29 +118,8 @@ void run(int argc, char** argv)
                 cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, true);
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    // TODO cuda::mandelbrot(..);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    typedef unsigned int uint;
-                    struct {
-                        uint width; uint height;
-                       float fromX; float fromY;
-                       float sizeX; float sizeY;
-                        uint iters; uint isSmoothing;
-                    } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
-                    // TODO vk_mandelbrot.exec(params, ...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                } else {
-                    rassert(false, 546345243, context.type());
-                }
+                gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+                ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
             }
 
             times.push_back(t.elapsed());
