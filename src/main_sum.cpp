@@ -72,10 +72,21 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(values.data(), n);
+    
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+    std::vector<double> times;
+    for (size_t i = 0; i < 3; ++i) {
+        timer t; 
+        input_gpu.writeN(values.data(), n);
+        times.push_back(t.elapsed());
+    }
+    double median_time = stats::median(times);
+    double memory_size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
+
+    std::cout << "PCI-E bandwidth (median over 3 runs): "
+            << memory_size_gb / median_time << " GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -95,7 +106,7 @@ void run(int argc, char** argv)
         std::vector<double> times;
         unsigned int gpu_sum = 0;
         for (int iter = 0; iter < 10; ++iter) {
-            timer t;
+            timer t; 
 
             if (algorithm == "CPU") {
                 gpu_sum = cpu::sum(values.data(), n);
@@ -140,8 +151,8 @@ void run(int argc, char** argv)
                         sum_accum_gpu.fill(0);
                         unsigned int size = n;
 
-                        auto* in  = &input_gpu;                
-                        auto* out = &reduction_buffer1_gpu;    
+                        gpu::gpu_mem_32u* in  = &input_gpu;                
+                        gpu::gpu_mem_32u* out = &reduction_buffer1_gpu;    
 
                         bool first = true;
 

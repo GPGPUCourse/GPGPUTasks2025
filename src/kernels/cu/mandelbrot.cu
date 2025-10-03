@@ -30,6 +30,7 @@ __global__ void mandelbrot(float* results,
     for (; iter < iters; ++iter) {
         float xPrev = x;
         x = x * x - y * y + x0;
+        
         y = 2.0f * xPrev * y + y0;
 
         if ((x * x + y * y) > threshold2) {
@@ -43,9 +44,7 @@ __global__ void mandelbrot(float* results,
         result = result - logf(logf(sqrtf(x * x + y * y)) / logf(threshold)) / logf(2.0f);
     }
 
-    result = result / (float)iters;
-
-    // Записываем в выходной буфер
+    result = 1.0f * result / iters;
     results[j * width + i] = result;
 }
 
