@@ -4,6 +4,7 @@
 
 #include "../defines.h"
 
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void aplusb_matrix_good(__global const uint* a,
     __global const uint* b,
     __global uint* c,

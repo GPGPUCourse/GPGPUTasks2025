@@ -4,6 +4,7 @@
 
 #include "../defines.h"
 
+__attribute__((reqd_work_group_size(1, GROUP_SIZE, 1)))
 __kernel void aplusb_matrix_bad(__global const uint* a,
     __global const uint* b,
     __global uint* c,
@@ -22,6 +23,6 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
     if (x >= width || y >= height)
         return;
 
-    const unsigned int index = x * height + y;
+    const unsigned int index = y * width + x;
     c[index] = a[index] + b[index];
 }
