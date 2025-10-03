@@ -72,7 +72,18 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(values.data(), n);
+    {
+        const double memory_size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
+        std::vector<double> times;
+        constexpr int its = 3;
+        times.reserve(its);
+        for (int i = 0; i < its; ++i) {
+            timer t;
+            input_gpu.writeN(values.data(), n);
+            times.push_back(t.elapsed());
+        }
+        std::cout << "PCI-E bus effective median bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+    }
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
