@@ -113,11 +113,21 @@ void run(int argc, char** argv)
                         ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
-                        // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        unsigned int current_size = n;
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, current_size);
+                        current_size = div_ceil(current_size, (unsigned int)GROUP_SIZE);
+                        
+                        reduction_buffer2_gpu.fill(0);
+                        while (current_size != 1) {
+                            ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), reduction_buffer1_gpu, reduction_buffer2_gpu, current_size);
+                            std::swap(reduction_buffer1_gpu, reduction_buffer2_gpu);
+                            current_size = div_ceil(current_size, (unsigned int)GROUP_SIZE);
+                        }
+                        reduction_buffer1_gpu.readN(&gpu_sum, 1);
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
@@ -171,6 +181,16 @@ void run(int argc, char** argv)
         // Вычисляем достигнутую эффективную пропускную способность алгоритма (из соображений что мы отработали в один проход по входному массиву)
         double memory_size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
         std::cout << "sum median effective algorithm bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+        
+        std::vector<double> pci_times;
+        for (int iter = 0; iter < 10; ++iter) {
+            timer t;
+
+            input_gpu.writeN(values.data(), n);
+            pci_times.push_back(t.elapsed());
+        }
+
+        std::cout << "PCI median bandwidth " << memory_size_gb / stats::median(pci_times) << " GB/s" << std::endl;
 
         // Сверяем результат
         rassert(cpu_sum == gpu_sum, 3452341235234456, cpu_sum, gpu_sum);
