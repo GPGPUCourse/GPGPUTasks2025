@@ -18,15 +18,15 @@ __kernel void sum_03_local_memory_atomic_per_workgroup(__global const uint* a,
 
     if (index >= stride) {
         local_data[local_index] = 0;
-        return;
     }
+    else {
+        uint my_sum = 0;
+        for (uint i = 0; i < LOAD_K_VALUES_PER_ITEM; ++i) {
+            my_sum += a[i * stride + index];
+        }
 
-    uint my_sum = 0;
-    for (uint i = 0; i < LOAD_K_VALUES_PER_ITEM; ++i) {
-        my_sum += a[i * stride + index];
+        local_data[local_index] = my_sum;
     }
-
-    local_data[local_index] = my_sum;
 
     barrier(CLK_LOCAL_MEM_FENCE);
 

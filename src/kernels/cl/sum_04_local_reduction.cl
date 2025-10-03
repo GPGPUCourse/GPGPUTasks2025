@@ -17,10 +17,11 @@ __kernel void sum_04_local_reduction(__global const uint* a,
     __local uint local_data[GROUP_SIZE];
 
     if (index >= n) {
-     local_data[local_index] = 0;
-     return;
+        local_data[local_index] = 0;
     }
-    local_data[local_index] = a[index];
+    else {
+        local_data[local_index] = a[index];
+    }
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
