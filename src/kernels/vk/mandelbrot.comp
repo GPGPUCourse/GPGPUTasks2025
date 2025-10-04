@@ -13,11 +13,31 @@ layout (push_constant) uniform PushConstants {
 	uint iters; uint isSmoothing;
 } params;
 
+const float threshold = 256.0f;
+const float threshold2 = threshold * threshold;
+
 layout (local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
 void main()
 {
 	const uint i = gl_GlobalInvocationID.x;
 	const uint j = gl_GlobalInvocationID.y;
 
-    // TODO
+	vec2 z0 = vec2(
+		params.fromX + (i + 0.5f) * params.sizeX / params.width,
+		params.fromY + (j + 0.5f) * params.sizeY / params.height
+	);
+
+	vec2 z = z0;
+
+    int iter = 0;
+    for (; iter < params.iters && dot(z, z) < threshold2; ++iter) {
+		z = vec2(z.x * z.x - z.y * z.y, 2.0f * z.x * z.y) + z0;
+    }
+    float result = iter;
+    if (params.isSmoothing != 0 && iter != params.iters) {
+        result = result - log(log(length(z)) / log(threshold)) / log(2.0f);
+    }
+
+    result = 1.0f * result / params.iters;
+    results[j * params.width + i] = result;
 }
