@@ -22,19 +22,15 @@ __kernel void sum_03_local_memory_atomic_per_workgroup(__global const uint* a,
 
     __local uint local_sum;
 
-    // Инициализация локальной суммы
     if (local_index == 0) {
         local_sum = 0;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
-
-    // Каждый work item добавляет свой элемент в локальную сумму
     if (index < n) {
         atomic_add(&local_sum, a[index]);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Только первый поток рабочей группы добавляет в глобальную сумму
     if (local_index == 0) {
         atomic_add(sum, local_sum);
     }
