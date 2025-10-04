@@ -17,7 +17,7 @@ __kernel void mandelbrot(__global float* results,
 
     // DONE
 
-    if (i >= width || j >= height) {
+    if (i < 0 || i >= width || j < 0 || j >= height) {
         return;
     }
 
