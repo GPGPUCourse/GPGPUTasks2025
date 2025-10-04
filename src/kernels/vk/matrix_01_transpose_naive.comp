@@ -4,16 +4,23 @@
 
 #include "../defines.h"
 
-layout (std430, binding = 0) readonly buffer MatrixIn   { float matrix[];            };
-layout (std430, binding = 1)          buffer MatrixOut  { float transposed_matrix[]; };
+layout(std430, binding = 0) readonly buffer MatrixIn {
+    float matrix[];
+};
+layout(std430, binding = 1) buffer MatrixOut {
+    float transposed_matrix[];
+};
 
-layout (push_constant) uniform PushConstants {
+layout(push_constant) uniform PushConstants {
     uint w;
     uint h;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
 void main()
 {
-    // TODO
+    if (gl_GlobalInvocationID.x >= params.w || gl_GlobalInvocationID.y >= params.h) return;
+    const uint index = gl_GlobalInvocationID.x + params.w * gl_GlobalInvocationID.y;
+    const uint t_index = gl_GlobalInvocationID.y + params.h * gl_GlobalInvocationID.x;
+    transposed_matrix[t_index] = matrix[index];
 }

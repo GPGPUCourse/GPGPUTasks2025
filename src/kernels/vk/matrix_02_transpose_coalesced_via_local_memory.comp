@@ -4,16 +4,44 @@
 
 #include "../defines.h"
 
-layout (std430, binding = 0) readonly buffer MatrixIn   { float matrix[];            };
-layout (std430, binding = 1)          buffer MatrixOut  { float transposed_matrix[]; };
+layout(std430, binding = 0) readonly buffer MatrixIn {
+    float matrix[];
+};
+layout(std430, binding = 1) buffer MatrixOut {
+    float transposed_matrix[];
+};
 
-layout (push_constant) uniform PushConstants {
+layout(push_constant) uniform PushConstants {
     uint w;
     uint h;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+shared float local_memory[GROUP_SIZE_Y][GROUP_SIZE_X + 1];
+
+layout(local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
 void main()
 {
-    // TODO
+    const uvec2 li = gl_LocalInvocationID.xy;
+    const uvec2 wi = gl_WorkGroupID.xy;
+
+    const uint x = wi.x * GROUP_SIZE_X + li.x;
+    const uint y = wi.y * GROUP_SIZE_Y + li.y;
+
+    const uint index = x + params.w * y;
+
+    if (x < params.w && y < params.h) {
+        local_memory[li.y][li.x] = matrix[index];
+    } else {
+        local_memory[li.x][li.y] = 0;
+    }
+
+    barrier();
+    const uint tx = wi.y * GROUP_SIZE_Y + li.x;
+    const uint ty = wi.x * GROUP_SIZE_X + li.y;
+
+    const uint t_index = tx + params.h * ty;
+
+    if (x >= params.h || y >= params.w) return;
+
+    transposed_matrix[t_index] = local_memory[li.x][li.y];
 }
