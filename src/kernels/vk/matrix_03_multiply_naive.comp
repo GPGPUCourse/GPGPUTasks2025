@@ -4,18 +4,31 @@
 
 #include "../defines.h"
 
-layout (std430, binding = 0) readonly buffer MatrixAIn   { float a[]; }; // rows=h x cols=k
-layout (std430, binding = 1) readonly buffer MatrixBIn   { float b[]; }; // rows=k x cols=w
-layout (std430, binding = 2)          buffer MatrixCOut  { float c[]; }; // rows=h x cols=w
+layout(std430, binding = 0) readonly buffer MatrixAIn {
+    float a[];
+}; // rows=h x cols=k
+layout(std430, binding = 1) readonly buffer MatrixBIn {
+    float b[];
+}; // rows=k x cols=w
+layout(std430, binding = 2) buffer MatrixCOut {
+    float c[];
+}; // rows=h x cols=w
 
-layout (push_constant) uniform PushConstants {
+layout(push_constant) uniform PushConstants {
     uint w;
     uint h;
     uint k;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
 void main()
 {
-    // TODO
+    const uvec2 gi = gl_GlobalInvocationID.xy;
+    const uint index = gi.x + gi.y * params.w;
+    if (gi.x >= params.w || gi.y >= params.h) return;
+    float v = 0;
+    for (uint i = 0; i < params.k; ++i) {
+        v += a[i + gi.y * params.k] * b[gi.x + i * params.w];
+    }
+    c[index] = v;
 }
