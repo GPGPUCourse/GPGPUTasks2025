@@ -128,11 +128,11 @@ void run(int argc, char** argv)
                     } else if (algorithm == "04 local reduction") {
                         sum_accum_gpu.fill(0);
                         ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer2_gpu, n);
-                        size_t length = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+                        unsigned int length = div_ceil(n, (unsigned int)GROUP_SIZE);
                         while (length > 1) {
                             std::swap(reduction_buffer1_gpu, reduction_buffer2_gpu);
                             ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, length), reduction_buffer1_gpu, reduction_buffer2_gpu, length);
-                            length = (length + GROUP_SIZE - 1) / GROUP_SIZE;
+                            length = div_ceil(length, (unsigned int)GROUP_SIZE);
                         }
                         reduction_buffer2_gpu.readN(&gpu_sum, 1);
                     } else {
