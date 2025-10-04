@@ -1,7 +1,7 @@
 #version 450
 
 #include <libgpu/vulkan/vk/common.vk>
-
+#extension GL_EXT_debug_printf : enable
 #include "../defines.h"
 
 layout (std430, binding = 0) readonly	buffer AsIn		{	uint as[];	};
@@ -29,8 +29,8 @@ void main()
 		// но он может быть включен для локальной разработки и в Release - см. common.vk
 		// (обратите внимание что common.vk так же требует необходимое расширение: #extension GL_EXT_debug_printf : enable)
 		// Необзодимо чтобы validation layers были включены, иначе debugPrintfEXT не заработает
-		#if DEBUG_PRINTF_EXT_ENABLED
-		printf("Vulkan debugPrintfEXT test in aplusb.comp kernel! a[index]=%d b[index]=%d \n", a[index], b[index]);
+		#ifdef DEBUG_PRINTF_EXT_ENABLED
+		// printf("Vulkan debugPrintfEXT test in aplusb.comp kernel! a[index]=%d b[index]=%d \n", as[index], bs[index]);
 		#endif
 	}
 
