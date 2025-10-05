@@ -108,9 +108,21 @@ void run(int argc, char** argv)
                     ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
                     sum_accum_gpu.readN(&gpu_sum, 1);
                 } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                    ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
+                    sum_accum_gpu.fill(0);
+                    ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                    sum_accum_gpu.readN(&gpu_sum, 1);
                 } else if (algorithm == "04 local reduction") {
-                    ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
+                    unsigned int num_groups = std::min(1024u, div_ceil(n, (unsigned int)GROUP_SIZE));
+                    unsigned int total_work_items = num_groups * GROUP_SIZE;
+                    
+                    ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, total_work_items), input_gpu, reduction_buffer1_gpu, n);
+                    
+                    std::vector<unsigned int> partial_sums(num_groups);
+                    reduction_buffer1_gpu.readN(partial_sums.data(), num_groups);
+                    gpu_sum = 0;
+                    for (unsigned int i = 0; i < num_groups; ++i) {
+                        gpu_sum += partial_sums[i];
+                    }
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
