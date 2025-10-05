@@ -72,10 +72,17 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(values.data(), n);
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+
+    std::vector<double> ptimes;
+    for (size_t idx = 0; idx < 3; ++idx) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        ptimes.emplace_back(t.elapsed());
+    }
+    std::cout << "PCI-E bandwidth: " <<  values.size() * sizeof(values[0]) / 1024.0 / 1024.0 / 1024.0 / stats::median(ptimes) << " GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -102,67 +109,36 @@ void run(int argc, char** argv)
             } else if (algorithm == "CPU with OpenMP") {
                 gpu_sum = cpu::sumOpenMP(values.data(), n);
             } else {
-                // _______________________________OpenCL_____________________________________________
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    if (algorithm == "01 atomicAdd from each workItem") {
-                        sum_accum_gpu.fill(0);
-                        ocl_sum01Atomics.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
-                        sum_accum_gpu.fill(0);
-                        ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else if (algorithm == "04 local reduction") {
-                        // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
+                if (algorithm == "01 atomicAdd from each workItem") {
+                    sum_accum_gpu.fill(0);
+                    ocl_sum01Atomics.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                    sum_accum_gpu.readN(&gpu_sum, 1);
+                } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
+                    sum_accum_gpu.fill(0);
+                    ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
+                    sum_accum_gpu.readN(&gpu_sum, 1);
+                } else if (algorithm == "03 local memory and atomicAdd from master thread") {
+                    sum_accum_gpu.fill(0);
+                    gpu::WorkSize workSize(GROUP_SIZE, n);
+                    ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(workSize, input_gpu, sum_accum_gpu, n);
+                    sum_accum_gpu.readN(&gpu_sum, 1);
+                } else if (algorithm == "04 local reduction") {
+                    uint nCopy = n;
+                    gpu::WorkSize workSize(GROUP_SIZE, n);
+                    ocl_sum04LocalReduction.exec(workSize, input_gpu, reduction_buffer1_gpu, n);
+                    gpu::gpu_mem_32u buffers[2] = {reduction_buffer1_gpu, reduction_buffer2_gpu};
+                    unsigned int idx = 0;
+                    while ((nCopy = ((nCopy + GROUP_SIZE - 1) / GROUP_SIZE)) > 1) {
+                        gpu::WorkSize workSize(GROUP_SIZE, nCopy);
+                        ocl_sum04LocalReduction.exec(workSize, buffers[idx], buffers[1 - idx], nCopy);
+                        idx = 1 - idx;
                     }
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    if (algorithm == "01 atomicAdd from each workItem") {
-                        sum_accum_gpu.fill(0);
-                        cuda::sum_01_atomics(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
-                        sum_accum_gpu.fill(0);
-                        cuda::sum_02_atomics_load_k(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO cuda::sum_03_local_memory_atomic_per_workgroup(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else if (algorithm == "04 local reduction") {
-                        // TODO cuda::sum_04_local_reduction(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    if (algorithm == "01 atomicAdd from each workItem") {
-                        sum_accum_gpu.fill(0);
-                        vk_sum01Atomics.exec(n, gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
-                        sum_accum_gpu.fill(0);
-                        vk_sum02AtomicsLoadK.exec(n, gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO vk_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else if (algorithm == "04 local reduction") {
-                        // TODO vk_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
-                    }
+                    buffers[idx].readN(&gpu_sum, 1);
                 } else {
-                    rassert(false, 546345243, context.type());
+                    rassert(false, 652345234321, algorithm, algorithm_index);
                 }
-            }
+                    // _______________________________CUDA___________________________________________
+                }
 
             times.push_back(t.elapsed());
         }
