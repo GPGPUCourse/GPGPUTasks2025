@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "iostream": "cpp",
-        "*.vk": "cpp"
+        "*.vk": "cpp",
+        "chrono": "cpp"
     }
 }
