@@ -30,6 +30,16 @@ unsigned int cpu::sumOpenMP(const unsigned int* values, unsigned int n)
     return sum;
 }
 
+unsigned int performReductionStep(gpu::gpu_mem_32u& input_buffer, gpu::gpu_mem_32u& output_buffer, unsigned int element_count, ocl::KernelSource& reduction_kernel) {
+    const unsigned int work_groups_needed = div_ceil(element_count, (unsigned int)GROUP_SIZE);
+    const unsigned int total_work_items = work_groups_needed * (unsigned int)GROUP_SIZE;
+    const gpu::WorkSize work_config(GROUP_SIZE, total_work_items);
+
+    reduction_kernel.exec(work_config, input_buffer, output_buffer, element_count);
+    
+    return work_groups_needed;
+}
+
 void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
@@ -72,10 +82,28 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(values.data(), n);
+    // input_gpu.writeN(values.data(), n);
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+    std::vector<double> pcie_times;
+    for (int iter = 0; iter < 3; ++iter) {
+        timer pcie_timer;
+        
+        input_gpu.writeN(values.data(), n);
+        pcie_times.push_back(pcie_timer.elapsed());
+    }
+
+    double memory_size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
+    double median_pcie_time = stats::median(pcie_times);
+    double pcie_bandwidth_gbps = memory_size_gb / median_pcie_time;
+    
+    std::cout << "______________________________________________________" << std::endl;
+    std::cout << "PCI-E bandwidth measurement:\n";
+    std::cout << "  Data size: " << std::fixed << std::setprecision(2) << memory_size_gb << " GB\n";
+    std::cout << "  Transfer times: " << stats::valuesStatsLine(pcie_times) << " seconds\n";
+    std::cout << "  PCI-E bandwidth: " << std::fixed << std::setprecision(2) << pcie_bandwidth_gbps << " GB/s\n";
+    std::cout << "______________________________________________________" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -114,10 +142,32 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
                         // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
                         // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        unsigned int current_size = n;
+                        unsigned int groups_after_reduction = performReductionStep(input_gpu, reduction_buffer1_gpu, current_size, ocl_sum04LocalReduction);
+                        current_size = groups_after_reduction;
+                        
+                        bool using_buffer1_as_source = false;
+                        while (current_size > 1) {
+                            if (using_buffer1_as_source) {
+                                groups_after_reduction = performReductionStep(reduction_buffer2_gpu, reduction_buffer1_gpu, current_size, ocl_sum04LocalReduction);
+                            } else {
+                                groups_after_reduction = performReductionStep(reduction_buffer1_gpu, reduction_buffer2_gpu, current_size, ocl_sum04LocalReduction);
+                            }
+
+                            current_size = groups_after_reduction;
+                            using_buffer1_as_source = !using_buffer1_as_source;
+                        }
+                    
+                        if (using_buffer1_as_source) {
+                            reduction_buffer2_gpu.readN(&gpu_sum, 1);
+                        } else {
+                            reduction_buffer1_gpu.readN(&gpu_sum, 1);
+                        }
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
