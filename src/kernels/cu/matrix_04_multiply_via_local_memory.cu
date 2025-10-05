@@ -7,6 +7,9 @@
 #include "helpers/rassert.cu"
 #include "../defines.h"
 
+#define LOC_SIZE GROUP_SIZE_X
+
+// precondition: blockDim.x == blockDim.y
 __global__ void matrix_multiply_via_local_memory(
                        const float* a, // rows=h x cols=k
                        const float* b, // rows=k x cols=w
@@ -15,7 +18,43 @@ __global__ void matrix_multiply_via_local_memory(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+    unsigned int sz = GROUP_SIZE_X; // = GROUP_SIZE_Y
+
+    unsigned int col = blockIdx.x * sz + threadIdx.x;
+    unsigned int row = blockIdx.y * sz + threadIdx.y;
+    float acc = 0.0;
+
+    __shared__ float a_loc[LOC_SIZE * LOC_SIZE];
+    __shared__ float b_loc[LOC_SIZE * LOC_SIZE];
+
+    for (unsigned int i = 0; i < k; i += sz) {
+        // stage 01: copy
+        if (col < w && row < h) {
+            unsigned int ai = i + threadIdx.x;
+            unsigned int aj = row;
+            a_loc[threadIdx.y * sz + threadIdx.x] = a[aj * k + ai]; // copying as is
+
+            unsigned int bi = col;
+            unsigned int bj = i + threadIdx.y;
+            b_loc[threadIdx.y * sz + threadIdx.x] = b[bj * w + bi]; // copying as is
+        }
+
+        __syncthreads();
+
+        // stage 02: multiplying and accumulating
+        if (col < w && row < h) {
+            #pragma unroll
+            for (unsigned int i_loc = 0; i_loc < sz; ++i_loc) {
+                acc += a_loc[threadIdx.y * sz + i_loc] * b_loc[i_loc * sz + threadIdx.x];
+            }
+        }
+
+        __syncthreads();
+    }
+
+    if (col < w && row < h) {
+        c[row * w + col] = acc;
+    }
 }
 
 namespace cuda {

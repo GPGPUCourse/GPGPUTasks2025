@@ -26,7 +26,7 @@ void matrix_multiply_naive(const gpu::WorkSize &workSize,
 void matrix_multiply_via_local_memory(const gpu::WorkSize &workSize,
             const gpu::gpu_mem_32f &a, const gpu::gpu_mem_32f &b, gpu::gpu_mem_32f &c, unsigned int w, unsigned int h, unsigned int k);
 void matrix_multiply_wmma(const gpu::WorkSize &workSize,
-            const gpu::gpu_mem_32f &a, const gpu::gpu_mem_32f &b, gpu::gpu_mem_32f &c, unsigned int w, unsigned int h, unsigned int k);
+            const gpu::gpu_mem_16f &a, const gpu::gpu_mem_16f &b, gpu::gpu_mem_32f &c, unsigned int w, unsigned int h, unsigned int k);
 }
 
 namespace ocl {
