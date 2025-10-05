@@ -126,6 +126,13 @@ void run(int argc, char** argv)
         }
     }
 
+    std::map<std::string, uint64_t> total_mem = {
+        {"CPU with OpenMP", (h * k + k * w + h * w) * sizeof(float)},
+        {"01 naive", (h * k + k * w + h * w) * sizeof(float)},
+        {"02 using local memory", (h * k + k * w + h * w) * sizeof(float)},
+        {"03 using WMMA (Tensor Cores) [+Prestige Points]", (h * k + k * w) * sizeof(__half) + (h * w) * sizeof(float)}
+    };
+
     std::vector<float> zeroes(h * w, 0.0f);
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
         const std::string& algorithm = algorithm_names[algorithm_index];
@@ -192,10 +199,11 @@ void run(int argc, char** argv)
         std::cout << "algorithm times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
         // Вычисляем достигнутую эффективную пропускную способность алгоритма
+        auto mem = total_mem.at(algorithm);
         double total_ops = 1.0 * h * w * (k + k - 1); // общее число сложений и умножений
         double gflops = 1000*1000*1000;
         std::cout << "algorithm GFlops: " << total_ops / gflops / stats::median(times) << " GFlops" << std::endl;
-        std::cout << "algorithm effective memory bandwidth: " << 1.0 * (h * k + k * w + h * w) * sizeof(float) / 1024 / 1024 / 1024 / stats::median(times) << " GB/s" << std::endl;
+        std::cout << "algorithm effective memory bandwidth: " << 1.0 * mem / 1024 / 1024 / 1024 / stats::median(times) << " GB/s" << std::endl;
 
         // Сверяем результат
         if (algorithm != "CPU with OpenMP") {
