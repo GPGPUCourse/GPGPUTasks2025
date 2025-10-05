@@ -7,13 +7,37 @@
 #include "helpers/rassert.cu"
 #include "../defines.h"
 
+#define LOC_SIZE_X (GROUP_SIZE_X + 1) // didn't speed up much, though
+#define LOC_SIZE_Y GROUP_SIZE_X
+
+// precondition: blockDim.x == blockDim.y
 __global__ void matrix_transpose_coalesced_via_local_memory(
                        const float* matrix,            // w x h
                              float* transposed_matrix, // h x w
                              unsigned int w,
                              unsigned int h)
 {
-    // TODO
+    unsigned int sz = GROUP_SIZE_X; // = GROUP_SIZE_Y
+
+    __shared__ float local_data[LOC_SIZE_X * LOC_SIZE_Y];
+
+    // copy from input (vram) to local shared memory
+    unsigned int from_col = blockIdx.x * sz + threadIdx.x;
+    unsigned int from_row = blockIdx.y * sz + threadIdx.y;
+
+    if (from_row < h && from_col < w) {
+        local_data[threadIdx.y * LOC_SIZE_X + threadIdx.x] = matrix[from_row * w + from_col];
+    }
+
+    __syncthreads();
+
+    // copy from local memory to output (vram)
+    unsigned int to_col = blockIdx.y * sz + threadIdx.x;
+    unsigned int to_row = blockIdx.x * sz + threadIdx.y;
+
+    if (to_row < w && to_col < h) {
+        transposed_matrix[to_row * h + to_col] = local_data[threadIdx.x * LOC_SIZE_X + threadIdx.y];
+    }
 }
 
 namespace cuda {
