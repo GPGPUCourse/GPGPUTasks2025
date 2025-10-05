@@ -104,8 +104,8 @@ void run(int argc, char** argv)
     gpu::gpu_mem_16f matrix_b_gpu_half(k * w); // rows=K x cols=W
     std::vector<__half> input_a_half = utils::convertVecF32ToF16(input_a_cpu);
     std::vector<__half> input_b_half = utils::convertVecF32ToF16(input_b_cpu);
-    matrix_a_gpu_half.writeN(input_a_half.data(), h * k);
-    matrix_b_gpu_half.writeN(input_b_half.data(), h * k);
+    matrix_a_gpu_half.writeN(input_a_half.data(), input_a_half.size());
+    matrix_b_gpu_half.writeN(input_b_half.data(), input_b_half.size());
 
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
