@@ -73,6 +73,14 @@ void run(int argc, char** argv)
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(values.data(), n);
+    std::vector<double> times;
+    for (unsigned int tests = 0; tests < 10; ++tests) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        times.push_back(t.elapsed());
+    }
+    std::cout << "PCIe bandwidth: " << static_cast<double>(n) * sizeof(unsigned int) / 1024 / 1024 / 1024 / stats::median(times) << " GB/s" << std::endl;
+
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
