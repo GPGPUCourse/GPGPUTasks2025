@@ -134,18 +134,18 @@ void run(int argc, char** argv)
                     } else if (algorithm == "04 local reduction") {
                         reduction_buffer1_gpu.fill(0);
                         reduction_buffer2_gpu.fill(0);
-                         ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, n);
-            
-                         for(uint nRed = div_ceil(n, (unsigned int)GROUP_SIZE) ;nRed!=1;nRed = div_ceil(nRed, (unsigned int)GROUP_SIZE)){
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, n);
+        
+                        for(uint nRed = div_ceil(n, (unsigned int)GROUP_SIZE) ;nRed!=1;nRed = div_ceil(nRed, (unsigned int)GROUP_SIZE)){
 
-                         ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, nRed), reduction_buffer1_gpu, reduction_buffer2_gpu, nRed);
-                         
-                         reduction_buffer1_gpu = reduction_buffer2_gpu;
-                         }
-                         reduction_buffer1_gpu.readN(&gpu_sum, 1);
-                         std::cout <<"REDUCTION RESULT : " << gpu_sum << std::endl;
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, nRed), reduction_buffer1_gpu, reduction_buffer2_gpu, nRed);
+                        
+                        std::swap(reduction_buffer1_gpu, reduction_buffer2_gpu);
+                        }
+                        reduction_buffer1_gpu.readN(&gpu_sum, 1);
+                        std::cout <<"REDUCTION RESULT : " << gpu_sum << std::endl;
                         //throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else {
+                } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
                     // _______________________________CUDA___________________________________________
