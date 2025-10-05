@@ -13,5 +13,16 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
+    
+    if (x >= w || y >= h) {
+        return;
+    }
+    
+    float buffer = 0.0f;
+    for (uint ki = 0; ki < k; ++ki) {
+        buffer += a[y * k + ki] * b[ki * w + x];
+    }
+    c[y * w + x] = buffer;
 }
