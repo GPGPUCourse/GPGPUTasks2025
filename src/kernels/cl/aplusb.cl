@@ -1,5 +1,5 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
@@ -17,10 +17,7 @@ __kernel void aplusb(__global const uint* a,
         return;
 
     if (index == 0) {
-        // из кернела можно печатать текст в консоль, буфер для текста ограничен в размере,
-        // кроме того в моделе массового параллелизма у нас обычно очень много workItems,
-        // поэтому если каждый будет печатать сообщение - буфер быстро переполниться, а разобраться в сообщениях может быть тяжело
-        // поэтому это сообщение выводится только для первого workItem (index == 0)
+
         printf("OpenCL printf test in aplusb.cl kernel! a[index]=%d b[index]=%d \n", a[index], b[index]);
     }
 
