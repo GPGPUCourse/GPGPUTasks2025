@@ -27,6 +27,6 @@ __kernel void sum_04_local_reduction(__global const uint* a,
         for (int i = 0; i < GROUP_SIZE; i++) {
             local_sum += local_data[i];
         }
-        b[get_group_id(0)] += local_sum;
+        b[get_group_id(0)] = local_sum;
     }
 }
