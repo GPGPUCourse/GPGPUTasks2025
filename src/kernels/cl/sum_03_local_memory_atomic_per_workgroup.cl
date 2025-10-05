@@ -21,10 +21,10 @@ __kernel void sum_03_local_memory_atomic_per_workgroup(__global const uint* a,
 
     if (index >= n) {
         local_data[local_index] = 0;
-        return;
+    } else {
+        local_data[local_index] = a[index];
     }
 
-    local_data[local_index] = a[index];
     barrier(CLK_LOCAL_MEM_FENCE);
 
     if (local_index) {
