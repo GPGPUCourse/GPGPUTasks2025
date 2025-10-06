@@ -121,12 +121,13 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, height, width);
+                    ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
                     // TODO cuda::mandelbrot(..);
+                    // No NVIDIA ToT
                     throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                     // _______________________________Vulkan_________________________________________
@@ -139,6 +140,8 @@ void run(int argc, char** argv)
                         uint iters; uint isSmoothing;
                     } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
                     // TODO vk_mandelbrot.exec(params, ...);
+                    // "Device 12th Gen Intel(R) Code(TM) i5-12450H doesn't support Vulkan"
+                    // ToT
                     throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
                 } else {
                     rassert(false, 546345243, context.type());
