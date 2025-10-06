@@ -126,7 +126,6 @@ void run(int argc, char** argv)
                         ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(work_size, input_gpu, sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
-                        sum_accum_gpu.fill(0);
                         ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, n);
                         unsigned int count = div_ceil(n, (unsigned int) GROUP_SIZE);
                         while (count > 1) {
