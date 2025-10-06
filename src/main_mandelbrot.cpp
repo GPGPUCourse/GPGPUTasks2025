@@ -55,16 +55,7 @@ void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
-    // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
-    // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
-    // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
-    //          если же вас это не останавливает - профилировщик (nsight-systems) при запуске на NVIDIA тоже работает (хоть и менее мощный чем nsight-compute)
-    //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
-    //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     unsigned int benchmarkingIters = 10;
 
@@ -91,7 +82,6 @@ void run(int argc, char** argv)
 
     avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
 
-    // Аллоцируем буфер в VRAM
     gpu::gpu_mem_32f gpu_results(width * height);
 
     std::vector<std::string> algorithm_names = {
@@ -105,7 +95,6 @@ void run(int argc, char** argv)
         std::cout << "______________________________________________________" << std::endl;
         std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " << algorithm << std::endl;
 
-        // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         image32f current_results(width, height, 1);
         int iters_count = (algorithm == "CPU") ? 1 : 10; // single-threaded CPU is too slow
@@ -121,25 +110,23 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    // TODO cuda::mandelbrot(..);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
                     typedef unsigned int uint;
                     struct {
                         uint width; uint height;
-                       float fromX; float fromY;
-                       float sizeX; float sizeY;
+                        float fromX; float fromY;
+                        float sizeX; float sizeY;
                         uint iters; uint isSmoothing;
                     } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
-                    // TODO vk_mandelbrot.exec(params, ...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+
+                    gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+
+                    ocl_mandelbrot.exec(
+                            workSize,gpu_results,
+                            params.width, params.height,
+                            params.fromX, params.fromY,
+                            params.sizeX, params.sizeY,
+                            params.iters, params.isSmoothing
+                    );
                 } else {
                     rassert(false, 546345243, context.type());
                 }
@@ -153,19 +140,16 @@ void run(int argc, char** argv)
         }
         std::cout << "algorithm times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-        // Вычисляем достигнутую эффективную пропускную способность алгоритма (из соображений что мы все итерации делались полностью, без быстрого выхода через break)
         size_t flopsInLoop = 10;
         size_t maxApproximateFlops = width * height * iterationsLimit * flopsInLoop;
         size_t gflops = 1000*1000*1000;
         std::cout << "Mandelbrot effective algorithm GFlops: " << maxApproximateFlops / gflops / stats::median(times) << " GFlops" << std::endl;
 
-        // Сохраняем картинку
         image8u image = renderToColor(cpu_results.ptr(), width, height);
         std::string filename = "mandelbrot " + algorithm + ".bmp";
         std::cout << "saving image to '" << filename << "'..." << std::endl;
         image.saveBMP(filename);
 
-        // Сверяем результат
         if (!cpu_results.isNull()) {
             double errorAvg = 0.0;
             for (int j = 0; j < height; ++j) {
