@@ -1,26 +1,27 @@
+#include <libbase/omp_utils.h>
 #include <libbase/stats.h>
 #include <libbase/timer.h>
-#include <libutils/misc.h>
-#include <libimages/images.h>
-#include <libbase/omp_utils.h>
 #include <libgpu/vulkan/engine.h>
+#include <libimages/images.h>
+#include <libutils/misc.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
 void cpu::mandelbrot(float* results,
-                   unsigned int width, unsigned int height,
-                   float fromX, float fromY,
-                   float sizeX, float sizeY,
-                   unsigned int iters, unsigned int isSmoothing,
-                   bool useOpenMP)
+    unsigned int width, unsigned int height,
+    float fromX, float fromY,
+    float sizeX, float sizeY,
+    unsigned int iters, unsigned int isSmoothing,
+    bool useOpenMP)
 {
     const float threshold = 256.0f;
     const float threshold2 = threshold * threshold;
 
-    #pragma omp parallel for if(useOpenMP)
+#pragma omp parallel for if (useOpenMP)
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
             float x0 = fromX + (i + 0.5f) * sizeX / width;
@@ -85,11 +86,14 @@ void run(int argc, char** argv)
 #endif
     float sizeY = sizeX * height / width;
 
+    float fromX = centralX - sizeX / 2.0f;
+    float fromY = centralY - sizeY / 2.0f;
+
     image32f cpu_results;
 
     ocl::KernelSource ocl_mandelbrot(ocl::getMandelbrot());
 
-    avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
+    // avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
 
     // Аллоцируем буфер в VRAM
     gpu::gpu_mem_32f gpu_results(width * height);
@@ -113,36 +117,16 @@ void run(int argc, char** argv)
             timer t;
 
             if (algorithm == "CPU") {
-                cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, false);
+                cpu::mandelbrot(current_results.ptr(), width, height, fromX, fromY, sizeX, sizeY, iterationsLimit, isSmoothing, false);
                 cpu_results = current_results;
             } else if (algorithm == "CPU with OpenMP") {
-                if (iter == 0) std::cout << "OpenMP threads: x" << getOpenMPThreadsCount() << " threads" << std::endl;
-                cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, true);
+                if (iter == 0)
+                    std::cout << "OpenMP threads: x" << getOpenMPThreadsCount() << " threads" << std::endl;
+                cpu::mandelbrot(current_results.ptr(), width, height, fromX, fromY, sizeX, sizeY, iterationsLimit, isSmoothing, true);
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    // TODO cuda::mandelbrot(..);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    typedef unsigned int uint;
-                    struct {
-                        uint width; uint height;
-                       float fromX; float fromY;
-                       float sizeX; float sizeY;
-                        uint iters; uint isSmoothing;
-                    } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
-                    // TODO vk_mandelbrot.exec(params, ...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                } else {
-                    rassert(false, 546345243, context.type());
-                }
+                gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+                ocl_mandelbrot.exec(workSize, gpu_results, width, height, fromX, fromY, sizeX, sizeY, iterationsLimit, isSmoothing);
             }
 
             times.push_back(t.elapsed());
@@ -156,7 +140,7 @@ void run(int argc, char** argv)
         // Вычисляем достигнутую эффективную пропускную способность алгоритма (из соображений что мы все итерации делались полностью, без быстрого выхода через break)
         size_t flopsInLoop = 10;
         size_t maxApproximateFlops = width * height * iterationsLimit * flopsInLoop;
-        size_t gflops = 1000*1000*1000;
+        size_t gflops = 1000 * 1000 * 1000;
         std::cout << "Mandelbrot effective algorithm GFlops: " << maxApproximateFlops / gflops / stats::median(times) << " GFlops" << std::endl;
 
         // Сохраняем картинку
@@ -209,40 +193,53 @@ int main(int argc, char** argv)
 }
 
 struct vec3f {
-    vec3f(float x, float y, float z) : x(x), y(y), z(z) {}
+    vec3f(float x, float y, float z)
+        : x(x)
+        , y(y)
+        , z(z)
+    {
+    }
 
-    float x; float y; float z;
+    float x;
+    float y;
+    float z;
 };
 
-vec3f operator+(const vec3f &a, const vec3f &b) {
-    return {a.x + b.x, a.y + b.y, a.z + b.z};
+vec3f operator+(const vec3f& a, const vec3f& b)
+{
+    return { a.x + b.x, a.y + b.y, a.z + b.z };
 }
 
-vec3f operator*(const vec3f &a, const vec3f &b) {
-    return {a.x * b.x, a.y * b.y, a.z * b.z};
+vec3f operator*(const vec3f& a, const vec3f& b)
+{
+    return { a.x * b.x, a.y * b.y, a.z * b.z };
 }
 
-vec3f operator*(const vec3f &a, float t) {
-    return {a.x * t, a.y * t, a.z * t};
+vec3f operator*(const vec3f& a, float t)
+{
+    return { a.x * t, a.y * t, a.z * t };
 }
 
-vec3f operator*(float t, const vec3f &a) {
+vec3f operator*(float t, const vec3f& a)
+{
     return a * t;
 }
 
-vec3f sin(const vec3f &a) {
-    return {sinf(a.x), sinf(a.y), sinf(a.z)};
+vec3f sin(const vec3f& a)
+{
+    return { sinf(a.x), sinf(a.y), sinf(a.z) };
 }
 
-vec3f cos(const vec3f &a) {
-    return {cosf(a.x), cosf(a.y), cosf(a.z)};
+vec3f cos(const vec3f& a)
+{
+    return { cosf(a.x), cosf(a.y), cosf(a.z) };
 }
 
 image8u renderToColor(const float* results, unsigned int width, unsigned int height)
 {
     image8u image(width, height, 3);
-    unsigned char *img_rgb = image.ptr();
-    #pragma omp parallel for
+    unsigned char* img_rgb = image.ptr();
+#pragma omp parallel for
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
             // Палитра взята отсюда: http://iquilezles.org/www/articles/palettes/palettes.htm
@@ -251,10 +248,10 @@ image8u renderToColor(const float* results, unsigned int width, unsigned int hei
             vec3f b(0.5, 0.5, 0.5);
             vec3f c(1.0, 0.7, 0.4);
             vec3f d(0.00, 0.15, 0.20);
-            vec3f color = a + b * cos(2*3.14f*(c*t+d));
-            img_rgb[j * 3 * width + i * 3 + 0] = (unsigned char) (color.x * 255);
-            img_rgb[j * 3 * width + i * 3 + 1] = (unsigned char) (color.y * 255);
-            img_rgb[j * 3 * width + i * 3 + 2] = (unsigned char) (color.z * 255);
+            vec3f color = a + b * cos(2 * 3.14f * (c * t + d));
+            img_rgb[j * 3 * width + i * 3 + 0] = (unsigned char)(color.x * 255);
+            img_rgb[j * 3 * width + i * 3 + 1] = (unsigned char)(color.y * 255);
+            img_rgb[j * 3 * width + i * 3 + 2] = (unsigned char)(color.z * 255);
         }
     }
     return image;
