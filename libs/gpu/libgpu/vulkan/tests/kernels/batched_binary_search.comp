@@ -1,0 +1,40 @@
+#version 450
+
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "defines.h"
+
+#extension GL_EXT_shader_atomic_float : enable
+
+// Input
+layout (std430,	binding = 0)		buffer	readonly		IndexToAddIn		{	int		value_to_find[];		};
+layout (std430, binding = 1)		buffer	readonly		ValuesTableInOut	{	int		sorted_values[];		};
+
+#define BINARY_SEARCH_VALUES sorted_values
+#include <libgpu/vulkan/vk/binary_search.vk>
+
+// Output
+layout (std430,	binding = 2)		buffer	writeonly		ValueToAddOut		{	int		result_index[];			};
+
+layout (push_constant) uniform PushConstants {
+	int n_searches;
+	int n_sorted_values;
+} params;
+
+layout (local_size_x = VK_GROUP_SIZE) in;
+void main()
+{
+	const int i = int(gl_GlobalInvocationID.x);
+	if (i >= params.n_searches) {
+		return;
+	}
+
+	int value = value_to_find[i];
+
+	int index = binarySearch(value, params.n_sorted_values);
+	if (index == params.n_sorted_values || sorted_values[index] != value) {
+		// NOT FOUND
+	}
+
+	result_index[i] = index;
+}

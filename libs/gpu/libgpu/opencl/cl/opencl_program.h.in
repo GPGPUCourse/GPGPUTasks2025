@@ -1,0 +1,8 @@
+#include "@PROGRAM_NAME@_nospir_opencl120.h"
+
+namespace ocl {
+	static const ocl::VersionedBinary* opencl_versioned_binaries_@PROGRAM_NAME@[] = {
+		&opencl_binary_@PROGRAM_NAME@_nospir_opencl120
+	};
+	static ProgramBinaries opencl_binaries_@PROGRAM_NAME@ = ProgramBinaries(std::vector<const VersionedBinary *>(opencl_versioned_binaries_@PROGRAM_NAME@, opencl_versioned_binaries_@PROGRAM_NAME@ + sizeof(opencl_versioned_binaries_@PROGRAM_NAME@) / sizeof(opencl_versioned_binaries_@PROGRAM_NAME@[0])), "@PROGRAM_NAME@");
+}

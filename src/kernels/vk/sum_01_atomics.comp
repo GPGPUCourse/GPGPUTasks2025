@@ -1,0 +1,23 @@
+#version 450
+
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "../defines.h"
+
+layout (std430, binding = 0) readonly buffer AsIn   { uint a[];   };
+layout (std430, binding = 1)          buffer SumIO  { uint sum[]; };
+
+layout (push_constant) uniform PushConstants {
+    uint n;
+} params;
+
+layout (local_size_x = GROUP_SIZE) in;
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+
+    if (index >= params.n)
+        return;
+
+    atomicAdd(sum[0], a[index]);
+}

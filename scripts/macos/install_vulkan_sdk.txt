@@ -1,0 +1,14 @@
+1) Download Vulkan SDK (it includes MoltenVK) - https://sdk.lunarg.com/sdk/download/1.3.283.0/mac/vulkansdk-macos-1.3.283.0.dmg
+
+2) Install Vulkan SDK:
+2.1) Into directory /opt/vulkansdk
+2.2) Enable "System Global Installation" and make sure to tick "Vulkan Memory Allocator header" - see screen /.figures/vulkan_sdk_installer_macos.png
+
+3) Ensure that everything works:
+$ vulkaninfo --summary
+
+If you observe this error:
+> Failed to open JSON file /Users/<...>/VulkanSDK/1.3.283.0/macOS/etc/vulkan/icd.d/MoltenVK_icd.json
+Try to find file 'MoltenVK_icd.json' (via find command) in directory of Vulkan SDK installation, f.e. it can be like /Users/<...>/VulkanSDK/1.3.283.0/macOS/share/vulkan/icd.d/MoltenVK_icd.json
+After that try this:
+$ VK_ICD_FILENAMES=<FULL PATH>/MoltenVK_icd.json vulkaninfo —summary

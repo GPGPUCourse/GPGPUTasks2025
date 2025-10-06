@@ -1,0 +1,49 @@
+#version 450
+
+#define REQUIRE_TEMPLATE_T
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "defines.h"
+
+layout (binding = 0, IMAGE_FORMAT_QUALIFIER_T)	uniform writeonly	image2D	output_image;
+
+layout (push_constant) uniform PushConstants {
+		uint	width, height;
+} params;
+
+layout (local_size_x = VK_GROUP_SIZE_X, local_size_y = VK_GROUP_SIZE_Y) in;
+
+void main()
+{
+	const uint x = gl_GlobalInvocationID.x;
+	const uint y = gl_GlobalInvocationID.y;
+
+	if (x >= params.width || y >= params.height) {
+		// return if we are out of bounds from the output_image
+		return;
+	}
+
+	float res;
+	if (y == params.height - 1) { // last row will be filled with zero
+		res = 0.0f;
+	} else if (x == 0 && y == 0) {
+		// this is the most important case - with this unit-test we ensure that IMAGE_FORMAT_EPSILON after cast into uchar/ushort/float is ALWAYS NON-ZERO,
+		// i.e. we can rely on this fact to construct images with zero-is-interpreted-as-empty built-in mask (clamping all other colors into [IMAGE_FORMAT_EPSILON, +inf] range)
+		res = IMAGE_FORMAT_EPSILON;
+	} else {
+		uint global_i = y * params.width + x;
+		uint max_global_i = (params.height - 1) * params.width - 1;
+		rassert(global_i <= max_global_i, 895017242);
+		rassert(global_i < UINT_MAX / 4, 56234512); // heuristic to check that probably there is no overflow
+
+		rassert(max_global_i > 0, 506804588);
+		res = (global_i * 1.0f / max_global_i); // value in [0.0, 1.0] inclusive
+
+		res = IMAGE_FORMAT_EPSILON + res * 1.0f; // value in [IMAGE_FORMAT_EPSILON, IMAGE_FORMAT_EPSILON+IMAGE_FORMAT_NORMALIZER] inclusive
+		rassert(res >= IMAGE_FORMAT_EPSILON, 375336357);
+
+		res = clamp(res, 0.0f, 1.0f);
+	}
+
+	imageStore(output_image, ivec2(x, y), vec4(res));
+}
