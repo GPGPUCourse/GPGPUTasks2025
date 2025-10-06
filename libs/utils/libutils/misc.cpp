@@ -98,7 +98,7 @@ gpu::Device gpu::chooseGPUDevice(const std::vector<gpu::Device>& devices, int ar
         if (devices.size() == 1) {
             device_index = 0;
         } else {
-            if (argc != 2) {
+            if (argc != 3) {
                 std::cerr << "Usage: <app> <DeviceIndex>" << std::endl;
                 std::cerr << "	Where <DeviceIndex> should be from 0 to " << (devices.size() - 1) << " (inclusive)" << std::endl;
                 throw std::runtime_error("Illegal arguments!");
