@@ -17,6 +17,7 @@ __kernel void sum_02_atomics_load_k(__global const uint* a,
     }
 
     uint my_sum = 0;
+
     for (uint i = 0; i < LOAD_K_VALUES_PER_ITEM; ++i) {
         my_sum += a[i * (n/LOAD_K_VALUES_PER_ITEM) + index];
     }

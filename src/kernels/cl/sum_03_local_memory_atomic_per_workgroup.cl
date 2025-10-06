@@ -23,9 +23,11 @@ __kernel void sum_03_local_memory_atomic_per_workgroup(__global const uint* a,
 
      if (local_index == 0){
          uint local_sum = 0;
-         for (size_t i; i < GROUP_SIZE; ++i){
+
+         for (size_t i = 0; i < GROUP_SIZE; ++i){
              local_sum += local_data[i];
          }
+
          atomic_add(sum, local_sum);
      }
 }
