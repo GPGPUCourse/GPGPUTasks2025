@@ -30,5 +30,5 @@ __kernel void sum_04_local_reduction(__global const uint* a,
             my_sum += local_data[i];
         }
         b[index / GROUP_SIZE] = my_sum;
-    }`
+    }
 }
