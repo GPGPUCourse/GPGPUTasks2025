@@ -84,7 +84,7 @@ void run(int argc, char** argv)
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
     std::cout << "PCI-E times (in seconds) - " << stats::valuesStatsLine(write_times) << std::endl;
     double size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
-    std::cout << "PCI-E bandwidth: " << size_gb / stats::median(write_times)<< " GB/s" << std::endl;
+    std::cout << "PCI-E bandwidth: " << size_gb / stats::median(write_times) << " GB/s" << std::endl;
     std::vector<std::string> algorithm_names = {
         "CPU",
         "CPU with OpenMP",
