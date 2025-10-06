@@ -8,9 +8,6 @@
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
 
-#include <fstream>
-#include <iomanip>
-
 unsigned int cpu::sum(const unsigned int* values, unsigned int n)
 {
     unsigned int sum = 0;
@@ -136,9 +133,9 @@ void run(int argc, char** argv)
                         while (remaining > 1) {
                             ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, remaining), *read_buf, *write_buf, remaining);
                             remaining = div_ceil(remaining, (unsigned int)GROUP_SIZE);
-                            gpu::gpu_mem_32u* tmp = read_buf;
-                            read_buf = write_buf;
-                            write_buf = (tmp == &reduction_buffer1_gpu) ? &reduction_buffer2_gpu : &reduction_buffer1_gpu;
+                            gpu::gpu_mem_32u* prev_write_buf = write_buf;
+                            read_buf = prev_write_buf;
+                            write_buf = (prev_write_buf == &reduction_buffer1_gpu) ? &reduction_buffer2_gpu : &reduction_buffer1_gpu;
                         }
                         read_buf->readN(&gpu_sum, 1);
                     } else {
