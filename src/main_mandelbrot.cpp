@@ -1,9 +1,9 @@
+#include <libbase/omp_utils.h>
 #include <libbase/stats.h>
 #include <libbase/timer.h>
-#include <libutils/misc.h>
-#include <libimages/images.h>
-#include <libbase/omp_utils.h>
 #include <libgpu/vulkan/engine.h>
+#include <libimages/images.h>
+#include <libutils/misc.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
@@ -11,16 +11,16 @@
 #include <fstream>
 
 void cpu::mandelbrot(float* results,
-                   unsigned int width, unsigned int height,
-                   float fromX, float fromY,
-                   float sizeX, float sizeY,
-                   unsigned int iters, unsigned int isSmoothing,
-                   bool useOpenMP)
+    unsigned int width, unsigned int height,
+    float fromX, float fromY,
+    float sizeX, float sizeY,
+    unsigned int iters, unsigned int isSmoothing,
+    bool useOpenMP)
 {
     const float threshold = 256.0f;
     const float threshold2 = threshold * threshold;
 
-    #pragma omp parallel for if(useOpenMP)
+#pragma omp parallel for if (useOpenMP)
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
             float x0 = fromX + (i + 0.5f) * sizeX / width;
@@ -55,9 +55,6 @@ void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
@@ -116,13 +113,23 @@ void run(int argc, char** argv)
                 cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, false);
                 cpu_results = current_results;
             } else if (algorithm == "CPU with OpenMP") {
-                if (iter == 0) std::cout << "OpenMP threads: x" << getOpenMPThreadsCount() << " threads" << std::endl;
+                if (iter == 0)
+                    std::cout << "OpenMP threads: x" << getOpenMPThreadsCount() << " threads" << std::endl;
                 cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, true);
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    ocl_mandelbrot.exec(
+                        gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                        ocl::KernelSource::Arg(gpu_results),
+                        ocl::KernelSource::Arg(width),
+                        ocl::KernelSource::Arg(height),
+                        ocl::KernelSource::Arg(centralX - sizeX / 2.0f),
+                        ocl::KernelSource::Arg(centralY - sizeY / 2.0f),
+                        ocl::KernelSource::Arg(sizeX),
+                        ocl::KernelSource::Arg(sizeY),
+                        ocl::KernelSource::Arg(iterationsLimit),
+                        ocl::KernelSource::Arg(isSmoothing ? 1u : 0u));
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -133,10 +140,14 @@ void run(int argc, char** argv)
                 } else if (context.type() == gpu::Context::TypeVulkan) {
                     typedef unsigned int uint;
                     struct {
-                        uint width; uint height;
-                       float fromX; float fromY;
-                       float sizeX; float sizeY;
-                        uint iters; uint isSmoothing;
+                        uint width;
+                        uint height;
+                        float fromX;
+                        float fromY;
+                        float sizeX;
+                        float sizeY;
+                        uint iters;
+                        uint isSmoothing;
                     } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
                     // TODO vk_mandelbrot.exec(params, ...);
                     throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -156,7 +167,7 @@ void run(int argc, char** argv)
         // Вычисляем достигнутую эффективную пропускную способность алгоритма (из соображений что мы все итерации делались полностью, без быстрого выхода через break)
         size_t flopsInLoop = 10;
         size_t maxApproximateFlops = width * height * iterationsLimit * flopsInLoop;
-        size_t gflops = 1000*1000*1000;
+        size_t gflops = 1000 * 1000 * 1000;
         std::cout << "Mandelbrot effective algorithm GFlops: " << maxApproximateFlops / gflops / stats::median(times) << " GFlops" << std::endl;
 
         // Сохраняем картинку
@@ -209,40 +220,53 @@ int main(int argc, char** argv)
 }
 
 struct vec3f {
-    vec3f(float x, float y, float z) : x(x), y(y), z(z) {}
+    vec3f(float x, float y, float z)
+        : x(x)
+        , y(y)
+        , z(z)
+    {
+    }
 
-    float x; float y; float z;
+    float x;
+    float y;
+    float z;
 };
 
-vec3f operator+(const vec3f &a, const vec3f &b) {
-    return {a.x + b.x, a.y + b.y, a.z + b.z};
+vec3f operator+(const vec3f& a, const vec3f& b)
+{
+    return { a.x + b.x, a.y + b.y, a.z + b.z };
 }
 
-vec3f operator*(const vec3f &a, const vec3f &b) {
-    return {a.x * b.x, a.y * b.y, a.z * b.z};
+vec3f operator*(const vec3f& a, const vec3f& b)
+{
+    return { a.x * b.x, a.y * b.y, a.z * b.z };
 }
 
-vec3f operator*(const vec3f &a, float t) {
-    return {a.x * t, a.y * t, a.z * t};
+vec3f operator*(const vec3f& a, float t)
+{
+    return { a.x * t, a.y * t, a.z * t };
 }
 
-vec3f operator*(float t, const vec3f &a) {
+vec3f operator*(float t, const vec3f& a)
+{
     return a * t;
 }
 
-vec3f sin(const vec3f &a) {
-    return {sinf(a.x), sinf(a.y), sinf(a.z)};
+vec3f sin(const vec3f& a)
+{
+    return { sinf(a.x), sinf(a.y), sinf(a.z) };
 }
 
-vec3f cos(const vec3f &a) {
-    return {cosf(a.x), cosf(a.y), cosf(a.z)};
+vec3f cos(const vec3f& a)
+{
+    return { cosf(a.x), cosf(a.y), cosf(a.z) };
 }
 
 image8u renderToColor(const float* results, unsigned int width, unsigned int height)
 {
     image8u image(width, height, 3);
-    unsigned char *img_rgb = image.ptr();
-    #pragma omp parallel for
+    unsigned char* img_rgb = image.ptr();
+#pragma omp parallel for
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
             // Палитра взята отсюда: http://iquilezles.org/www/articles/palettes/palettes.htm
@@ -251,10 +275,10 @@ image8u renderToColor(const float* results, unsigned int width, unsigned int hei
             vec3f b(0.5, 0.5, 0.5);
             vec3f c(1.0, 0.7, 0.4);
             vec3f d(0.00, 0.15, 0.20);
-            vec3f color = a + b * cos(2*3.14f*(c*t+d));
-            img_rgb[j * 3 * width + i * 3 + 0] = (unsigned char) (color.x * 255);
-            img_rgb[j * 3 * width + i * 3 + 1] = (unsigned char) (color.y * 255);
-            img_rgb[j * 3 * width + i * 3 + 2] = (unsigned char) (color.z * 255);
+            vec3f color = a + b * cos(2 * 3.14f * (c * t + d));
+            img_rgb[j * 3 * width + i * 3 + 0] = (unsigned char)(color.x * 255);
+            img_rgb[j * 3 * width + i * 3 + 1] = (unsigned char)(color.y * 255);
+            img_rgb[j * 3 * width + i * 3 + 2] = (unsigned char)(color.z * 255);
         }
     }
     return image;
