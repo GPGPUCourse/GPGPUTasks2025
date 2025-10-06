@@ -77,6 +77,19 @@ void run(int argc, char** argv)
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
 
+    std::vector<double> pcie_times;
+    pcie_times.reserve(5);
+    for (int i = 0; i < 5; ++i) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        pcie_times.push_back(t.elapsed());
+    }
+    double memory_size_gb = sizeof(unsigned int) * (double)n / 1024.0 / 1024.0 / 1024.0;
+    double median_time = stats::median(pcie_times);
+    double bw = memory_size_gb / median_time;
+    std::cout << "PCIe write median bandwidth: " << std::fixed << std::setprecision(3) << bw << " GB/s"
+              << " (median time " << median_time << " s over 5 runs)" << std::endl;
+
     std::vector<std::string> algorithm_names = {
         "CPU",
         "CPU with OpenMP",
@@ -113,11 +126,37 @@ void run(int argc, char** argv)
                         ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
+                        sum_accum_gpu.fill(0);
+                        ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                         // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
                     } else if (algorithm == "04 local reduction") {
+                        sum_accum_gpu.fill(0);
+                        unsigned int n_copy = n;
+                        gpu::gpu_mem_32u current_input = input_gpu;
+                        gpu::gpu_mem_32u current_output = reduction_buffer1_gpu;
+                        bool ping = true;
+
+                        while (n_copy > 1) {
+                            unsigned int groups = (n_copy + GROUP_SIZE - 1) / GROUP_SIZE;
+                            size_t global_size = (size_t)groups * (size_t)GROUP_SIZE;
+//                            std::cout << n_copy << std::endl;
+                            ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, (unsigned int)global_size), current_input, current_output, n_copy);
+                            current_input = current_output;
+                            if (ping) {
+                                current_output = reduction_buffer2_gpu;
+                            } else {
+                                current_output = reduction_buffer1_gpu;
+                            }
+                            current_output.fill(0);
+                            ping = !ping;
+
+                            n_copy = groups;
+                        }
+                        size_t final_global = (size_t)GROUP_SIZE;
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, (unsigned int)final_global), current_input, sum_accum_gpu, n_copy);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                         // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
