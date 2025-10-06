@@ -12,8 +12,38 @@ __kernel void mandelbrot(__global float* results,
                      float sizeX, float sizeY,
                      unsigned int iters, unsigned int isSmoothing)
 {
+    const float threshold = 256.0f;
+    const float threshold2 = threshold * threshold;
+
     const unsigned int i = get_global_id(0);
     const unsigned int j = get_global_id(1);
 
-    // TODO
+    if (i >= width || j >= height)
+        return;
+
+    float x0 = fromX + (i + 0.5f) * sizeX / (float) width;
+    float y0 = fromY + (j + 0.5f) * sizeY / (float) height;
+
+    float x = x0;
+    float y = y0;
+
+    unsigned int iter = 0;
+    for (; iter < iters; ++iter) {
+        float xPrev = x;
+        x = x * x - y * y + x0;
+        y = 2.0f * xPrev * y + y0;
+        if ((x * x + y * y) > threshold2) {
+            break;
+        }
+    }
+    float result = iter;
+    if (isSmoothing && iter != iters) {
+        float magnitude = sqrt(x * x + y * y);
+        if (magnitude > 0.0f) {
+            result = result - log(log(magnitude) / log(threshold)) / log(2.0f);
+        }
+    }
+
+    result = 1.0f * result / iters;
+    results[j * width + i] = result;
 }
