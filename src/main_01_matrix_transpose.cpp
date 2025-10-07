@@ -56,6 +56,7 @@ void run(int argc, char** argv)
     std::vector<std::string> algorithm_names = {
         "01 naive transpose (non-coalesced)",
         "02 transpose via local memory (coalesced)",
+        "02 transpose via local memory (coalesced, no bank)"
     };
 
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
@@ -82,6 +83,8 @@ void run(int argc, char** argv)
                     cuda::matrix_transpose_naive(gpu::WorkSize(GROUP_SIZE, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
                     cuda::matrix_transpose_coalesced_via_local_memory(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                } else if (algorithm == "02 transpose via local memory (coalesced, no bank)") {
+                    cuda::matrix_transpose_coalesced_via_local_memory_no_bank_conflict(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }

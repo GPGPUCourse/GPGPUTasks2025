@@ -3,9 +3,12 @@ cmake_minimum_required(VERSION 3.20)
 project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
+# set(CMAKE_CUDA_COMPILER  /usr/local/cuda-12.9/bin/nvcc)
+set(CMAKE_CUDA_ARCHITECTURES 75 )
+set(CMAKE_CUDA_FLAGS -lineinfo)
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
-option(GPU_CUDA_SUPPORT "CUDA support." OFF)
+option(GPU_CUDA_SUPPORT "CUDA support." ON)
 
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
 if (NOT DEFINED GLSLC_BIN)
@@ -102,6 +105,7 @@ if (GPU_CUDA_SUPPORT)
             src/kernels/cu/aplusb.cu
             src/kernels/cu/matrix_01_transpose_naive.cu
             src/kernels/cu/matrix_02_transpose_coalesced_via_local_memory.cu
+            src/kernels/cu/matrix_02_5_transpose_coalesced_via_local_memory_no_bank_conflict.cu
             src/kernels/cu/matrix_03_multiply_naive.cu
             src/kernels/cu/matrix_04_multiply_via_local_memory.cu
             src/kernels/cu/matrix_05_multiply_wmma.cu)

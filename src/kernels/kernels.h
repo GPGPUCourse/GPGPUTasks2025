@@ -20,6 +20,8 @@ void matrix_transpose_naive(const gpu::WorkSize &workSize,
             const gpu::gpu_mem_32f &matrix, gpu::gpu_mem_32f &transposed_matrix, unsigned int w, unsigned int h);
 void matrix_transpose_coalesced_via_local_memory(const gpu::WorkSize &workSize,
             const gpu::gpu_mem_32f &matrix, gpu::gpu_mem_32f &transposed_matrix, unsigned int w, unsigned int h);
+void matrix_transpose_coalesced_via_local_memory_no_bank_conflict(const gpu::WorkSize &workSize,
+            const gpu::gpu_mem_32f &matrix, gpu::gpu_mem_32f &transposed_matrix, unsigned int w, unsigned int h);
 
 void matrix_multiply_naive(const gpu::WorkSize &workSize,
             const gpu::gpu_mem_32f &a, const gpu::gpu_mem_32f &b, gpu::gpu_mem_32f &c, unsigned int w, unsigned int h, unsigned int k);
