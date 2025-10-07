@@ -7,6 +7,19 @@
 #include "helpers/rassert.cu"
 #include "../defines.h"
 
+
+__device__ __forceinline__ void set(float* a, int n, int m, int i, int j, float x)
+{
+    if (i < n && j < m) {
+        a[i * m + j] = x;
+    }
+}
+
+__device__ __forceinline__ float get(const float* a, int n, int m, int i, int j)
+{
+    return (i < n && j < m) ? a[i * m + j] : 0.0f;
+}
+
 __global__ void matrix_multiply_naive(
                        const float* a, // rows=h x cols=k
                        const float* b, // rows=k x cols=w
@@ -15,7 +28,16 @@ __global__ void matrix_multiply_naive(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+    
+    float res = 0;
+    for (int p = 0; p < k; ++p) {
+        float ael = get(a, h, k, i, p);
+        float bel = get(b, k, w, p, j);
+        res += ael * bel;
+    }
+    set(c, h, w, i, j, res);
 }
 
 namespace cuda {

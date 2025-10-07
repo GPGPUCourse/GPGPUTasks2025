@@ -48,7 +48,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -67,6 +67,7 @@ void run(int argc, char** argv)
     unsigned int w = ksize * 32;
     unsigned int k = ksize * 8;
     unsigned int h = ksize * 16;
+
     std::cout << "C = A x B, matrices size: C (rows=H=" << h << " x cols=W=" << w << ")"
               << " = A (rows=H=" << h << " x cols=K=" << k << ") x B (rows=K=" << k << " x cols=W=" << w << ")" << std::endl;
     std::cout << "matrices data size: A - " << sizeof(float) * h * k / 1024 / 1024 << " MB, B - " << sizeof(float) * k * w / 1024 / 1024 << " MB, C - " << sizeof(float) * k * w / 1024 / 1024 << " MB" << std::endl;
@@ -78,6 +79,8 @@ void run(int argc, char** argv)
     FastRandom r;
     for (size_t i = 0; i < input_a_cpu.size(); ++i) {
         input_a_cpu[i] = r.nextf();
+    }
+    for (size_t i = 0; i < input_b_cpu.size(); ++i) {
         input_b_cpu[i] = r.nextf();
     }
 
@@ -88,12 +91,12 @@ void run(int argc, char** argv)
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     matrix_a_gpu.writeN(input_a_cpu.data(), h * k);
-    matrix_b_gpu.writeN(input_b_cpu.data(), h * k);
+    matrix_b_gpu.writeN(input_b_cpu.data(), k * w);
 
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
         "01 naive",
-        "02 using local memory",
+        // "02 using local memory",
     };
 
     // TODO 020 Это добровольное задание за супер-пупер-баллы престижа сверх нормы
@@ -124,7 +127,6 @@ void run(int argc, char** argv)
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     if (algorithm == "01 naive") {
@@ -218,6 +220,7 @@ int main(int argc, char** argv)
             return 1;
         }
     }
-
+    
+    avk2::InstanceContext::clearGlobalInstanceContext();
     return 0;
 }
