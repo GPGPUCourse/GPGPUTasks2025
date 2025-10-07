@@ -122,23 +122,3 @@ if (GPU_CUDA_SUPPORT)
     target_include_directories(main_aplusb     PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
     target_include_directories(main_prefix_sum PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 endif ()
-
-# Build standalone prefix_scan from prefsum (host code unchanged)
-add_executable(prefix_scan_ps
-        ../prefsum/main.cpp
-        ../prefsum/cl.cpp
-        ../prefsum/device.cpp
-        ../prefsum/device_realization.cpp
-        ../prefsum/io.cpp
-        ../prefsum/params.cpp)
-target_include_directories(prefix_scan_ps PRIVATE ../prefsum)
-target_link_libraries(prefix_scan_ps libclew)
-
-add_custom_command(TARGET prefix_scan_ps POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_CURRENT_SOURCE_DIR}/../prefsum/prefix_scan32.cl
-                $<TARGET_FILE_DIR:prefix_scan_ps>/prefix_scan32.cl)
-add_custom_command(TARGET prefix_scan_ps POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_CURRENT_SOURCE_DIR}/../prefsum/prefix_scan64.cl
-                $<TARGET_FILE_DIR:prefix_scan_ps>/prefix_scan64.cl)
