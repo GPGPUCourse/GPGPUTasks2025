@@ -33,10 +33,10 @@ __global__ void matrix_transpose_coalesced_via_local_memory(
     int mi = blockIdx.y * blockDim.y + y; // 0..h
     float el = get(matrix, h, w, mi, mj);
 
-    data[y * GROUP_SIZE_X + x] = el;
+    data[y * GROUP_SIZE_N + x] = el;
     __syncthreads();
 
-    el =  data[x * GROUP_SIZE_X + y];
+    el =  data[x * GROUP_SIZE_N + y];
 
     int tj = blockIdx.y * blockDim.y + x; // 0..w
     int ti = blockIdx.x * blockDim.x + y; // 0..h
