@@ -12,5 +12,6 @@ __kernel void fill_buffer_with_zeros(
     __global uint* buffer,
     unsigned int n)
 {
-    // TODO
+    size_t gid = get_global_id(0);
+    if (gid < n) buffer[gid] = 0u;
 }
