@@ -44,32 +44,20 @@ void run(int argc, char** argv)
         timer t;
 
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // reset input each iteration
             data_gpu.writeN(padded.data(), tiled_n);
             const unsigned int partitions_total = tiles * matrixHeight;
-
-            // Use two-pass uint path for portability
-            gpu::gpu_mem_32u aggregates_gpu(partitions_total);
-            gpu::gpu_mem_32u inclusive_prefixes_gpu(partitions_total);
             gpu::gpu_mem_32u global_counter_gpu(1);
-
             std::vector<unsigned int> zero_counter(1, 0);
             global_counter_gpu.writeN(zero_counter.data(), 1);
 
-            std::vector<unsigned int> zero_aggregates(partitions_total, 0);
-            aggregates_gpu.writeN(zero_aggregates.data(), zero_aggregates.size());
+            gpu::gpu_mem_64f states_gpu(partitions_total);
+            std::vector<double> zeros64(partitions_total, 0.0);
+            states_gpu.writeN(zeros64.data(), zeros64.size());
 
-            std::vector<unsigned int> neg_one_bits(partitions_total, 0xFFFFFFFFu);
-            gpu::gpu_mem_32u inclusive_bits(inclusive_prefixes_gpu);
-            inclusive_bits.writeN(neg_one_bits.data(), neg_one_bits.size());
-
-            gpu::WorkSize ws1(matrixHeight, partitions_total);
-            ocl_partition_scan.exec(ws1, data_gpu, global_counter_gpu, aggregates_gpu);
-
-            global_counter_gpu.writeN(zero_counter.data(), 1);
-
-            gpu::WorkSize ws2(matrixHeight, partitions_total);
-            ocl_global_scan.exec(ws2, data_gpu, global_counter_gpu, aggregates_gpu, inclusive_prefixes_gpu);
+            gpu::gpu_mem_32u data_out_gpu(tiled_n);
+            gpu::WorkSize ws(matrixHeight, partitions_total);
+            ocl_prefix_scan64.exec(ws, data_gpu, data_out_gpu, global_counter_gpu, states_gpu);
+            data_out_gpu.copyToN(data_gpu, tiled_n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
         } else if (context.type() == gpu::Context::TypeVulkan) {
