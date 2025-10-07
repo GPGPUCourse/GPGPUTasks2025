@@ -131,7 +131,7 @@ void run(int argc, char** argv)
                         sum_accum_gpu.fill(0);
 
                         const unsigned int local_size = GROUP_SIZE;
-                        const unsigned int global_size = n / LOAD_K_VALUES_PER_ITEM;
+                        const unsigned int global_size = gpu::divup(n / LOAD_K_VALUES_PER_ITEM, local_size) * local_size;
                         gpu::WorkSize work_size(local_size, global_size);
 
                         ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(work_size, input_gpu, sum_accum_gpu, n);
