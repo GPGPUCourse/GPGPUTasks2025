@@ -77,6 +77,22 @@ void run(int argc, char** argv)
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
 
+    std::vector<float> times;
+    int n_exp = 3;
+
+    for (int i = 0; i < n_exp; ++i) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        float elapsed = t.elapsed();
+        times.push_back(elapsed);
+    }
+
+    std::cout << "Data amount: " << (float)(n * sizeof(unsigned int)) / (1024.0 * 1024.0 * 1024.0) << " GB" << std::endl;
+    std::cout << "Median time: " << stats::median(times) << " sec" << std::endl;
+    std::cout << "Bandwidth: " << (float)(n * sizeof(unsigned int)) / (1024.0 * 1024.0 * 1024.0) / stats::median(times) << " GB/s" << std::endl;
+
+
+
     std::vector<std::string> algorithm_names = {
         "CPU",
         "CPU with OpenMP",
