@@ -13,30 +13,33 @@ __global__ void matrix_transpose_coalesced_via_local_memory(
                              unsigned int w,
                              unsigned int h)
 {
-    __shared__ float tile[GROUP_SIZE_X][GROUP_SIZE_X + 1];
-    unsigned int i = blockIdx.x * GROUP_SIZE_X + threadIdx.x;
-    unsigned int j = blockIdx.y * GROUP_SIZE_X + threadIdx.y;
-    if (i >= w)
-        return;
+    constexpr unsigned int TILE_DIM = 32, BLOCK_ROWS = 8;
+    __shared__ float tile[TILE_DIM][TILE_DIM + 1];
+    unsigned int i = blockIdx.x * TILE_DIM + threadIdx.x;
+    unsigned int j = blockIdx.y * TILE_DIM + threadIdx.y;
 
-    #pragma unroll
-    for (unsigned int offset = 0; offset < GROUP_SIZE_X; offset += GROUP_SIZE_Y) {
-        const unsigned int y = j + offset;
-        if (y >= h)
-            break;
+    if (i < w) {
+        #pragma unroll
+        for (unsigned int offset = 0; offset < TILE_DIM; offset += BLOCK_ROWS) {
+            const unsigned int y = j + offset;
+            if (y >= h)
+                break;
 
-        tile[threadIdx.y + offset][threadIdx.x] = matrix[y * w + i];
+            tile[threadIdx.y + offset][threadIdx.x] = matrix[y * w + i];
+        }
     }
 
     __syncthreads();
 
-    i = blockIdx.y * GROUP_SIZE_X + threadIdx.x;
-    j = blockIdx.x * GROUP_SIZE_X + threadIdx.y;
+    if (i >= w)
+        return;
+    i = blockIdx.y * TILE_DIM + threadIdx.x;
     if (i >= h)
         return;
+    j = blockIdx.x * TILE_DIM + threadIdx.y;
 
     #pragma unroll
-    for (unsigned int offset = 0; offset < GROUP_SIZE_X; offset += GROUP_SIZE_Y) {
+    for (unsigned int offset = 0; offset < TILE_DIM; offset += BLOCK_ROWS) {
         const unsigned int y = j + offset;
         if (y >= w)
             return;
