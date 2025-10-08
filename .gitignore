@@ -4,3 +4,8 @@
 build*
 cmake-build*
 .vs
+build*
+cmake-build*
+.vs
+.vscode
+cmake_options.txt

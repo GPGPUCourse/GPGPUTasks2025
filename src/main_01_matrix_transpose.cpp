@@ -36,6 +36,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_matrix02TransposeCoalescedViaLocalMemory(avk2::getMatrix02TransposeCoalescedViaLocalMemory());
 
     unsigned int ksize = 512;
+    // unsigned int ksize = 32;
     unsigned int w = ksize * 32;
     unsigned int h = ksize * 16;
     std::cout << "Matrix size: rows=H=" << h << " x cols=W=" << w << " (" << sizeof(float) * w * h / 1024 / 1024 << " MB)" << std::endl;
@@ -64,17 +65,18 @@ void run(int argc, char** argv)
         std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " << algorithm << std::endl;
 
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
+        output_matrix_gpu.fill(0);
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
-                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(GROUP_SIZE, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(16, 16, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
