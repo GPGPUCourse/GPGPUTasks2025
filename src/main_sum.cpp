@@ -50,11 +50,6 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum03LocalMemoryAtomicPerWorkgroup(ocl::getSum03LocalMemoryAtomicPerWorkgroup());
     ocl::KernelSource ocl_sum04LocalReduction(ocl::getSum04LocalReduction());
 
-    avk2::KernelSource vk_sum01Atomics(avk2::getSum01Atomics());
-    avk2::KernelSource vk_sum02AtomicsLoadK(avk2::getSum02AtomicsLoadK());
-    avk2::KernelSource vk_sum03LocalMemoryAtomicPerWorkgroup(avk2::getSum03LocalMemoryAtomicPerWorkgroup());
-    avk2::KernelSource vk_sum04LocalReduction(avk2::getSum04LocalReduction());
-
     unsigned int n = 100 * 1000 * 1000;
     rassert(n % LOAD_K_VALUES_PER_ITEM == 0, 4356345432524); // for simplicity
     std::vector<unsigned int> values(n, 0);
@@ -76,6 +71,15 @@ void run(int argc, char** argv)
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+    std::vector<double> pci_e_times;
+    for (int i = 0; i < 10; ++i) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        pci_e_times.push_back(t.elapsed());
+    }
+    double total_memory_size = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
+    double median_time = stats::median(pci_e_times);
+    std::cout << "PCI-E bandwidth: " << total_memory_size / median_time << " GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -113,49 +117,19 @@ void run(int argc, char** argv)
                         ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
-                        // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    if (algorithm == "01 atomicAdd from each workItem") {
-                        sum_accum_gpu.fill(0);
-                        cuda::sum_01_atomics(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
-                        sum_accum_gpu.fill(0);
-                        cuda::sum_02_atomics_load_k(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO cuda::sum_03_local_memory_atomic_per_workgroup(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else if (algorithm == "04 local reduction") {
-                        // TODO cuda::sum_04_local_reduction(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    if (algorithm == "01 atomicAdd from each workItem") {
-                        sum_accum_gpu.fill(0);
-                        vk_sum01Atomics.exec(n, gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
-                        sum_accum_gpu.fill(0);
-                        vk_sum02AtomicsLoadK.exec(n, gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu);
-                        sum_accum_gpu.readN(&gpu_sum, 1);
-                    } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO vk_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-                    } else if (algorithm == "04 local reduction") {
-                        // TODO vk_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        uint current_size = n;
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, current_size), input_gpu, reduction_buffer1_gpu, current_size);
+                        current_size = (current_size + GROUP_SIZE - 1) / GROUP_SIZE;
+                        while (current_size != 1) {
+                            ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, current_size), reduction_buffer1_gpu, reduction_buffer2_gpu, current_size);
+                            current_size = (current_size + GROUP_SIZE - 1) / GROUP_SIZE;
+                            reduction_buffer1_gpu.swap(reduction_buffer2_gpu);
+                        }
+                        reduction_buffer1_gpu.readN(&gpu_sum, 1);
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
