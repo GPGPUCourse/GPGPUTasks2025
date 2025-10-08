@@ -9,11 +9,17 @@ __kernel void sum_03_local_memory_atomic_per_workgroup(__global const uint* a,
                                                        __global       uint* sum,
                                                        const unsigned int n)
 {
-    // Подсказки:
-    // const uint index = get_global_id(0);
-    // const uint local_index = get_local_id(0);
-    // __local uint local_data[GROUP_SIZE];
-    // barrier(CLK_LOCAL_MEM_FENCE);
+    const uint index = get_global_id(0);
+    const uint local_index = get_local_id(0);
+    __local uint local_data[GROUP_SIZE];
+    local_data[local_index] = a[index];
+    barrier(CLK_LOCAL_MEM_FENCE);
 
-    // TODO
+    if (local_index == 0) {
+        uint cur = 0;
+        for (uint i = 0; i < GROUP_SIZE; ++i) {
+            cur += local_data[i];
+        }
+        atomic_add(sum, cur);
+    }
 }
