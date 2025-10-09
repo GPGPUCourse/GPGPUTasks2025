@@ -1,0 +1,8 @@
+{
+  "name": "my-project",
+  "version-string": "1.0.0",
+  "dependencies": [
+    "gtest"
+  ],
+  "builtin-baseline": "5a5662402382b1aa72f64440717b75258992eba0"
+}
