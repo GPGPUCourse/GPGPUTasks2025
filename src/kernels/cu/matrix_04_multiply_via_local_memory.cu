@@ -23,10 +23,9 @@ __global__ void matrix_multiply_via_local_memory(
 
     __shared__ float matrix_a_gpu[GROUP_SIZE];
     __shared__ float matrix_b_gpu[GROUP_SIZE];
-    __shared__ float matrix_res_gpu[GROUP_SIZE];
 
     const unsigned int res_ind = local_y * blockDim.x + local_x;
-    matrix_res_gpu[res_ind] = 0.f;
+    float sum = 0.f;
 
     for (unsigned int i = 0; i < k; i += blockDim.x) {
         const unsigned int x_a = i + local_x;
@@ -42,13 +41,13 @@ __global__ void matrix_multiply_via_local_memory(
             const unsigned int a_ind = local_y * blockDim.x + j;
             const unsigned int b_ind = j * blockDim.x + local_x;
 
-            matrix_res_gpu[res_ind] += matrix_a_gpu[a_ind] * matrix_b_gpu[b_ind];
+            sum += matrix_a_gpu[a_ind] * matrix_b_gpu[b_ind];
         }
         __syncthreads();
     }
 
     if (index_x < w && index_y < h) {
-        c[index_y * w + index_x] = matrix_res_gpu[res_ind];
+        c[index_y * w + index_x] = sum;
     }
 }
 
