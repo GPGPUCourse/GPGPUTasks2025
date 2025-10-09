@@ -62,12 +62,6 @@ void run(int argc, char** argv)
     unsigned int w = ksize * 32;
     unsigned int k = ksize * 8;
     unsigned int h = ksize * 16;
-    // unsigned int w = 32;
-    // unsigned int k = 32;
-    // unsigned int h = 32;
-    // unsigned int w = 16;
-    // unsigned int k = 16;
-    // unsigned int h = 16;
 
     std::cout << "C = A x B, matrices size: C (rows=H=" << h << " x cols=W=" << w << ")"
               << " = A (rows=H=" << h << " x cols=K=" << k << ") x B (rows=K=" << k << " x cols=W=" << w << ")" << std::endl;

@@ -32,9 +32,7 @@ void run(int argc, char** argv)
 
     unsigned int ksize = 512;
     unsigned int w = ksize * 32;
-    // unsigned int w = 16;
     unsigned int h = ksize * 16;
-    // unsigned int h = 16;
     std::cout << "Matrix size: rows=H=" << h << " x cols=W=" << w << " (" << sizeof(float) * w * h / 1024 / 1024 << " MB)" << std::endl;
 
     std::vector<float> input_cpu(h * w, 0);
