@@ -387,11 +387,22 @@ public:
 
                 vk::PhysicalDeviceCooperativeMatrixFeaturesKHR cooperative_matrix_features;
                 if (device_info_.supportsExtension(VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME)) {
-                    device_enabled_extensions.push_back(VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME);
+                    device_enabled_extensions.push_back(VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME);
+
                     cooperative_matrix_features.setCooperativeMatrix(true);
                     cooperative_matrix_features.setCooperativeMatrixRobustBufferAccess(false); // it is not supported on NVIDIA RTX 4090
                     cooperative_matrix_features.setPNext(pNextFeature);
                     pNextFeature = &cooperative_matrix_features;
+                }
+
+                vk::PhysicalDeviceSubgroupSizeControlFeatures subgroup_size_control_features;
+                if (device_info_.supportsExtension(VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME)) {
+                    device_enabled_extensions.push_back(VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME);
+
+                    subgroup_size_control_features.setComputeFullSubgroups(true);
+                    subgroup_size_control_features.setSubgroupSizeControl(true);
+                    subgroup_size_control_features.setPNext(pNextFeature);
+                    pNextFeature = &subgroup_size_control_features;
                 }
 
 		vk::DeviceCreateInfo device_create_info({}, queue_create_info, {}, device_enabled_extensions, nullptr, pNextFeature);
@@ -1146,10 +1157,12 @@ avk2::VulkanKernel *avk2::KernelSource::compileComputeKernel(const std::shared_p
 	vk::PipelineShaderStageCreateInfo pipeline_stages_create_info({}, vk::ShaderStageFlagBits::eCompute, shader_module, name_.c_str());
 
         vk::PipelineShaderStageRequiredSubgroupSizeCreateInfo require_subgroup;
-        require_subgroup.requiredSubgroupSize = VK_SUBGROUP_SIZE;
-        if (vk->device().supportsExtension(VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME)) {
-            pipeline_stages_create_info.flags |= vk::PipelineShaderStageCreateFlagBits::eRequireFullSubgroups;
-            pipeline_stages_create_info.setPNext(&require_subgroup);
+        if (shader_module_info.getGroupSize(name_)[0] % VK_SUBGROUP_SIZE == 0) {
+            require_subgroup.requiredSubgroupSize = VK_SUBGROUP_SIZE;
+            if (vk->device().supportsExtension(VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME)) {
+                pipeline_stages_create_info.flags |= vk::PipelineShaderStageCreateFlagBits::eRequireFullSubgroups;
+                pipeline_stages_create_info.setPNext(&require_subgroup);
+            }
         }
 
 	std::set<unsigned int> descriptors_sets = shader_module_info.getDescriptorsSets();
