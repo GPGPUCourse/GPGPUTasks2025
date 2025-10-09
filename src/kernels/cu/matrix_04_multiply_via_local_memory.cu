@@ -25,18 +25,17 @@ __global__ void matrix_multiply_via_local_memory(
     __shared__ float matrix_b_gpu[GROUP_SIZE];
     __shared__ float matrix_res_gpu[GROUP_SIZE];
 
-    c[index_y * w + index_x] = 0.f;
     const unsigned int res_ind = local_y * blockDim.x + local_x;
     matrix_res_gpu[res_ind] = 0.f;
 
     for (unsigned int i = 0; i < k; i += blockDim.x) {
         const unsigned int x_a = i + local_x;
         const unsigned int y_a = index_y;
-        matrix_a_gpu[res_ind] = a[y_a * k + x_a];
+        matrix_a_gpu[res_ind] = y_a < h && x_a < k ? a[y_a * k + x_a] : 0.f;
 
         const unsigned int x_b = index_x;
         const unsigned int y_b = i + local_y;
-        matrix_b_gpu[res_ind] = b[y_b * w + x_b];
+        matrix_b_gpu[res_ind] = y_b < k && x_b < w ? b[y_b * w + x_b] : 0.f;
 
         __syncthreads();
         for (unsigned int j = 0; j < blockDim.x; j++) {
@@ -48,7 +47,9 @@ __global__ void matrix_multiply_via_local_memory(
         __syncthreads();
     }
 
-    c[index_y * w + index_x] = matrix_res_gpu[res_ind];
+    if (index_x < w && index_y < h) {
+        c[index_y * w + index_x] = matrix_res_gpu[res_ind];
+    }
 }
 
 namespace cuda {
