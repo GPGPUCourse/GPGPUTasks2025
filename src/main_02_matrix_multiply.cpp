@@ -101,8 +101,8 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32f matrix_c_gpu(h * w); // rows=H x cols=W
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    matrix_a_gpu.writeN(input_a_cpu.data(), h * k);
-    matrix_b_gpu.writeN(input_b_cpu.data(), k * w);
+    matrix_a_gpu.writeN(input_a_cpu.data(), input_a_cpu.size());
+    matrix_b_gpu.writeN(input_b_cpu.data(), input_b_cpu.size());
 
     printM("A:", input_a_cpu.data(), h, k);
     printM("B:", input_b_cpu.data(), k, w);
