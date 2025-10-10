@@ -50,8 +50,12 @@ void run(int argc, char** argv)
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
 
+    // for (int i = 0; i < n; i++)
+    //     std::cout << as[i] << " ";
+    // std::cout << std::endl; 
+
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), buffer1(n), buffer2(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -64,11 +68,37 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            unsigned next_pow_of_2 = n;
+            next_pow_of_2--;
+            next_pow_of_2 |= next_pow_of_2 >> 1;
+            next_pow_of_2 |= next_pow_of_2 >> 2;
+            next_pow_of_2 |= next_pow_of_2 >> 4;
+            next_pow_of_2 |= next_pow_of_2 >> 8;
+            next_pow_of_2 |= next_pow_of_2 >> 16;
+            next_pow_of_2++;
+
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+            for (unsigned int compress_power = 0; (1 << compress_power) <= next_pow_of_2; compress_power++) {
+                auto compress = 1 << compress_power;
+
+                ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, n);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1, n, compress);
+            
+                // std::cout << "compress ratio : " <<  compress << " : "; 
+                // std::vector<unsigned int> input_values = buffer1.readVector();
+                // std::cout << std::endl;
+                // for (int i = 0; i < n; ++i)
+                //     std::cout << input_values[i] << " ";
+                // std::cout << std::endl;
+
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, n), buffer1, prefix_sum_accum_gpu, n, compress_power);
+            
+                // input_values = prefix_sum_accum_gpu.readVector();
+                // std::cout << std::endl;
+                // for (int i = 0; i < n; i++)
+                //     std::cout << input_values[i] << " ";
+                // std::cout << std::endl;
+            }    
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
