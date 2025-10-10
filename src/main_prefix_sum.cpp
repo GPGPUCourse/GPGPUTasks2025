@@ -41,7 +41,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 1000*1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -86,11 +86,11 @@ void run(int argc, char** argv)
                 if (compress > 1)
                     if (compress_power % 2 == 1) {
                         ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, n);
-                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, buffer2, n);
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1, buffer2, n);
                     }
                     else {
                         ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, n);
-                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, buffer1, n);
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer2, buffer1, n);
                     }
 
                 // std::cout << "compress ratio : " <<  compress << " : "; 

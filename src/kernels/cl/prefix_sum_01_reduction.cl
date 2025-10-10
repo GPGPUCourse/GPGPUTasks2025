@@ -12,11 +12,8 @@ __kernel void prefix_sum_01_reduction(
 {
     // lets now reduce x2 every time
     
-    unsigned int i = get_global_id(0);
-    unsigned int thread = get_local_id(0);
+    unsigned int i = 2 * get_global_id(0);
     if (i < n) {
-        if ((thread & 1) == 0) {
-            reduced[i / 2] = a[i] + (i + 1 < n ? a[i + 1] : 0);
-        }
+        reduced[i / 2] = a[i] + (i + 1 < n ? a[i + 1] : 0);
     }
 }
