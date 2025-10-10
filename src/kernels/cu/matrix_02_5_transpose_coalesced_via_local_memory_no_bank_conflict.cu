@@ -19,7 +19,7 @@ __device__ __forceinline__ float get(const float* a, int n, int m, int i, int j)
     return (i < n && j < m) ? a[i * m + j] : 0.0f;
 }
 
-__global__ void matrix_transpose_coalesced_via_local_memory(
+__global__ void matrix_transpose_coalesced_via_local_memory_no_bank_conflict(
     const float* matrix, // h x w
     float* transposed_matrix, // w x h
     unsigned int w,
@@ -33,10 +33,10 @@ __global__ void matrix_transpose_coalesced_via_local_memory(
     int mi = blockIdx.y * blockDim.y + y; // 0..h
     float el = get(matrix, h, w, mi, mj);
 
-    data[y * GROUP_SIZE_N + x] = el;
+    int nx = (x + y) % GROUP_SIZE_N;
+    data[y * GROUP_SIZE_N + nx] = el;
     __syncthreads();
-
-    el =  data[x * GROUP_SIZE_N + y];
+    el = data[x * GROUP_SIZE_N + nx];
 
     int tj = blockIdx.y * blockDim.y + x; // 0..w
     int ti = blockIdx.x * blockDim.x + y; // 0..h
@@ -44,13 +44,13 @@ __global__ void matrix_transpose_coalesced_via_local_memory(
 }
 
 namespace cuda {
-void matrix_transpose_coalesced_via_local_memory(const gpu::WorkSize& workSize,
+void matrix_transpose_coalesced_via_local_memory_no_bank_conflict(const gpu::WorkSize& workSize,
     const gpu::gpu_mem_32f& matrix, gpu::gpu_mem_32f& transposed_matrix, unsigned int w, unsigned int h)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::matrix_transpose_coalesced_via_local_memory<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(matrix.cuptr(), transposed_matrix.cuptr(), w, h);
+    ::matrix_transpose_coalesced_via_local_memory_no_bank_conflict<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(matrix.cuptr(), transposed_matrix.cuptr(), w, h);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
