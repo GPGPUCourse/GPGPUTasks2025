@@ -63,6 +63,7 @@ void run(int argc, char** argv)
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
+        buffer1.writeN(as.data(), n);
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
@@ -77,22 +78,34 @@ void run(int argc, char** argv)
             next_pow_of_2 |= next_pow_of_2 >> 16;
             next_pow_of_2++;
 
+            // ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, n);
             ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
             for (unsigned int compress_power = 0; (1 << compress_power) <= next_pow_of_2; compress_power++) {
                 auto compress = 1 << compress_power;
 
-                ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, n);
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1, n, compress);
-            
+                if (compress > 1)
+                    if (compress_power % 2 == 1) {
+                        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, n);
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, buffer2, n);
+                    }
+                    else {
+                        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, n);
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, buffer1, n);
+                    }
+
                 // std::cout << "compress ratio : " <<  compress << " : "; 
                 // std::vector<unsigned int> input_values = buffer1.readVector();
                 // std::cout << std::endl;
                 // for (int i = 0; i < n; ++i)
                 //     std::cout << input_values[i] << " ";
                 // std::cout << std::endl;
-
-                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, n), buffer1, prefix_sum_accum_gpu, n, compress_power);
-            
+                
+                if (compress_power % 2 == 1)
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, n), buffer2, prefix_sum_accum_gpu, n, compress_power);
+                else
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, n), buffer1, prefix_sum_accum_gpu, n, compress_power);
+                    
+                
                 // input_values = prefix_sum_accum_gpu.readVector();
                 // std::cout << std::endl;
                 // for (int i = 0; i < n; i++)

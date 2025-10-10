@@ -24,7 +24,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
         if ((ind >> p) & 1) 
         {
             unsigned int segment_ind = (ind >> (p + 1)) << 1;
-            atomic_add(&pref_sum[i], reduced[segment_ind]);
+            pref_sum[i] += reduced[segment_ind];
         }
     }
 }
