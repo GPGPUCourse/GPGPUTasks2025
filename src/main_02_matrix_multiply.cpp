@@ -39,6 +39,17 @@ void multiply(
 }
 }
 
+void printM(std::string label, float* a, int n, int m) {
+    return;
+    std::cout << label<<'\n';
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < m; ++j) {
+            std::cout << a[i * m + j] << ' ';
+        }
+        std::cout << '\n';
+    }
+}
+
 void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
@@ -93,10 +104,12 @@ void run(int argc, char** argv)
     matrix_a_gpu.writeN(input_a_cpu.data(), h * k);
     matrix_b_gpu.writeN(input_b_cpu.data(), k * w);
 
+    printM("A:", input_a_cpu.data(), h, k);
+    printM("B:", input_b_cpu.data(), k, w);
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
         "01 naive",
-        // "02 using local memory",
+        "02 using local memory",
     };
 
     // TODO 020 Это добровольное задание за супер-пупер-баллы престижа сверх нормы
@@ -141,7 +154,7 @@ void run(int argc, char** argv)
                     if (algorithm == "01 naive") {
                         cuda::matrix_multiply_naive(gpu::WorkSize(GROUP_SIZE, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "02 using local memory") {
-                        cuda::matrix_multiply_via_local_memory(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        cuda::matrix_multiply_via_local_memory(gpu::WorkSize(GROUP_SIZE_N, GROUP_SIZE_N, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "03 using WMMA (Tensor Cores) [+Prestige Points]") {
                         cuda::matrix_multiply_wmma(gpu::WorkSize(16, 2, w, h * 2 / 16), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else {
@@ -181,6 +194,8 @@ void run(int argc, char** argv)
         // Сверяем результат
         if (algorithm != "CPU with OpenMP") {
             std::vector<float> results = matrix_c_gpu.readVector();
+            printM("C:", results.data(), h, w);
+
             std::vector<float> relative_errors;
             for (size_t j = 0; j < h; ++j) {
                 for (size_t i = 0; i < w; ++i) {
