@@ -41,7 +41,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100*1000*1000;  // Уменьшим для отладки
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -50,37 +50,41 @@ void run(int argc, char** argv)
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
 
-    // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
-
-    // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
+    gpu::gpu_mem_32u input_gpu(n), buffer1(n), buffer2(n), prefix_sum_accum_gpu(n);
     input_gpu.writeN(as.data(), n);
-
-    // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
+        buffer1.writeN(as.data(), n);
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
+            unsigned int num_levels = 0;
+            unsigned int temp = n;
+            while (temp > 1) {
+                temp = (temp + 1) / 2;
+                num_levels++;
+            }
+
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+
+            for (unsigned int compress_power = 0; compress_power <= num_levels; compress_power++) {
+                unsigned int compress = 1u << compress_power;
+                if (compress > 1) {
+                    if (compress_power % 2 == 1) {
+                        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, n);
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1, buffer2, n);
+                    } else {
+                        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, n);
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer2, buffer1, n);
+                    }
+                }
+
+                if (compress_power % 2 == 0) {
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, prefix_sum_accum_gpu, n, compress_power);
+                } else {
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, prefix_sum_accum_gpu, n, compress_power);
+                }
+            }
         } else {
             rassert(false, 4531412341, context.type());
         }
@@ -100,6 +104,9 @@ void run(int argc, char** argv)
     size_t cpu_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         cpu_sum += as[i];
+        if (cpu_sum != gpu_prefix_sum[i]) {
+            std::cout << "ERROR at index " << i << ": expected " << cpu_sum << ", got " << gpu_prefix_sum[i] << std::endl;
+        }
         rassert(cpu_sum == gpu_prefix_sum[i], 566324523452323, cpu_sum, gpu_prefix_sum[i], i);
     }
 
