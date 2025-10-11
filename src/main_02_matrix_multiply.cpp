@@ -127,6 +127,11 @@ void run(int argc, char** argv)
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
                 //throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+                
+                std::vector <float> z(h * w, 0.0f);
+                matrix_c_gpu.writeN(z.data(), h * w);
+                t.start();
+
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     if (algorithm == "01 naive") {
