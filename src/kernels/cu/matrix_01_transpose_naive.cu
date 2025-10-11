@@ -14,9 +14,9 @@ __global__ void matrix_transpose_naive(
                              unsigned int h)
 {
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
-    unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+    unsigned int y = blockIdx.y ;
     unsigned int total = w * h;
-    if (x >= w  && y >= h) return;
+    if (x >= w  || y >= h) return;
 
 
     transposed_matrix[x * h + y] = matrix[y * w + x];

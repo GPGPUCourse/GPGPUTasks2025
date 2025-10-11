@@ -6,11 +6,13 @@
 
 #include "helpers/rassert.cu"
 #include "../defines.h"
-
 // Include WMMA header with nvcuda::wmma namespace
 #include <cuda_fp16.h>   // ДО <mma.h>
 #include <mma.h>
 using namespace nvcuda::wmma ;
+const int WMMA_M = 16;
+const int WMMA_N = 16;
+const int WMMA_K = 16;
 
 __global__ void matrix_multiply_wmma(
                        const float* a, // rows=h x cols=k
@@ -20,7 +22,8 @@ __global__ void matrix_multiply_wmma(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO 020 Это добровольное задание за супер-пупер-баллы престижа сверх нормы
+
+    
 }
 
 namespace cuda {
