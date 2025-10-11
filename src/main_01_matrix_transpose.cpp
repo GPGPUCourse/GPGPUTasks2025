@@ -68,13 +68,32 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
+                    // очень смешная шутка -- когда я поставила здесь gpu::WorkSize(GROUP_SIZE, 1, w, h), то у меня наивный вариант получился нифига не наивным
+                    // и выжал столько:
+                    // Found 1 GPUs in 0.0600427 sec (OpenCL: 0.0434372 sec, Vulkan: 0.0165782 sec)
+                    // Available devices:
+                    // Device #0: API: OpenCL+Vulkan. GPU. Apple M3 Pro. Free memory: 27648/27648 Mb.
+                    // Using device #0: API: OpenCL+Vulkan. GPU. Apple M3 Pro. Free memory: 27648/27648 Mb.
+                    // Using OpenCL API...
+                    // Matrix size: rows=H=8192 x cols=W=16384 (512 MB)
+                    // ______________________________________________________
+                    // Evaluating algorithm #1/2: 01 naive transpose (non-coalesced)
+                    // Kernels compilation done in 0.00106575 seconds
+                    // algorithm times (in seconds) - 10 values (min=0.00953046 10%=0.00992208 median=0.0102803 90%=0.0127379 max=0.0127379)
+                    // median effective algorithm bandwidth: 97.2731 GB/s
+                    // ______________________________________________________
+                    // Evaluating algorithm #2/2: 02 transpose via local memory (coalesced)
+                    // Kernels compilation done in 0.0352514 seconds
+                    // algorithm times (in seconds) - 10 values (min=0.00919979 10%=0.00932758 median=0.00976667 90%=0.0931733 max=0.0931733)
+                    // median effective algorithm bandwidth: 102.389 GB/s
+
                     ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
