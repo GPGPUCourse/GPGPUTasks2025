@@ -91,7 +91,7 @@ void run(int argc, char** argv)
                     // algorithm times (in seconds) - 10 values (min=0.00919979 10%=0.00932758 median=0.00976667 90%=0.0931733 max=0.0931733)
                     // median effective algorithm bandwidth: 102.389 GB/s
 
-                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(GROUP_SIZE, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
                     ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
