@@ -33,3 +33,7 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} Threads::Threads libgpu)
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR})
+
+if (EXISTS /opt/vulkansdk/macOS/include)
+    target_include_directories(${PROJECT_NAME} PRIVATE /opt/vulkansdk/macOS/include)
+endif()
