@@ -45,13 +45,16 @@ void run(int argc, char** argv)
         std::cout << "______________________________________________________" << std::endl;
         std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " << algorithm << std::endl;
 
+        // Чистим результаты предыдущих алгоритмов
+        output_matrix_gpu.fill(0);
+
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
             if (algorithm == "01 naive transpose (non-coalesced)") {
-                ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                ocl_matrix01TransposeNaive.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
             } else if (algorithm == "02 transpose via local memory (coalesced)") {
                 ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
             } else {
