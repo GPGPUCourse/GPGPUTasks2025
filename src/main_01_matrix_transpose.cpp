@@ -16,12 +16,7 @@ void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
-    // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -63,12 +58,14 @@ void run(int argc, char** argv)
         std::cout << "______________________________________________________" << std::endl;
         std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " << algorithm << std::endl;
 
+        // Отчистим результат перед запуском алгоритма (иначе не все баги поймаем из-за прошлогов валидного результата).
+        output_matrix_gpu.fill(0.);
+
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
@@ -81,9 +78,19 @@ void run(int argc, char** argv)
                 // _______________________________CUDA___________________________________________
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
-                    cuda::matrix_transpose_naive(gpu::WorkSize(GROUP_SIZE, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    cuda::matrix_transpose_naive(
+                        gpu::WorkSize(GROUP_SIZE, 1, w, h),
+                        input_matrix_gpu,
+                        output_matrix_gpu,
+                        w,
+                        h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    cuda::matrix_transpose_coalesced_via_local_memory(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    cuda::matrix_transpose_coalesced_via_local_memory(
+                        gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h),
+                        input_matrix_gpu,
+                        output_matrix_gpu,
+                        w,
+                        h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
@@ -116,7 +123,9 @@ void run(int argc, char** argv)
         std::vector<float> results = output_matrix_gpu.readVector(); // input matrix: w x h -> output matrix: h x w
         for (size_t j = 0; j < h; ++j) {
             for (size_t i = 0; i < w; ++i) {
-                rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+                if (results[i * h + j] != input_cpu[j * w + i]) {
+                    rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+                }
             }
         }
     }
