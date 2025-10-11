@@ -126,45 +126,13 @@ void run(int argc, char** argv)
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
-                // _______________________________OpenCL_____________________________________________
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    if (algorithm == "01 naive") {
-                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else if (algorithm == "02 using local memory") {
-                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else {
-                        rassert(false, 7652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    if (algorithm == "01 naive") {
-                        cuda::matrix_multiply_naive(gpu::WorkSize(GROUP_SIZE, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else if (algorithm == "02 using local memory") {
-                        cuda::matrix_multiply_via_local_memory(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else if (algorithm == "03 using WMMA (Tensor Cores) [+Prestige Points]") {
-                        cuda::matrix_multiply_wmma(gpu::WorkSize(16, 2, w, h * 2 / 16), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    struct {
-                        unsigned int w;
-                        unsigned int h;
-                        unsigned int k;
-                    } params = {w, h, k};
-                    if (algorithm == "01 naive") {
-//                        vk_matrix03MultiplyNaive.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
-                    } else if (algorithm == "02 using local memory") {
-//                        vk_matrix04MultiplyViaLocalMemory.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
-                    } else if (algorithm == "03 using cooperative matrix [+Prestige Points]") {
-                        vk_matrix05MultiplyCooperativeMatrix.exec(params, gpu::WorkSize(VK_SUBGROUP_SIZE, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
-                    } else {
-                        rassert(false, 7652345234321, algorithm, algorithm_index);
-                    }
+            // _______________________________OpenCL_____________________________________________
+                if (algorithm == "01 naive") {
+                    ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                } else if (algorithm == "02 using local memory") {
+                    ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                 } else {
-                    rassert(false, 546345243, context.type());
+                    rassert(false, 7652345234321, algorithm, algorithm_index);
                 }
             }
 
