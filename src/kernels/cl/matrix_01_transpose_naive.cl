@@ -11,5 +11,12 @@ __kernel void matrix_01_transpose_naive(
                                 unsigned int w,
                                 unsigned int h)
 {
-    // TODO
+    const unsigned int global_x = get_global_id(0);
+    const unsigned int global_y = get_global_id(1);
+
+    if (global_x >= w || global_y >= h) {
+        return;
+    }
+
+    transposed_matrix[global_x * h + global_y] = matrix[global_x + w * global_y];
 }
