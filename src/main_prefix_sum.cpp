@@ -58,31 +58,23 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1; ++iter) {
+        buffer1_pow2_sum_gpu.writeN(as.data(), n);
+        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+        auto m = n;
+
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, m), input_gpu, prefix_sum_accum_gpu, m, 1);
+
+        unsigned int power = 2;
+        while (m > 0) {
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, m), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, m);
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, m), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, power);
+
+            buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+            m /= 2;
+            power *= 2;
         }
 
         times.push_back(t.elapsed());
