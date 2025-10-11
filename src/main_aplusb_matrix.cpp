@@ -27,7 +27,7 @@ void runKernel(
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+        gpu::WorkSize workSize(GROUP_SIZE, 1, width, height);
         kernel.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
         times.push_back(t.elapsed());
     }
