@@ -29,9 +29,7 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     unsigned int transposed_x = group_y * local_h + local_index_x;
     unsigned int transposed_y = group_x * local_w + local_index_y;
 
-    // transposed_matrix[index_y + index_x * h] = local_data[local_index_y][local_index_x];
-    if (local_index_x < local_h && local_index_y < local_w)
+    if (local_index_x < local_h && local_index_y < local_w) {
         transposed_matrix[transposed_y * h + transposed_x] = local_data[local_index_x][local_index_y];
-    // if (transposed_x < h && transposed_y < w) {
-    // }
+    }
 }
