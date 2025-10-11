@@ -39,7 +39,7 @@ matrix_04_multiply_via_local_memory(
 
         barrier(CLK_LOCAL_MEM_FENCE);
 
-        for (unsigned int j = 0; i < GROUP_SIZE; ++j) {
+        for (unsigned int j = 0; j < GROUP_SIZE_X; ++j) {
             sum += tileA[local_row][j] * tileB[j][local_col];
         }
 
