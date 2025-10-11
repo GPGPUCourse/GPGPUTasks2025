@@ -1,4 +1,4 @@
-**/*_cl.h
+**/*.cl.cpp
 **/generated_kernels/*
 .idea
 build*
