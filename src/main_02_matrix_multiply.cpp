@@ -78,6 +78,8 @@ void run(int argc, char** argv)
     FastRandom r;
     for (size_t i = 0; i < input_a_cpu.size(); ++i) {
         input_a_cpu[i] = r.nextf();
+    }
+    for (size_t i = 0; i < input_b_cpu.size(); ++i) {
         input_b_cpu[i] = r.nextf();
     }
 
@@ -87,8 +89,8 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32f matrix_c_gpu(h * w); // rows=H x cols=W
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    matrix_a_gpu.writeN(input_a_cpu.data(), h * k);
-    matrix_b_gpu.writeN(input_b_cpu.data(), h * k);
+    matrix_a_gpu.writeN(input_a_cpu.data(), input_a_cpu.size());
+    matrix_b_gpu.writeN(input_b_cpu.data(), input_b_cpu.size());
 
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
