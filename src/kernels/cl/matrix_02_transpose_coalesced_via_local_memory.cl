@@ -13,11 +13,12 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
 {
     const uint x = get_global_id(0);
     const uint y = get_global_id(1);
-    __local float localData[GROUP_SIZE_X * GROUP_SIZE_Y];
+    const uint size = GROUP_SIZE_X * GROUP_SIZE_Y;
+    __local float localData[size];
 
     const uint localX = get_local_id(0);
     const uint localY = get_local_id(1);
-    const uint localIndex = localY * GROUP_SIZE_X + localX;
+    const uint localIndex = (localY * GROUP_SIZE_X + localX + 1) % size;
 
     localData[localIndex] = ((x < w && y < h) ? matrix[y * w + x] : NAN);
     barrier(CLK_LOCAL_MEM_FENCE);
