@@ -73,6 +73,7 @@ void run(int argc, char** argv)
 
     std::vector<float> input_a_cpu(h * k, 0);  // rows=H x cols=K
     std::vector<float> input_b_cpu(k * w, 0);  // rows=K x cols=W
+    std::vector<float> input_c_cpu(h * w, 0);  // rows=H x cols=W
     std::vector<float> output_c_cpu(h * w, 0); // rows=H x cols=W
     std::vector<float> output_c_gpu(h * w, 0); // rows=H x cols=W
     FastRandom r;
@@ -126,13 +127,13 @@ void run(int argc, char** argv)
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     if (algorithm == "01 naive") {
                         ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "02 using local memory") {
-                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        matrix_c_gpu.writeN(input_c_cpu.data(), input_c_cpu.size());
+                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(PACK_SIZE, PACK_SIZE, k, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else {
                         rassert(false, 7652345234321, algorithm, algorithm_index);
                     }

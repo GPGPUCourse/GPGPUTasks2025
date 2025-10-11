@@ -13,5 +13,17 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    const unsigned int global_x = get_global_id(0);
+    const unsigned int global_y = get_global_id(1);
+
+    if (global_x >= w || global_y >= h) {
+        return;
+    }
+
+    float acc = 0;
+    for (unsigned int i = 0; i < k; ++i) {
+        acc += a[i + k * global_y] * b[i * w + global_x];
+    }
+
+    c[global_x + w * global_y] = acc;
 }
