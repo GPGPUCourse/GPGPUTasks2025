@@ -54,7 +54,7 @@ void run(int argc, char** argv)
     input_matrix_gpu.writeN(input_cpu.data(), h * w);
 
     std::vector<std::string> algorithm_names = {
-        // "01 naive transpose (non-coalesced)",
+        "01 naive transpose (non-coalesced)",
         "02 transpose via local memory (coalesced)",
     };
 
