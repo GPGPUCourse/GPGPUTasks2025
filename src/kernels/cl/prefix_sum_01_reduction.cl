@@ -5,13 +5,20 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void prefix_sum_01_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* pow2_sum, // contains n values
-    __global       uint* next_pow2_sum, // will contain (n+1)/2 values
-    unsigned int n)
+__attribute__((reqd_work_group_size(256, 1, 1)))
+__kernel void prefix_sum_01_reduction(
+    __global uint* buf,
+    unsigned int n,
+    unsigned int k)
 {
-    // TODO
+    unsigned int half_fragment_size = 1 << (k - 1);
+    unsigned int i = get_global_id(0);
+
+    unsigned int fragment_base = (i >> (k - 1)) << k;
+    unsigned int fragment_add = buf[fragment_base + half_fragment_size - 1];
+
+    unsigned int fragment_index = fragment_base + half_fragment_size + (i % half_fragment_size);
+
+    if (fragment_index < n)
+        buf[fragment_index] += fragment_add;
 }
