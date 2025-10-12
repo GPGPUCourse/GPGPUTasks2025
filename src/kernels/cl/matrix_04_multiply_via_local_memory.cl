@@ -9,54 +9,58 @@ __kernel void
 matrix_04_multiply_via_local_memory(
     __global const float* a, // rows=h x cols=k
     __global const float* b, // rows=k x cols=w
-    __global float* c, // rows=h x cols=w
+    __global float* c,       // rows=h x cols=w
     unsigned int w,
     unsigned int h,
     unsigned int k)
 {
-    // static_assert(GROUP_SIZE_X==GROUP_SIZE_Y, "423427364274230467"); // FOR SAFE
+
+    const int globalX = get_global_id(0); 
+    const int globalY = get_global_id(1);
+
+    const int localX = get_local_id(0);
+    const int localY = get_local_id(1);
+
 
     __local float localTileA[GROUP_SIZE_Y][GROUP_SIZE_X];
     __local float localTileB[GROUP_SIZE_Y][GROUP_SIZE_X];
 
-    unsigned int globalX = get_global_id(0);
-    unsigned int globalY = get_global_id(0);
+    float acc = 0.0f;
 
-    unsigned int localX = get_local_id(0);
-    unsigned int localY = get_local_id(0);
 
-    unsigned int titleCount = k/GROUP_SIZE_X + (k%GROUP_SIZE_X==0?0:1) ;
+    const int numTiles = (k + GROUP_SIZE_X - 1) / GROUP_SIZE_X;
 
-    unsigned int slide = 0;
+    for (int t = 0; t < numTiles; ++t) {
 
-    for(unsigned int titleN =0 ;titleN <titleCount; titleN++ ){        
+        const int tiledX = t * GROUP_SIZE_X + localX;
+        const int tiledY = t * GROUP_SIZE_Y + localY;
 
-    if (localX+slide <k && globalY < h ) {
-        localTileA[localX][localY] = a[localX+slide + globalY*k ];
-    } else {
-        localTileA[localX][localY] = 0;
+
+        if (tiledX < k && globalY < h) {
+            localTileA[localY][localX] = a[globalY * k + tiledX];
+        } else {
+            localTileA[localY][localX] = 0.0f;
+        }
+
+        if (globalX < w && tiledY < k) {
+            localTileB[localY][localX] = b[tiledY * w + globalX];
+        } else {
+            localTileB[localY][localX] = 0.0f;
+        }
+
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+
+        for (int i = 0; i < GROUP_SIZE_X; ++i) {
+            acc += localTileA[localY][i] * localTileB[i][localX];
+        }
+
+
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    if (localX <w && globalY +slide < k ) {
-        localTileB[localY][localX] = b[localY + (globalX+slide)*w ];// ??????? 
-    } else {
-        localTileB[localY][localX] = 0;
+    if (globalX < w && globalY < h) {
+        c[globalY * w + globalX] = acc;
     }
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    float acc  = 0.0f;
-
-    for(unsigned int i =0 ; i<GROUP_SIZE_X; ++i) {
-        acc +=  localTileA[ i][localY]* localTileB[localX][i];
-    }
-
-    c[globalX + globalY*w ] += acc;
-
-    
-
-    slide=+GROUP_SIZE_X;
-
-    }
-    
 }
