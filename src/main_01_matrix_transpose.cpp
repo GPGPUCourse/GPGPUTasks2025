@@ -35,7 +35,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_matrix01TransposeNaive(avk2::getMatrix01TransposeNaive());
     avk2::KernelSource vk_matrix02TransposeCoalescedViaLocalMemory(avk2::getMatrix02TransposeCoalescedViaLocalMemory());
 
-    unsigned int ksize = 2;
+    unsigned int ksize = 128;
     unsigned int w = ksize * 32;
     unsigned int h = ksize * 16;
     // unsigned int w = 4;
@@ -46,8 +46,8 @@ void run(int argc, char** argv)
     std::vector<float> input_cpu(h * w, 0);
     FastRandom r;
     for (size_t i = 0; i < h * w; ++i) {
-        // input_cpu[i] = r.nextf();
-        input_cpu[i] = i%w + i/w/(100.0f);
+        input_cpu[i] = r.nextf();
+        // input_cpu[i] = i%w + i/w/(100.0f);
     }
 
     // Аллоцируем буферы в VRAM
@@ -118,26 +118,26 @@ void run(int argc, char** argv)
 
         // Сверяем результат
         std::vector<float> results = output_matrix_gpu.readVector(); // input matrix: w x h -> output matrix: h x w
-    std::cout << "----------------------------------" << std::endl;
+    // std::cout << "----------------------------------" << std::endl;
         for (size_t j = 0; j < h; ++j) {
             for (size_t i = 0; i < w; ++i) {
-                std::cout<< input_cpu[j * w + i] << " ";
+                // std::cout<< input_cpu[j * w + i] << " ";
                 
-                // rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+                rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
             }
-            std::cout << std::endl;
+            // std::cout << std::endl;
         }
 
-        std::cout << "----------------------------------" << std::endl;
+        // std::cout << "----------------------------------" << std::endl;
 
-        for (size_t j = 0; j < w; ++j) {
-            for (size_t i = 0; i < h; ++i) {
-                std::cout<< results[j * h + i] << " ";
+        // for (size_t j = 0; j < w; ++j) {
+        //     for (size_t i = 0; i < h; ++i) {
+        //         std::cout<< results[j * h + i] << " ";
                 
-                // rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
-            }
-            std::cout << std::endl;
-        }
+        //         // rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+        //     }
+        //     std::cout << std::endl;
+        // }
     }
 }
 int main(int argc, char** argv)
