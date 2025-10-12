@@ -47,7 +47,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32f input_matrix_gpu (h * w); // rows=H x cols=W
+    gpu::gpu_mem_32f input_matrix_gpu(h * w); // rows=H x cols=W
     gpu::gpu_mem_32f output_matrix_gpu(w * h); // rows=W x cols=H
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -68,13 +68,13 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
-                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(32, 32, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(32, 32, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
