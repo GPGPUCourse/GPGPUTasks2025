@@ -62,19 +62,24 @@ void run(int argc, char** argv)
         const std::string& algorithm = algorithm_names[algorithm_index];
         std::cout << "______________________________________________________" << std::endl;
         std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " << algorithm << std::endl;
-
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+            size_t xgroups = (w + (GROUP_SIZE_X - 1)) / GROUP_SIZE_X * GROUP_SIZE_X;
+            size_t ygroups = (h + (GROUP_SIZE_Y - 1)) / GROUP_SIZE_Y * GROUP_SIZE_Y;
+            gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, xgroups, ygroups);
+
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
-                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+
+                    ocl_matrix01TransposeNaive.exec(workSize, input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(workSize, input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
@@ -116,7 +121,7 @@ void run(int argc, char** argv)
         std::vector<float> results = output_matrix_gpu.readVector(); // input matrix: w x h -> output matrix: h x w
         for (size_t j = 0; j < h; ++j) {
             for (size_t i = 0; i < w; ++i) {
-                rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+                rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j, results[i * h + j], input_cpu[j * w + i]);
             }
         }
     }
