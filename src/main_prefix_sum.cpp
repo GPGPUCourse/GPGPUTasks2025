@@ -64,11 +64,42 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            unsigned int num_levels = 0;
+            unsigned int temp = n;
+            for (; temp > 1; temp = (temp + 1) >> 1) {
+                num_levels++;
+            }
+
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+
+            gpu::gpu_mem_32u* src_buffer = &buffer1_pow2_sum_gpu;
+            gpu::gpu_mem_32u* dst_buffer = &buffer2_pow2_sum_gpu;
+
+            for (unsigned int level = 0; level <= num_levels; level++) {
+                if (level >= 1) {
+                    ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), *dst_buffer, n);
+                    
+                    if (level == 1) {
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, (n + 1) / 2, 1), 
+                                             input_gpu, *dst_buffer, n);
+                    } else {
+                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, (n + 1) / 2, 1), 
+                                             *src_buffer, *dst_buffer, n);
+                    }
+                    
+                    std::swap(src_buffer, dst_buffer);
+                }
+                
+                if (level == 0) {
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, n, 1), 
+                                               input_gpu, prefix_sum_accum_gpu, n, level);
+                } else {
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, n, 1), 
+                                               *src_buffer, prefix_sum_accum_gpu, n, level);
+                }
+            }
+
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
