@@ -65,8 +65,14 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            gpu::WorkSize work_size(GROUP_SIZE, n);
+            ocl_fill_with_zeros.exec(work_size, prefix_sum_accum_gpu, n);
+            for (unsigned int k = 0; (1 << k) <= n; k++) {
+                gpu::gpu_mem_32u& from = (k == 0 ? input_gpu : (k % 2 == 0 ? buffer1_pow2_sum_gpu : buffer2_pow2_sum_gpu));
+                gpu::gpu_mem_32u& to = (k % 2 == 0 ? buffer2_pow2_sum_gpu : buffer1_pow2_sum_gpu);
+                ocl_sum_reduction.exec(work_size, from, to, prefix_sum_accum_gpu, k, n);
+            }
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
         } else if (context.type() == gpu::Context::TypeCUDA) {

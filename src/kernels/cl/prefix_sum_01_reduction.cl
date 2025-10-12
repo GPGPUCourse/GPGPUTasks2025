@@ -5,13 +5,20 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void prefix_sum_01_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* pow2_sum, // contains n values
-    __global       uint* next_pow2_sum, // will contain (n+1)/2 values
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__kernel void prefix_sum_01_reduction(
+    __global const uint* from,
+    __global       uint* to,
+    __global       uint* prefix,
+    unsigned int k,
     unsigned int n)
 {
-    // TODO
+    const unsigned int i = get_global_id(0);
+    if (i > n) {
+        return;
+    }
+
+    const unsigned int is_adding = (((i + 1) >> k) & 1);
+    prefix[i] += is_adding * from[is_adding * (((i + 1) >> k) - 1)];
+    to[i] = ((i << 1) + 1 < (n >> k) ? (from[i << 1] + from[(i << 1) + 1]) : 0);
 }
