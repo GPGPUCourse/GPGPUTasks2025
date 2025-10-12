@@ -21,8 +21,8 @@ matrix_04_multiply_via_local_memory(
     const unsigned int index_w_local = get_local_id(0);
     const unsigned int index_h_local = get_local_id(1);
 
-    __local float local_data_a[LOCAL_MEM_SIZE_X][LOCAL_MEM_SIZE_Y + 1];
-    __local float local_data_b[LOCAL_MEM_SIZE_X][LOCAL_MEM_SIZE_Y + 1];
+    __local float local_data_a[GROUP_SIZE_X][GROUP_SIZE_Y];
+    __local float local_data_b[GROUP_SIZE_X][GROUP_SIZE_Y];
 
     float summ = 0.0f;
 
@@ -49,6 +49,11 @@ matrix_04_multiply_via_local_memory(
                 summ += local_data_a[index_h_local][j] * local_data_b[j][index_w_local];
             }
         }
+
+        // очень много сил ушло на то, чтобы понять, что второй барьер нужен здесь
+        // т.к. мы же должны обеспечить считывание всех нужных значений из локальной памяти до того, как переходить к новой итерации
+        // иначе без барьера может произойти перезапись до того, как закончили считать (так и было) !!!
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
     if (index_w < w && index_h < h) {
         c[index_w + w * index_h] = summ;
