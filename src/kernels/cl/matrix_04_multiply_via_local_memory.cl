@@ -4,6 +4,8 @@
 
 #include "../defines.h"
 
+#define TILE_SIZE GROUP_SIZE_X
+
 __attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
 __kernel void matrix_04_multiply_via_local_memory(
                        __global const float* a, // rows=h x cols=k
