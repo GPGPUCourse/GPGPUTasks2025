@@ -2,6 +2,10 @@
 
 #include <bitset>
 #include <vector>
+#include <string>
+#include <algorithm>
+#include <climits>
+#include <type_traits>
 
 
 namespace debug {
@@ -17,11 +21,13 @@ namespace debug {
 
     template<class T>
     std::vector<std::string> toBits(const std::vector<T> &values) {
-        std::vector<std::string> res(values.size());
+        static_assert(std::is_integral<T>::value, "toBits<T> requires integral T");
+        using U = typename std::make_unsigned<T>::type;
+        constexpr size_t N = sizeof(T) * CHAR_BIT;
 
-        for (unsigned int i = 0; i < values.size(); ++i) {
-            // see https://stackoverflow.com/a/6038889
-            std::bitset<sizeof(T) * CHAR_BIT> bs(values[i]);
+        std::vector<std::string> res(values.size());
+        for (size_t i = 0; i < values.size(); ++i) {
+            std::bitset<N> bs(static_cast<U>(values[i]));
             res[i] = bs.to_string();
         }
 
