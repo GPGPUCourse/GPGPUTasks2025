@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
 __kernel void matrix_04_multiply_via_local_memory(
                        __global const float* a, // rows=h x cols=k
                        __global const float* b, // rows=k x cols=w
@@ -13,5 +13,36 @@ __kernel void matrix_04_multiply_via_local_memory(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    const unsigned int i = get_global_id(0);
+    const unsigned int j = get_global_id(1);
+    const uint local_index_i = get_local_id(0);
+    const uint local_index_j = get_local_id(1);
+    const uint local_index = local_index_j * GROUP_SIZE_X + local_index_i;
+    const uint c_local_index = local_index + 2 * GROUP_SIZE;
+
+    __local float local_data[GROUP_SIZE * 2];
+    c[j * w + i] = 0;
+
+    for (int t = 0; t < k; t += GROUP_SIZE_X) {
+        if (i >= w || j >= h) {
+            local_data[local_index] = 0;
+            local_data[local_index + GROUP_SIZE] = 0;
+        }
+        else {
+            const uint a_index = j * k + t + local_index_i;
+            const uint b_index = (t + local_index_j) * w + i;
+            local_data[local_index] = a[a_index];
+            local_data[local_index + GROUP_SIZE] = b[b_index];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (i < w && j < h) {
+            float s = 0;
+            for (int local_index_t = 0; local_index_t < GROUP_SIZE_X; ++local_index_t) {
+                const uint a_local_index = local_index_j * GROUP_SIZE_X + local_index_t;
+                const uint b_local_index = local_index_t * GROUP_SIZE_X + local_index_i + GROUP_SIZE;
+                c[j * w + i] += local_data[a_local_index] * local_data[b_local_index];
+            }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
 }
