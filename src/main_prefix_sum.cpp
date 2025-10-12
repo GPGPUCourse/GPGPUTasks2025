@@ -54,35 +54,46 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(as.data(), n);
+    std::vector<float> loading_times;
+    for (int i = 0; i < 3; ++i) {
+        timer load_to_gpu_t;
+        input_gpu.writeN(as.data(), n);
+        loading_times.push_back(load_to_gpu_t.elapsed());
+    }
+    // TODO замерьте здесь какая достигнута пропускная пособность PCI-E шины, сделайте замер хотя бы три раза и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+    std::cout << "PCI-E bus bandwidth: " << (n * sizeof(unsigned int) / 1024.0 / 1024.0 / 1024.0 / stats::median(loading_times)) << " GB/s" << std::endl;
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        unsigned int maximal_pow2 = 0;
+        while ((1 << maximal_pow2) <= n) {
+            ++maximal_pow2;
+        }
+        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+        for (unsigned int pow2 = 0; pow2 <= maximal_pow2; ++pow2) {
+            auto prev_pow2_sum_gpu = (pow2 % 2 == 0) ? buffer1_pow2_sum_gpu : buffer2_pow2_sum_gpu;
+            auto cur_pow2_sum_gpu = (pow2 % 2 == 0) ? buffer2_pow2_sum_gpu : buffer1_pow2_sum_gpu;
+            if (pow2 == 0) {
+                cur_pow2_sum_gpu = input_gpu;
+            } else {
+                if (pow2 == 1) {
+                    prev_pow2_sum_gpu = input_gpu;
+                }
+                unsigned int prev_pow2 = pow2 - 1;
+                unsigned int pow2_sum_count = div_ceil(n, (1u << prev_pow2));
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, pow2_sum_count), prev_pow2_sum_gpu, cur_pow2_sum_gpu, pow2_sum_count);
+            }
+
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(n, 2u)), cur_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+
+            // TODO use n=10 + this to debug and look at data to understand what's going on:
+//            std::cout << "pow2=" << pow2 << std::endl;
+//            std::cout << "values  =" << stats::vectorToString(input_gpu.readVector()) << std::endl;
+//            std::cout << "pow2_sum=" << stats::vectorToString(cur_pow2_sum_gpu.readVector()) << std::endl;
+//            std::cout << "prefix  =" << stats::vectorToString(prefix_sum_accum_gpu.readVector()) << std::endl;
         }
 
         times.push_back(t.elapsed());
@@ -91,7 +102,7 @@ void run(int argc, char** argv)
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
-    std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+    std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
