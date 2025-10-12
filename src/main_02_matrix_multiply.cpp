@@ -67,6 +67,11 @@ void run(int argc, char** argv)
     unsigned int w = ksize * 32;
     unsigned int k = ksize * 8;
     unsigned int h = ksize * 16;
+
+    //     unsigned int w = 4;
+    // unsigned int k =2;
+    // unsigned int h = 3;
+
     std::cout << "C = A x B, matrices size: C (rows=H=" << h << " x cols=W=" << w << ")"
               << " = A (rows=H=" << h << " x cols=K=" << k << ") x B (rows=K=" << k << " x cols=W=" << w << ")" << std::endl;
     std::cout << "matrices data size: A - " << sizeof(float) * h * k / 1024 / 1024 << " MB, B - " << sizeof(float) * k * w / 1024 / 1024 << " MB, C - " << sizeof(float) * k * w / 1024 / 1024 << " MB" << std::endl;
@@ -78,8 +83,22 @@ void run(int argc, char** argv)
     FastRandom r;
     for (size_t i = 0; i < input_a_cpu.size(); ++i) {
         input_a_cpu[i] = r.nextf();
-        input_b_cpu[i] = r.nextf();
+        // std::cout<<input_a_cpu[i] << " " ;
+        // if(i%k==k-1)  
+        //     std::cout << std::endl;
     }
+    std::cout << std::endl;
+    std::cout << "------------------" << std::endl;
+
+    for (size_t i = 0; i < input_b_cpu.size(); ++i) {
+        input_b_cpu[i] = r.nextf();
+        // std::cout<<input_b_cpu[i] << " " ;
+        // if(i%w==w-1)  
+        //     std::cout << std::endl;
+    }
+    std::cout << std::endl;
+    std::cout << "------------------" << std::endl;
+
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32f matrix_a_gpu(h * k); // rows=H x cols=K
@@ -88,7 +107,7 @@ void run(int argc, char** argv)
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     matrix_a_gpu.writeN(input_a_cpu.data(), h * k);
-    matrix_b_gpu.writeN(input_b_cpu.data(), h * k);
+    matrix_b_gpu.writeN(input_b_cpu.data(), k * w);
 
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
@@ -124,13 +143,14 @@ void run(int argc, char** argv)
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+                
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     if (algorithm == "01 naive") {
-                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(GROUP_SIZE, w * h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "02 using local memory") {
-                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else {
                         rassert(false, 7652345234321, algorithm, algorithm_index);
                     }
@@ -179,6 +199,14 @@ void run(int argc, char** argv)
         // Сверяем результат
         if (algorithm != "CPU with OpenMP") {
             std::vector<float> results = matrix_c_gpu.readVector();
+
+            for (size_t i = 0; i < results.size(); ++i) {
+                // std::cout<<results[i] << " " ;
+                // if(i%w==w-1)  
+                //     std::cout << std::endl;
+            }
+
+
             std::vector<float> relative_errors;
             for (size_t j = 0; j < h; ++j) {
                 for (size_t i = 0; i < w; ++i) {

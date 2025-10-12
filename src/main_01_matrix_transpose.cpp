@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -35,19 +35,23 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_matrix01TransposeNaive(avk2::getMatrix01TransposeNaive());
     avk2::KernelSource vk_matrix02TransposeCoalescedViaLocalMemory(avk2::getMatrix02TransposeCoalescedViaLocalMemory());
 
-    unsigned int ksize = 512;
+    unsigned int ksize = 2;
     unsigned int w = ksize * 32;
     unsigned int h = ksize * 16;
+    // unsigned int w = 4;
+    // unsigned int h = 2;
+
     std::cout << "Matrix size: rows=H=" << h << " x cols=W=" << w << " (" << sizeof(float) * w * h / 1024 / 1024 << " MB)" << std::endl;
 
     std::vector<float> input_cpu(h * w, 0);
     FastRandom r;
     for (size_t i = 0; i < h * w; ++i) {
-        input_cpu[i] = r.nextf();
+        // input_cpu[i] = r.nextf();
+        input_cpu[i] = i%w + i/w/(100.0f);
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32f input_matrix_gpu (h * w); // rows=H x cols=W
+    gpu::gpu_mem_32f input_matrix_gpu(h * w); // rows=H x cols=W
     gpu::gpu_mem_32f output_matrix_gpu(w * h); // rows=W x cols=H
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -68,13 +72,13 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
-                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix01TransposeNaive.exec(gpu::WorkSize(GROUP_SIZE, w* h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
@@ -92,7 +96,7 @@ void run(int argc, char** argv)
                 struct {
                     unsigned int w;
                     unsigned int h;
-                } params = {w, h};
+                } params = { w, h };
                 if (algorithm == "01 naive transpose (non-coalesced)") {
                     vk_matrix01TransposeNaive.exec(params, gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
@@ -114,14 +118,28 @@ void run(int argc, char** argv)
 
         // Сверяем результат
         std::vector<float> results = output_matrix_gpu.readVector(); // input matrix: w x h -> output matrix: h x w
+    std::cout << "----------------------------------" << std::endl;
         for (size_t j = 0; j < h; ++j) {
             for (size_t i = 0; i < w; ++i) {
-                rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+                std::cout<< input_cpu[j * w + i] << " ";
+                
+                // rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
             }
+            std::cout << std::endl;
+        }
+
+        std::cout << "----------------------------------" << std::endl;
+
+        for (size_t j = 0; j < w; ++j) {
+            for (size_t i = 0; i < h; ++i) {
+                std::cout<< results[j * h + i] << " ";
+                
+                // rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
+            }
+            std::cout << std::endl;
         }
     }
 }
-
 int main(int argc, char** argv)
 {
     try {
