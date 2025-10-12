@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -16,15 +16,15 @@
 
 namespace cpu {
 void multiply(
-    const std::vector<float> &a,
-    const std::vector<float> &b,
-          std::vector<float> &c,
-                 unsigned int w,
-                 unsigned int h,
-                 unsigned int k,
-                  bool with_omp)
+    const std::vector<float>& a,
+    const std::vector<float>& b,
+    std::vector<float>& c,
+    unsigned int w,
+    unsigned int h,
+    unsigned int k,
+    bool with_omp)
 {
-    #pragma omp parallel for schedule(dynamic, 1) if (with_omp)
+#pragma omp parallel for schedule(dynamic, 1) if (with_omp)
     for (ptrdiff_t j = 0; j < h; ++j) {
         for (ptrdiff_t i = 0; i < w; ++i) {
             float acc = 0.0f;
@@ -71,8 +71,8 @@ void run(int argc, char** argv)
               << " = A (rows=H=" << h << " x cols=K=" << k << ") x B (rows=K=" << k << " x cols=W=" << w << ")" << std::endl;
     std::cout << "matrices data size: A - " << sizeof(float) * h * k / 1024 / 1024 << " MB, B - " << sizeof(float) * k * w / 1024 / 1024 << " MB, C - " << sizeof(float) * k * w / 1024 / 1024 << " MB" << std::endl;
 
-    std::vector<float> input_a_cpu(h * k, 0);  // rows=H x cols=K
-    std::vector<float> input_b_cpu(k * w, 0);  // rows=K x cols=W
+    std::vector<float> input_a_cpu(h * k, 0); // rows=H x cols=K
+    std::vector<float> input_b_cpu(k * w, 0); // rows=K x cols=W
     std::vector<float> output_c_cpu(h * w, 0); // rows=H x cols=W
     std::vector<float> output_c_gpu(h * w, 0); // rows=H x cols=W
     FastRandom r;
@@ -126,13 +126,12 @@ void run(int argc, char** argv)
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     if (algorithm == "01 naive") {
-                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "02 using local memory") {
-                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else {
                         rassert(false, 7652345234321, algorithm, algorithm_index);
                     }
@@ -153,11 +152,11 @@ void run(int argc, char** argv)
                         unsigned int w;
                         unsigned int h;
                         unsigned int k;
-                    } params = {w, h, k};
+                    } params = { w, h, k };
                     if (algorithm == "01 naive") {
-//                        vk_matrix03MultiplyNaive.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
+                        //                        vk_matrix03MultiplyNaive.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
                     } else if (algorithm == "02 using local memory") {
-//                        vk_matrix04MultiplyViaLocalMemory.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
+                        //                        vk_matrix04MultiplyViaLocalMemory.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
                     } else if (algorithm == "03 using cooperative matrix [+Prestige Points]") {
                         vk_matrix05MultiplyCooperativeMatrix.exec(params, gpu::WorkSize(VK_SUBGROUP_SIZE, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
                     } else {
@@ -174,7 +173,7 @@ void run(int argc, char** argv)
 
         // Вычисляем достигнутую эффективную пропускную способность алгоритма
         double total_ops = 1.0 * h * w * (k + k - 1); // общее число сложений и умножений
-        double gflops = 1000*1000*1000;
+        double gflops = 1000 * 1000 * 1000;
         std::cout << "algorithm GFlops: " << total_ops / gflops / stats::median(times) << " GFlops" << std::endl;
         std::cout << "algorithm effective memory bandwidth: " << 1.0 * (h * k + k * w + h * w) * sizeof(float) / 1024 / 1024 / 1024 / stats::median(times) << " GB/s" << std::endl;
 
