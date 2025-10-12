@@ -33,6 +33,7 @@ __kernel void matrix_04_multiply_via_local_memory(
 
         barrier(CLK_LOCAL_MEM_FENCE);
 
+        #pragma unroll
         for (uint lz = 0; lz < GROUP_SIZE_X; ++lz) {
             sum += local_a[ly][(lx+lz)%GROUP_SIZE_X] * local_b[(lx+lz)%GROUP_SIZE_X][lx];
         }
