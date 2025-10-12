@@ -48,6 +48,8 @@ __kernel void matrix_04_multiply_via_local_memory(
         for (unsigned int j = 0; j < MULTIPLY_GROUP_SIZE; j++) {
             c_fragment[fragment_index] += a_fragment[ly * MULTIPLY_GROUP_SIZE + j] * b_fragment[j * MULTIPLY_GROUP_SIZE + lx];
         }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     c[y * w + x] = c_fragment[fragment_index];
