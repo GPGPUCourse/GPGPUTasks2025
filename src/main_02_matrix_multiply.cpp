@@ -59,6 +59,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_matrix03MultiplyNaive(ocl::getMatrix03MultiplyNaive());
     ocl::KernelSource ocl_matrix04MultiplyViaLocalMemory(ocl::getMatrix04MultiplyViaLocalMemory());
 
+    ocl::KernelSource ocl_matrix02TransposeCoalescedViaLocalMemory(ocl::getMatrix02TransposeCoalescedViaLocalMemory()); // helper
+
     avk2::KernelSource vk_matrix03MultiplyNaive(avk2::getMatrix03MultiplyNaive());
     avk2::KernelSource vk_matrix04MultiplyViaLocalMemory(avk2::getMatrix04MultiplyViaLocalMemory());
     avk2::KernelSource vk_matrix05MultiplyCooperativeMatrix(avk2::getMatrix05MultiplyCooperativeMatrix());
@@ -132,7 +134,9 @@ void run(int argc, char** argv)
                     if (algorithm == "01 naive") {
                         ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "02 using local memory") {
-                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h / (GROUP_SIZE_X / GROUP_SIZE_Y)), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        gpu::gpu_mem_32f matrix_at_gpu(k * h);
+                        ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(16, 16, k, h), matrix_a_gpu, matrix_at_gpu, k, h);
+                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE, w * h / REGISTER_TILE_XY / REGISTER_TILE_XY), matrix_at_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else {
                         rassert(false, 7652345234321, algorithm, algorithm_index);
                     }
