@@ -13,18 +13,14 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int step)
 {
     const unsigned int index = get_global_id(0);
+    const unsigned int next_index = index + 1;
 
-    if (index >= size / step || index % 2 != 0) {
+    if (index >= size) {
         return;
     }
 
-    for (unsigned int i = 0; i < step; ++i) {
-        const unsigned int offset = (index + 1) * step - 1 + i;
+    if (((next_index >> step) & 1) == 1) {
 
-        if (offset >= size) {
-            return;
-        }
-
-        pref[offset] += dual[index];
+        pref[index] += dual[(next_index >> step) - 1];
     }
 }

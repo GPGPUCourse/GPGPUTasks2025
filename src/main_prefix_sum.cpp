@@ -65,16 +65,16 @@ void run(int argc, char** argv)
 
         timer t;
 
-        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, m), input_gpu, prefix_sum_accum_gpu, m, 1);
+        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, m), input_gpu, prefix_sum_accum_gpu, m, 0);
 
-        unsigned int power = 2;
+        unsigned int step = 1;
         while (m > 0) {
             ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, m), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, m);
-            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, m), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, power);
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, step);
 
             buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
             m /= 2;
-            power *= 2;
+            ++step;
         }
 
         times.push_back(t.elapsed());
