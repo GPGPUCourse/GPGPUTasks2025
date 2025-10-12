@@ -58,7 +58,7 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 100; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
@@ -67,7 +67,6 @@ void run(int argc, char** argv)
             // TODO
             // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             gpu::WorkSize work_size(GROUP_SIZE, n);
-            ocl_fill_with_zeros.exec(work_size, prefix_sum_accum_gpu, n);
             for (unsigned int k = 0; (1 << k) <= n; k++) {
                 gpu::gpu_mem_32u& from = (k == 0 ? input_gpu : (k % 2 == 0 ? buffer1_pow2_sum_gpu : buffer2_pow2_sum_gpu));
                 gpu::gpu_mem_32u& to = (k % 2 == 0 ? buffer2_pow2_sum_gpu : buffer1_pow2_sum_gpu);

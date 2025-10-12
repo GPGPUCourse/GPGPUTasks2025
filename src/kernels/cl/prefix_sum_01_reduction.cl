@@ -17,8 +17,15 @@ __kernel void prefix_sum_01_reduction(
     if (i > n) {
         return;
     }
+    const unsigned int divided = (i + 1) >> k;
+    const unsigned int is_adding = (divided & 1);
+    prefix[i] = (k > 0) * prefix[i] + is_adding * from[is_adding * (divided - 1)];
 
-    const unsigned int is_adding = (((i + 1) >> k) & 1);
-    prefix[i] += is_adding * from[is_adding * (((i + 1) >> k) - 1)];
-    to[i] = ((i << 1) + 1 < (n >> k) ? (from[i << 1] + from[(i << 1) + 1]) : 0);
+    const unsigned int next_1 = i << 1;
+    const unsigned int next_2 = next_1 + 1;
+    const unsigned int size = n >> k;
+    const unsigned int is_accumulating_2 = next_2 < size;
+    const unsigned int is_accumulating_1 = next_1 < size;
+    to[i] = (is_accumulating_1 * from[is_accumulating_1 * next_1]) +
+            (is_accumulating_2 * from[is_accumulating_2 * next_2]);
 }
