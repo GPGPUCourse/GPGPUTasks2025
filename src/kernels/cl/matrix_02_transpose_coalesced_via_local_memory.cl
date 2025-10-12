@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-#define TILE_SIZE 32
+#define TILE_SIZE GROUP_SIZE_X
 
 __attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
 __kernel void matrix_02_transpose_coalesced_via_local_memory(
