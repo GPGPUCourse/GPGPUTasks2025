@@ -85,7 +85,7 @@ void run(int argc, char** argv)
         times.push_back(t.elapsed()); 
     }
     
-    double memory_size = sizeof(unsigned int) * n * (1.0 * iters) / 1024.0 / 1024.0 / 1024.0;
+    double memory_size = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
     std::cout << "PCI-E bus bandwidth = " << memory_size / stats::median(times) << " GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
