@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(16, 16, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
 __kernel void matrix_03_multiply_naive(
                        __global const float* a, // rows=h x cols=k
                        __global const float* b, // rows=k x cols=w

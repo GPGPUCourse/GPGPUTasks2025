@@ -13,8 +13,8 @@ __kernel void matrix_04_multiply_via_local_memory(
                                 unsigned int h,
                                 unsigned int k)
 {
-    __local float a_tile[16][17];
-    __local float b_tile[16][17];
+    __local float a_tile[GROUP_SIZE_Y][GROUP_SIZE_X + 1];
+    __local float b_tile[GROUP_SIZE_Y][GROUP_SIZE_X + 1];
     
     const unsigned int local_x = get_local_id(0);
     const unsigned int local_y = get_local_id(1);
@@ -24,7 +24,7 @@ __kernel void matrix_04_multiply_via_local_memory(
     const unsigned int global_x = group_x * 16 + local_x;
     const unsigned int global_y = group_y * 16 + local_y;
     
-    float sum = 0.0f;
+    float sum = 0;
     
     for (unsigned int tile = 0; tile < (k + 15) / 16; ++tile) {
         unsigned int a_col = tile * 16 + local_x;
