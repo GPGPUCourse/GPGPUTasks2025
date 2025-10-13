@@ -43,11 +43,6 @@ void run(int argc, char** argv)
 {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
-    // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
@@ -126,40 +121,12 @@ void run(int argc, char** argv)
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     if (algorithm == "01 naive") {
-                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
+                        ocl_matrix03MultiplyNaive.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else if (algorithm == "02 using local memory") {
-                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else {
-                        rassert(false, 7652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________CUDA___________________________________________
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    if (algorithm == "01 naive") {
-                        cuda::matrix_multiply_naive(gpu::WorkSize(GROUP_SIZE, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else if (algorithm == "02 using local memory") {
-                        cuda::matrix_multiply_via_local_memory(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else if (algorithm == "03 using WMMA (Tensor Cores) [+Prestige Points]") {
-                        cuda::matrix_multiply_wmma(gpu::WorkSize(16, 2, w, h * 2 / 16), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
-                    } else {
-                        rassert(false, 652345234321, algorithm, algorithm_index);
-                    }
-                    // _______________________________Vulkan_________________________________________
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    struct {
-                        unsigned int w;
-                        unsigned int h;
-                        unsigned int k;
-                    } params = {w, h, k};
-                    if (algorithm == "01 naive") {
-//                        vk_matrix03MultiplyNaive.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
-                    } else if (algorithm == "02 using local memory") {
-//                        vk_matrix04MultiplyViaLocalMemory.exec(params, gpu::WorkSize(1, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
-                    } else if (algorithm == "03 using cooperative matrix [+Prestige Points]") {
-                        vk_matrix05MultiplyCooperativeMatrix.exec(params, gpu::WorkSize(VK_SUBGROUP_SIZE, 1, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
+                        ocl_matrix04MultiplyViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu, w, h, k);
                     } else {
                         rassert(false, 7652345234321, algorithm, algorithm_index);
                     }
