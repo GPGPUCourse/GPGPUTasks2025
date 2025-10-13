@@ -23,7 +23,7 @@ void run(int argc, char** argv)
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -56,19 +56,9 @@ void run(int argc, char** argv)
 
         // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
         gpu::WorkSize workSize(GROUP_SIZE, n);
-        ocl_aplusb.exec(workSize, a_gpu, b_gpu, c_gpu, n);
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            cuda::aplusb(workSize, a_gpu, b_gpu, c_gpu, n);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            vk_aplusb.exec(n, workSize, a_gpu, b_gpu, c_gpu);
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
+        cuda::aplusb(workSize, a_gpu, b_gpu, c_gpu, n);
 
         times.push_back(t.elapsed());
     }

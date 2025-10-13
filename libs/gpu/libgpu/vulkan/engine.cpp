@@ -17,6 +17,7 @@
 #include "vk/common_host.h"
 
 #include "vulkan_api_headers.h"
+
 #if ENABLE_AND_ENSURE_RENDERDOC
 	#include "renderdoc/renderdoc_app.h"
 #endif
