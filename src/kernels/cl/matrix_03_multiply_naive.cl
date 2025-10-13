@@ -13,5 +13,12 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    uint i = get_global_id(1);
+    uint j = get_global_id(0);
+
+    float res = 0;
+    for (int m=0; m<k; ++m) {
+        res += a[i * k + m] * b[m * w + j];
+    }
+    c[i * w + j] = res;
 }
