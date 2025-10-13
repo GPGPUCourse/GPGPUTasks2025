@@ -46,9 +46,11 @@ void run(int argc, char** argv)
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         as[i] = (3 * (i + 5) + 7) % 17;
+        // printf("%ld ", as[i]);
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
+    // printf("\n");
 
     // for (int i = 0; i < n; i++)
     //     std::cout << as[i] << " ";
@@ -62,56 +64,26 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
-        buffer1.writeN(as.data(), n);
+    for (int iter = 0; iter < 1; ++iter) {
+        prefix_sum_accum_gpu.writeN(as.data(), n);
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            unsigned next_pow_of_2 = n;
-            next_pow_of_2--;
-            next_pow_of_2 |= next_pow_of_2 >> 1;
-            next_pow_of_2 |= next_pow_of_2 >> 2;
-            next_pow_of_2 |= next_pow_of_2 >> 4;
-            next_pow_of_2 |= next_pow_of_2 >> 8;
-            next_pow_of_2 |= next_pow_of_2 >> 16;
-            next_pow_of_2++;
-
-            // ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, n);
-            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
-            for (unsigned int compress_power = 0; (1 << compress_power) <= next_pow_of_2; compress_power++) {
-                auto compress = 1 << compress_power;
-
-                if (compress > 1)
-                    if (compress_power % 2 == 1) {
-                        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2, n);
-                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1, buffer2, n);
-                    }
-                    else {
-                        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1, n);
-                        ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer2, buffer1, n);
-                    }
-
-                // std::cout << "compress ratio : " <<  compress << " : "; 
-                // std::vector<unsigned int> input_values = buffer1.readVector();
-                // std::cout << std::endl;
-                // for (int i = 0; i < n; ++i)
-                //     std::cout << input_values[i] << " ";
-                // std::cout << std::endl;
-                
-                if (compress_power % 2 == 1)
-                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, n), buffer2, prefix_sum_accum_gpu, n, compress_power);
-                else
-                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_X, n), buffer1, prefix_sum_accum_gpu, n, compress_power);
-                    
-                
-                // input_values = prefix_sum_accum_gpu.readVector();
+            
+            int block_len = 1;
+            while (block_len < n) {
+                // std::cout << "block len : " << block_len << std::endl;
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / block_len), prefix_sum_accum_gpu, n, block_len);
+                // std::vector<unsigned int> input_values = prefix_sum_accum_gpu.readVector();
                 // std::cout << std::endl;
                 // for (int i = 0; i < n; i++)
                 //     std::cout << input_values[i] << " ";
                 // std::cout << std::endl;
-            }    
+                
+                block_len *= GROUP_SIZE;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -143,6 +115,7 @@ void run(int argc, char** argv)
     size_t cpu_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         cpu_sum += as[i];
+        // std::cout << cpu_sum << " " << as[i] << std::endl;
         rassert(cpu_sum == gpu_prefix_sum[i], 566324523452323, cpu_sum, gpu_prefix_sum[i], i);
     }
 

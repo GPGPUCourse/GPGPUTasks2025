@@ -6,22 +6,9 @@
 #include "../defines.h"
 
 __kernel void prefix_sum_02_prefix_accumulation(
-    __global const uint* reduced, 
-    __global       uint* pref_sum,
-    unsigned int n,
-    unsigned int p // 2^p is a segment size
+    __global uint* pref_sum, // it is segmented pref sum here, with segment of GROUP_SIZE
+    const int n
 )
 {
-    unsigned int i = get_global_id(0);
-    unsigned ind = i + 1;
 
-    if (i < n)
-    {
-        // 2^p contributes to i
-        if ((ind >> p) & 1)
-        {
-            unsigned int segment_ind = (ind >> (p + 1)) << 1;
-            pref_sum[i] += reduced[segment_ind];
-        }
-    }
 }
