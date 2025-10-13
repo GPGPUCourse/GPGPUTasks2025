@@ -2,6 +2,7 @@
 
 [Остальные задания](https://github.com/GPGPUCourse/GPGPUTasks2025/).
 
+
 # Задание 3. Транспонирование и умножение матриц
 
 [![Build Status](https://github.com/GPGPUCourse/GPGPUTasks2025/actions/workflows/cmake.yml/badge.svg?branch=task03&event=push)](https://github.com/GPGPUCourse/GPGPUTasks2025/actions/workflows/cmake.yml)
