@@ -15,6 +15,18 @@ __global__ void prefix_sum_01_sum_reduction(
     unsigned int n)
 {
     // TODO
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    __shared__ unsigned int buff[GROUP_SIZE];
+
+    buff[threadIdx.x] = pow2_sum[index << 1];
+    if ((index << 1) + 1 < n) {
+        buff[threadIdx.x] += pow2_sum[(index << 1) + 1];
+    }
+    __syncthreads();
+
+    if (index < n)
+        next_pow2_sum[index] = buff[threadIdx.x];
 }
 
 namespace cuda {
