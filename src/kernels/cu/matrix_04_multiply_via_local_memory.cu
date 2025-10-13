@@ -15,7 +15,60 @@ __global__ void matrix_multiply_via_local_memory(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+
+    /*if (blockDim.x != blockDim.y) {
+        printf("kernel requires blockDim.x == blockDim.y\n");
+        return;
+    }*/
+
+    const unsigned int TILE_LEN = blockDim.x;
+
+    const unsigned int glob_col = blockIdx.x * TILE_LEN + threadIdx.x;
+    const unsigned int glob_row = blockIdx.y * TILE_LEN + threadIdx.y;
+
+    if (glob_col >= w || glob_row >= h) {
+        return;
+    }
+
+    const unsigned int glob_index = glob_row * w + glob_col;
+
+    float accum = 0.;
+
+    for (int tile_num = 0; tile_num < (k + TILE_LEN - 1) / TILE_LEN; ++tile_num)
+    {
+        __shared__ float workgroup_data_a[GROUP_SIZE_Y][GROUP_SIZE_X];
+
+        const unsigned int a_col = tile_num * TILE_LEN + threadIdx.x;
+        const unsigned int a_index = glob_row * k + a_col;
+
+        if (a_col < k && glob_row < h) {
+            workgroup_data_a[threadIdx.y][threadIdx.x] = a[a_index];
+        } else {
+            workgroup_data_a[threadIdx.y][threadIdx.x] = 0.;
+        }
+
+        __shared__ float workgroup_data_b[GROUP_SIZE_Y][GROUP_SIZE_X];
+
+        const unsigned int b_row = tile_num * TILE_LEN + threadIdx.y;
+        const unsigned int b_index = b_row * w + glob_col;
+        
+        if (b_row < k && glob_col < w) {
+            workgroup_data_b[threadIdx.y][threadIdx.x] = b[b_index];
+        } else {
+            workgroup_data_b[threadIdx.y][threadIdx.x] = 0.;
+        }   
+
+        __syncthreads();
+
+
+        for (int i = 0; i < TILE_LEN; ++i) {
+            accum += workgroup_data_a[threadIdx.y][i] * workgroup_data_b[i][threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    c[glob_index] = accum;
 }
 
 namespace cuda {

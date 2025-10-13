@@ -21,7 +21,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -68,7 +68,6 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
             // _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
@@ -81,7 +80,7 @@ void run(int argc, char** argv)
                 // _______________________________CUDA___________________________________________
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
-                    cuda::matrix_transpose_naive(gpu::WorkSize(GROUP_SIZE, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    cuda::matrix_transpose_naive(gpu::WorkSize(GROUP_SIZE, 1, w * h, 1), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
                     cuda::matrix_transpose_coalesced_via_local_memory(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
@@ -114,6 +113,25 @@ void run(int argc, char** argv)
 
         // Сверяем результат
         std::vector<float> results = output_matrix_gpu.readVector(); // input matrix: w x h -> output matrix: h x w
+
+        output_matrix_gpu.fill(0);
+        /*for (size_t i = 0; i < h; ++i) {
+            for (size_t j = 0; j < w; ++j) {
+                std::cout << input_cpu[i * w + j] << " ";
+            }
+            std::cout << std::endl; 
+        }
+
+            std::cout << "------------------------" << std::endl;
+
+
+        for (size_t i = 0; i < w; ++i) {
+                for (size_t j = 0; j < h; ++j) {
+                    std::cout << results[i * h + j] << " ";
+                }
+                std::cout << std::endl;
+            }*/
+
         for (size_t j = 0; j < h; ++j) {
             for (size_t i = 0; i < w; ++i) {
                 rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
