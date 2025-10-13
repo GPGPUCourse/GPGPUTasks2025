@@ -47,6 +47,8 @@ __kernel void matrix_04_multiply_via_local_memory(
                 res += local_data_a[local_x * GROUP_SIZE_X + dz] * local_data_b[dz * GROUP_SIZE_X + local_y];
             }
         }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
     c[global_index] = res;
 }
