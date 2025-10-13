@@ -25,12 +25,14 @@ __kernel void matrix_04_multiply_via_local_memory(
 
     for (int t = 0; t * GROUP_SIZE_X < k; t++) {
         As[ly][lx] = (y < h && t * GROUP_SIZE_X + lx < k) ? a[y * k + t * GROUP_SIZE_X + lx] : 0.0f;
-        Bs[ly][lx] = (t * GROUP_SIZE_X + ly < k && x < w) ? b[(t * GROUP_SIZE_X + ly) * w + x] : 0.0f;
+        Bs[ly][lx] = (t * GROUP_SIZE_Y + ly < k && x < w) ? b[(t * GROUP_SIZE_Y + ly) * w + x] : 0.0f;
 
         barrier(CLK_LOCAL_MEM_FENCE);
 
         for (int i = 0; i < GROUP_SIZE_X; i++)
             acc += As[ly][i] * Bs[i][lx];
+
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     if (x < w && y < h)
