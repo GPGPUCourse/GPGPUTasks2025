@@ -117,7 +117,6 @@ void run(int argc, char** argv)
         int iters_count = (algorithm == "CPU with OpenMP") ? 1 : 10; // CPU is too slow
         for (int iter = 0; iter < iters_count; ++iter) {
             timer t;
-
             if (algorithm == "CPU with OpenMP") {
                 cpu::multiply(input_a_cpu, input_b_cpu, output_c_cpu, w, h, k, true);
             } else {
