@@ -11,5 +11,10 @@ __kernel void matrix_01_transpose_naive(
                                 unsigned int w,
                                 unsigned int h)
 {
-    // TODO
+        unsigned int x = get_global_id(0); // колонка
+        unsigned int y = get_global_id(1); // ряд
+
+        if (x < w && y < h) {
+                transposed_matrix[x * h + y] = matrix[y * w + x]; // идея что просто меняем местами x и y
+        }
 }
