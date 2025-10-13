@@ -16,7 +16,7 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     const uint local_x = get_local_id(0);
     const uint local_y = get_local_id(1);
 
-    __local float tile[GROUP_SIZE_Y][GROUP_SIZE_X + 1];
+    __local float tile[GROUP_SIZE_Y][GROUP_SIZE_X];
 
     if (x < w && y < h) {
         tile[local_y][local_x] = matrix[y * w + x];
