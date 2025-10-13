@@ -69,6 +69,8 @@ void run(int argc, char** argv)
     for (size_t i = 0; i < input_a_cpu.size(); ++i) {
 
         input_a_cpu[i] = r.nextf();
+    }
+    for (size_t i = 0; i < input_b_cpu.size(); ++i) {
         input_b_cpu[i] = r.nextf();
     }
 
