@@ -13,7 +13,13 @@ __global__ void matrix_transpose_naive(
                              unsigned int w,
                              unsigned int h)
 {
-    // TODO
+    const unsigned int idx_x = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int idx_y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx_x >= w || idx_y >= h)
+        return;
+
+    transposed_matrix[idx_x * h + idx_y] = matrix[idx_y * w + idx_x];
 }
 
 namespace cuda {
