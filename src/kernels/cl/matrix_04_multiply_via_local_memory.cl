@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(32, 32, 1)))
+__attribute__((reqd_work_group_size(16, 16, 1)))
 __kernel void matrix_04_multiply_via_local_memory(
                        __global const float* a, // rows=h x cols=k
                        __global const float* b, // rows=k x cols=w
@@ -25,8 +25,8 @@ __kernel void matrix_04_multiply_via_local_memory(
 
     unsigned int numTiles = (k + groupSizeX - 1) / groupSizeX;
 
-    __local float tileA[32][32];
-    __local float tileB[32][32];
+    __local float tileA[16][16];
+    __local float tileB[16][16];
 
     float acc = 0.0;
 
@@ -52,7 +52,7 @@ __kernel void matrix_04_multiply_via_local_memory(
 
 
         #pragma unroll
-        for (unsigned int j = 0; j != 32; ++j) {
+        for (unsigned int j = 0; j != 16; ++j) {
             acc += tileA[localY][j] * tileB[j][localX];
         }
 
