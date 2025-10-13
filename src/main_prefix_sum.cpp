@@ -72,10 +72,11 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             
-            int block_len = 1;
+            unsigned long long block_len = 1;
             while (block_len < n) {
+                // std::cout << block_len << std::endl;
                 // std::cout << "block len : " << block_len << std::endl;
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / block_len), prefix_sum_accum_gpu, n, block_len);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / block_len), prefix_sum_accum_gpu, n, (unsigned int)block_len);
                 // std::vector<unsigned int> input_values = prefix_sum_accum_gpu.readVector();
                 // std::cout << std::endl;
                 // for (int i = 0; i < n; i++)
@@ -106,7 +107,7 @@ void run(int argc, char** argv)
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
-    std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+    std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / 1 << " GB/s" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
