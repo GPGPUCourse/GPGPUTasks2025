@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
 __kernel void matrix_04_multiply_via_local_memory(
                        __global const float* a, // rows=h x cols=k
                        __global const float* b, // rows=k x cols=w
@@ -13,5 +13,34 @@ __kernel void matrix_04_multiply_via_local_memory(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+
+    __local float locC[GROUP_SIZE];
+    __local float locA[GROUP_SIZE];
+    __local float locB[GROUP_SIZE];
+    const size_t i = get_global_id(0);
+    const size_t j = get_global_id(1);
+
+    // fill with zeros
+    const size_t loc_i = get_local_id(0);
+    const size_t loc_j = get_local_id(1);
+    locC[loc_j * GROUP_SIZE_X + loc_i] = 0.0f;
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // block begin (i - loc_i, j - loc_j)
+    for (size_t l = 0; l < k; l += GROUP_SIZE_X) {
+        // A block begin (l, j - loc_j)
+        // B block begin (i - loc_i, l)
+        locA[loc_j * GROUP_SIZE_X + loc_i] = a[(j - loc_j + loc_j) * k + (l + loc_i)];
+        // read transposed
+        locB[loc_j * GROUP_SIZE_X + loc_i] = b[(l + loc_i) * w + (i - loc_i + loc_j)];
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        float sum = 0;
+        for (size_t x = 0; x < GROUP_SIZE_X; ++x) {
+            sum += locA[loc_j * GROUP_SIZE_X + x] * locB[loc_i * GROUP_SIZE_X + x];
+        }
+        // sum because of aggregation in for
+        locC[loc_j * GROUP_SIZE_X + loc_i] += sum;
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
 }

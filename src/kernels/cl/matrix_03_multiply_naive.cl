@@ -13,5 +13,13 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    const size_t i = get_global_id(0);
+    const size_t j = get_global_id(1);
+    if (i < w && j < h) {
+        float sum = 0;
+        for (size_t l = 0; l < k; ++l) {
+            sum += a[j * k + l] * b[l * w + i];
+        }
+        c[j * w + i] = sum;
+    }
 }
