@@ -94,7 +94,7 @@ void run(int argc, char** argv)
 
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
-        //"01 naive",
+        "01 naive",
         "02 using local memory",
     };
 
