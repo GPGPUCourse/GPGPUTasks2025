@@ -5,8 +5,8 @@
 #define GROUP_SIZE_X 16
 #define GROUP_SIZE_Y 16
 
-#define VEC_SIZE_V 8
-#define VEC_SIZE_H 32
+#define VEC_SIZE_V 15
+#define VEC_SIZE_H 31
 #define TILE GROUP_SIZE_X
 
 #define RASSERT_ENABLED 0 // disabled by default, enable for debug by changing 0 to 1, disable before performance evaluation/profiling/commiting
