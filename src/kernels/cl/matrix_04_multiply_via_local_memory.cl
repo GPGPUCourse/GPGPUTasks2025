@@ -5,7 +5,7 @@
 #include "../defines.h"
 
 #define GROUP_SIZE_X_MUL 32
-#define GROUP_SIZE_Y_MUL 32
+#define GROUP_SIZE_Y_MUL 8
 
 __attribute__((reqd_work_group_size(GROUP_SIZE_X_MUL, GROUP_SIZE_Y_MUL, 1)))
 __kernel void matrix_04_multiply_via_local_memory(
