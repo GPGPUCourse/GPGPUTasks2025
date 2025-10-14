@@ -13,7 +13,7 @@ layout (push_constant) uniform PushConstants {
 
 layout (local_size_x = GROUP_SIZE) in;
 
-// shared uint local_data[GROUP_SIZE];
+shared uint local_mem[GROUP_SIZE];
 
 void main()
 {
@@ -24,5 +24,24 @@ void main()
     // memoryBarrierShared();
     // barrier();
 
-    // TODO
+
+    const uint global_index = gl_GlobalInvocationID.x;
+    const uint local_index = gl_LocalInvocationID.x;
+
+    if (global_index < params.n) {
+        local_mem[local_index] = a[global_index];
+    } else {
+        local_mem[local_index] = 0u;
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    if (local_index == 0u) {
+        uint lsum = 0u;
+        for (uint i = 0u; i < GROUP_SIZE; i++) {
+            lsum += local_mem[i];
+        }
+        atomicAdd(sum[0], lsum);
+    }
 }

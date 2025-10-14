@@ -1,3 +1,4 @@
+#include <exception>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -7,6 +8,8 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/vulkan/spirv_reflect/include/spirv/unified1/spirv.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 #include <iomanip>
@@ -37,7 +40,7 @@ void run(int argc, char** argv)
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeVulkan);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -76,6 +79,14 @@ void run(int argc, char** argv)
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+
+    std::vector<double> pci_times;
+    for (int i = 0; i < 10; i++) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        pci_times.push_back(t.elapsed());
+    }
+    std::cout << "PCI-E bandwidth: " << (double)n * sizeof(unsigned int) / 1024 / 1024 / 1024 / stats::median(pci_times) << " GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -152,10 +163,38 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
                         // TODO vk_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+
+                        sum_accum_gpu.fill(0);
+                        vk_sum03LocalMemoryAtomicPerWorkgroup.exec(n, gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
                         // TODO vk_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+
+                        reduction_buffer1_gpu.fill(0);
+                        reduction_buffer2_gpu.fill(0);
+
+                        unsigned int cur_size = n;
+
+                        vk_sum04LocalReduction.exec(cur_size, gpu::WorkSize(GROUP_SIZE, cur_size), input_gpu, reduction_buffer1_gpu);
+                        cur_size = div_ceil(cur_size, (uint)GROUP_SIZE);
+
+                        if (cur_size == 1) {
+                            reduction_buffer1_gpu.readN(&gpu_sum, 1);
+                        } else {
+                            gpu::gpu_mem_32u* input_buf  = &reduction_buffer1_gpu;
+                            gpu::gpu_mem_32u* output_buf = &reduction_buffer2_gpu;
+
+                            while (cur_size > 1) {
+                                vk_sum04LocalReduction.exec(cur_size, gpu::WorkSize(GROUP_SIZE, cur_size), *input_buf, *output_buf);
+                                cur_size = div_ceil(cur_size, (uint)GROUP_SIZE);
+
+                                std::swap(input_buf, output_buf);
+                            }
+
+                            input_buf->readN(&gpu_sum, 1);
+                        }
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }

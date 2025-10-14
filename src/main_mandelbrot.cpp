@@ -58,7 +58,8 @@ void run(int argc, char** argv)
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+
+    gpu::Context context = activateContext(device, gpu::Context::TypeVulkan);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -122,7 +123,10 @@ void run(int argc, char** argv)
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+
+                    gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+                    ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -139,7 +143,10 @@ void run(int argc, char** argv)
                         uint iters; uint isSmoothing;
                     } params = { width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing };
                     // TODO vk_mandelbrot.exec(params, ...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+
+                    gpu::WorkSize workSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height);
+                    vk_mandelbrot.exec(params, workSize, gpu_results);
                 } else {
                     rassert(false, 546345243, context.type());
                 }
