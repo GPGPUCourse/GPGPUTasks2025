@@ -120,6 +120,9 @@ void run(int argc, char** argv)
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         int iters_count = (algorithm == "CPU with OpenMP") ? 1 : 10; // CPU is too slow
+
+        // зануляем матрицу
+        matrix_c_gpu.fill(0.0);
         for (int iter = 0; iter < iters_count; ++iter) {
             timer t;
 

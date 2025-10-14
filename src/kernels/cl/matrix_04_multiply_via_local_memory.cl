@@ -13,8 +13,6 @@ __kernel void matrix_04_multiply_via_local_memory(
                                 unsigned int h,
                                 unsigned int k)
 {
-
-    __local float locC[GROUP_SIZE];
     __local float locA[GROUP_SIZE];
     __local float locB[GROUP_SIZE];
     const size_t i = get_global_id(0);
@@ -23,24 +21,21 @@ __kernel void matrix_04_multiply_via_local_memory(
     // fill with zeros
     const size_t loc_i = get_local_id(0);
     const size_t loc_j = get_local_id(1);
-    locC[loc_j * GROUP_SIZE_X + loc_i] = 0.0f;
     barrier(CLK_LOCAL_MEM_FENCE);
-
+    float sum = 0;
     // block begin (i - loc_i, j - loc_j)
     for (size_t l = 0; l < k; l += GROUP_SIZE_X) {
         // A block begin (l, j - loc_j)
         // B block begin (i - loc_i, l)
-        locA[loc_j * GROUP_SIZE_X + loc_i] = a[(j - loc_j + loc_j) * k + (l + loc_i)];
+        locA[loc_j * GROUP_SIZE_X + loc_i] = a[(j) * k + (l + loc_i)];
         // read transposed
         locB[loc_j * GROUP_SIZE_X + loc_i] = b[(l + loc_i) * w + (i - loc_i + loc_j)];
         barrier(CLK_LOCAL_MEM_FENCE);
-
-        float sum = 0;
         for (size_t x = 0; x < GROUP_SIZE_X; ++x) {
             sum += locA[loc_j * GROUP_SIZE_X + x] * locB[loc_i * GROUP_SIZE_X + x];
         }
         // sum because of aggregation in for
-        locC[loc_j * GROUP_SIZE_X + loc_i] += sum;
         barrier(CLK_LOCAL_MEM_FENCE);
     }
+    c[j * w + i] = sum;
 }
