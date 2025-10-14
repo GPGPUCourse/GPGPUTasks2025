@@ -76,7 +76,7 @@ void run(int argc, char** argv)
             while (block_len < n) {
                 // std::cout << block_len << std::endl;
                 // std::cout << "block len : " << block_len << std::endl;
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / block_len), prefix_sum_accum_gpu, n, (unsigned int)block_len);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / block_len), prefix_sum_accum_gpu, buffer1, n, (unsigned int)block_len);
                 // std::vector<unsigned int> input_values = prefix_sum_accum_gpu.readVector();
                 // std::cout << std::endl;
                 // for (int i = 0; i < n; i++)
