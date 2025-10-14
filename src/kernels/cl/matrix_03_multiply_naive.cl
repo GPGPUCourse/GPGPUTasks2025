@@ -13,5 +13,10 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    const uint index_x = get_global_id(0);
+    const uint index_y = get_global_id(1);
+    c[index_x + w * index_y] = 0;
+    for (int i = 0; i < k; ++i) {
+        c[index_x + w * index_y] += a[i + index_y * k] * b[index_x + i * w];
+    }
 }
