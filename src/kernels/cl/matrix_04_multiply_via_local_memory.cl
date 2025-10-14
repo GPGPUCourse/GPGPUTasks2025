@@ -4,7 +4,10 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
+#define GROUP_SIZE_X_MUL 32
+#define GROUP_SIZE_Y_MUL 32
+
+__attribute__((reqd_work_group_size(GROUP_SIZE_X_MUL, GROUP_SIZE_Y_MUL, 1)))
 __kernel void matrix_04_multiply_via_local_memory(
                        __global const float* a, // rows=h x cols=k
                        __global const float* b, // rows=k x cols=w
