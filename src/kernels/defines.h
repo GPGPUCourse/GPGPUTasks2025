@@ -5,7 +5,7 @@
 #define GROUP_SIZE_X 16
 #define GROUP_SIZE_Y 16
 
-#define VEC_SIZE_V 7
+#define VEC_SIZE_V 11
 #define VEC_SIZE_H 13
 #define TILE 16
 
