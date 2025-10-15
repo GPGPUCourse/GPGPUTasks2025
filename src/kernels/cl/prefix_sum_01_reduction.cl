@@ -6,9 +6,9 @@
 #include "helpers/rassert.cl"
 
 __kernel void prefix_sum_01_reduction(
-    __global uint* a,
     __global uint* block_sums_in,
     __global uint* block_sums_out,
+    __global uint* buffer,
     unsigned int n,
     unsigned int block_len)
 {
@@ -77,12 +77,14 @@ __kernel void prefix_sum_01_reduction(
     //     }
     // }
 
-    for (unsigned int k = 0; k < block_len; k++) {
-        unsigned int ind = (get_global_id(0) + 1) * block_len - 1;
-        unsigned int to = ind + k + 1 - block_len;
-        if (to < n) {
-            // printf("val : %ld -> %ld\n",tree[thr + GROUP_SIZE], to);
-            a[to] += tree[thr + GROUP_SIZE];
-        }
-    }
+    // for (unsigned int k = 0; k < block_len; k++) {
+    //     unsigned int ind = (get_global_id(0) + 1) * block_len - 1;
+    //     unsigned int to = ind + k + 1 - block_len;
+    //     if (to < n) {
+    //         // printf("val : %ld -> %ld\n",tree[thr + GROUP_SIZE], to);
+    unsigned int to = group * GROUP_SIZE + thr;
+    if (to < n)
+        buffer[group * GROUP_SIZE + thr] = tree[thr + GROUP_SIZE];
+    //     }
+    // }
 }

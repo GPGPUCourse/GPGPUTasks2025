@@ -6,9 +6,14 @@
 #include "../defines.h"
 
 __kernel void prefix_sum_02_prefix_accumulation(
-    __global uint* pref_sum, // it is segmented pref sum here, with segment of GROUP_SIZE
-    const int n
+    __global uint* a,
+    __global uint* buffer,
+    const int n,
+    const unsigned int block_len
 )
 {
-
+    unsigned int i = get_global_id(0);
+    unsigned int from = i / block_len;
+    if (i < n)
+        a[i] += buffer[from];
 }

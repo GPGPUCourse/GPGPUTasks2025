@@ -57,7 +57,7 @@ void run(int argc, char** argv)
     // std::cout << std::endl; 
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1(n), buffer2(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), buffer1(n), buffer2(n), buffer3(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -78,27 +78,37 @@ void run(int argc, char** argv)
             while (block_len < n) {
                 // std::cout << block_len << std::endl;
                 // std::cout << "block len : " << block_len << std::endl;
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + block_len - 1) / block_len), prefix_sum_accum_gpu, buffer1, buffer2, n, (unsigned int)block_len);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + block_len - 1) / block_len), buffer1, buffer2, buffer3, n, (unsigned int)block_len);
+                
+                
+                // std::cout << "block sums: ";
+                // std::vector<unsigned int> input_values = buffer2.readVector();
+                // for (int i = 0; i < (n + block_len - 1) / block_len; i++)
+                //     std::cout << input_values[i] << " ";
+                // for (int i = 0; i < (n + block_len - 1) / block_len; i++)
+        
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, buffer3, n, (unsigned int)block_len);
+
+                // std::cout << "prefix sums:";
+                // input_values = prefix_sum_accum_gpu.readVector();
+                //     std::cout << input_values[i] << " ";
+                // std::cout << std::endl;
                 
 
-                // std::cout << "a :";
-                // std::vector<unsigned int> input_values = prefix_sum_accum_gpu.readVector();
-                // std::cout << std::endl;
-                // for (int i = 0; i < n; i++)
+                // std::cout << "buffer:     ";
+                // input_values = buffer3.readVector();
+                // for (int i = 0; i < (n + block_len - 1) / block_len; i++)
                 //     std::cout << input_values[i] << " ";
                 // std::cout << std::endl;
 
+                // std::cout << "prefix sums:";
+                // input_values = prefix_sum_accum_gpu.readVector();
+                //     std::cout << input_values[i] << " ";
+                // std::cout << std::endl;
 
                 
                 std::swap(buffer1, buffer2);
                 block_len *= GROUP_SIZE;
-
-                // std::cout << "block sums:";
-                // input_values = buffer1.readVector();
-                // std::cout << std::endl;
-                // for (int i = 0; i < (n + block_len - 1) / block_len; i++)
-                //     std::cout << input_values[i] << " ";
-                // std::cout << std::endl;
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
