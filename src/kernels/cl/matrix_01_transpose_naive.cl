@@ -4,12 +4,18 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(16, 16, 1)))
 __kernel void matrix_01_transpose_naive(
                        __global const float* matrix,            // w x h
                        __global       float* transposed_matrix, // h x w
                                 unsigned int w,
                                 unsigned int h)
 {
-    // TODO
+    // x - row, y - col
+    int x = get_global_id(1);
+    int y = get_global_id(0);
+    if (!(x < h && y < w)) {
+        return;
+    }
+    transposed_matrix[y * h + x] = matrix[x * w + y];
 }
