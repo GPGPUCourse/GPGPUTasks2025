@@ -30,7 +30,7 @@ void main()
 		// (обратите внимание что common.vk так же требует необходимое расширение: #extension GL_EXT_debug_printf : enable)
 		// Необзодимо чтобы validation layers были включены, иначе debugPrintfEXT не заработает
 		#if DEBUG_PRINTF_EXT_ENABLED
-		printf("Vulkan debugPrintfEXT test in aplusb.comp kernel! a[index]=%d b[index]=%d \n", a[index], b[index]);
+		debugPrintfEXT("Vulkan debugPrintfEXT test in aplusb.comp kernel! as[index]=%d bs[index]=%d \n", as[index], bs[index]);
 		#endif
 	}
 

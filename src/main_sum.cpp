@@ -11,8 +11,7 @@
 #include <fstream>
 #include <iomanip>
 
-unsigned int cpu::sum(const unsigned int* values, unsigned int n)
-{
+unsigned int cpu::sum(const unsigned int *values, unsigned int n) {
     unsigned int sum = 0;
     for (size_t i = 0; i < n; ++i) {
         sum += values[i];
@@ -20,24 +19,22 @@ unsigned int cpu::sum(const unsigned int* values, unsigned int n)
     return sum;
 }
 
-unsigned int cpu::sumOpenMP(const unsigned int* values, unsigned int n)
-{
+unsigned int cpu::sumOpenMP(const unsigned int *values, unsigned int n) {
     unsigned int sum = 0;
-    #pragma omp parallel for schedule(dynamic, 1024) reduction(+ : sum)
+#pragma omp parallel for schedule(dynamic, 1024) reduction(+ : sum)
     for (ptrdiff_t i = 0; i < n; ++i) {
         sum += values[i];
     }
     return sum;
 }
 
-void run(int argc, char** argv)
-{
+void run(int argc, char **argv) {
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -62,7 +59,8 @@ void run(int argc, char** argv)
     for (size_t i = 0; i < n; ++i) {
         values[i] = (3 * (i + 5) + 7) % 17;
         cpu_sum += values[i];
-        rassert(cpu_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, cpu_sum, values[i], i); // ensure no overflow
+        rassert(cpu_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, cpu_sum, values[i], i);
+        // ensure no overflow
     }
 
     // Аллоцируем буферы в VRAM
@@ -72,10 +70,15 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
+    std::vector<double> timings;
     input_gpu.writeN(values.data(), n);
-    // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
-    // TODO 2) сделайте замер хотя бы три раза
-    // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+    for (int i = 0; i < 3; ++i) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        timings.push_back(t.elapsed());
+    }
+    const double bytes = static_cast<double>(sizeof(unsigned int)) * n / 1024.0 / 1024.0 / 1024.0;
+    std::cout << "PCI-E memory bandwidth = " << bytes / stats::median(timings) << "GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -87,9 +90,10 @@ void run(int argc, char** argv)
     };
 
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
-        const std::string& algorithm = algorithm_names[algorithm_index];
+        const std::string &algorithm = algorithm_names[algorithm_index];
         std::cout << "______________________________________________________" << std::endl;
-        std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " << algorithm << std::endl;
+        std::cout << "Evaluating algorithm #" << (algorithm_index + 1) << "/" << algorithm_names.size() << ": " <<
+                algorithm << std::endl;
 
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
@@ -110,7 +114,8 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
                         sum_accum_gpu.fill(0);
-                        ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
+                        ocl_sum02AtomicsLoadK.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu,
+                                                   sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
                         // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
@@ -129,14 +134,25 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "02 atomicAdd but each workItem loads K values") {
                         sum_accum_gpu.fill(0);
-                        cuda::sum_02_atomics_load_k(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
+                        cuda::sum_02_atomics_load_k(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu,
+                                                    sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
-                        // TODO cuda::sum_03_local_memory_atomic_per_workgroup(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        cuda::sum_03_local_memory_atomic_per_workgroup(gpu::WorkSize(GROUP_SIZE, n), input_gpu,sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
-                        // TODO cuda::sum_04_local_reduction(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        reduction_buffer1_gpu.fill(0);
+                        reduction_buffer2_gpu.fill(0);
+                        cuda::sum_04_local_reduction(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, n);
+
+                        unsigned int buffer_size = div_ceil(n, static_cast<unsigned int>(GROUP_SIZE));
+                        while (buffer_size > 1) {
+                             cuda::sum_04_local_reduction(gpu::WorkSize(GROUP_SIZE, buffer_size), reduction_buffer1_gpu, reduction_buffer2_gpu, buffer_size);
+                            buffer_size = div_ceil(buffer_size, static_cast<unsigned int>(GROUP_SIZE));
+                            std::swap(reduction_buffer1_gpu, reduction_buffer2_gpu);
+                        }
+                        reduction_buffer1_gpu.readN(&gpu_sum, 1);
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
@@ -170,7 +186,8 @@ void run(int argc, char** argv)
 
         // Вычисляем достигнутую эффективную пропускную способность алгоритма (из соображений что мы отработали в один проход по входному массиву)
         double memory_size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
-        std::cout << "sum median effective algorithm bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+        std::cout << "sum median effective algorithm bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" <<
+                std::endl;
 
         // Сверяем результат
         rassert(cpu_sum == gpu_sum, 3452341235234456, cpu_sum, gpu_sum);
@@ -183,11 +200,10 @@ void run(int argc, char** argv)
     }
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
     try {
         run(argc, argv);
-    } catch (std::exception& e) {
+    } catch (std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
