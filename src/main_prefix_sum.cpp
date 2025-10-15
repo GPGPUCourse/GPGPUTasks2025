@@ -66,6 +66,8 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         prefix_sum_accum_gpu.writeN(as.data(), n);
+        buffer1.writeN(as.data(), n);
+        
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
@@ -76,14 +78,27 @@ void run(int argc, char** argv)
             while (block_len < n) {
                 // std::cout << block_len << std::endl;
                 // std::cout << "block len : " << block_len << std::endl;
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / block_len), prefix_sum_accum_gpu, buffer1, n, (unsigned int)block_len);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + block_len - 1) / block_len), prefix_sum_accum_gpu, buffer1, buffer2, n, (unsigned int)block_len);
+                
+
+                // std::cout << "a :";
                 // std::vector<unsigned int> input_values = prefix_sum_accum_gpu.readVector();
                 // std::cout << std::endl;
                 // for (int i = 0; i < n; i++)
                 //     std::cout << input_values[i] << " ";
                 // std::cout << std::endl;
+
+
                 
+                std::swap(buffer1, buffer2);
                 block_len *= GROUP_SIZE;
+
+                // std::cout << "block sums:";
+                // input_values = buffer1.readVector();
+                // std::cout << std::endl;
+                // for (int i = 0; i < (n + block_len - 1) / block_len; i++)
+                //     std::cout << input_values[i] << " ";
+                // std::cout << std::endl;
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
