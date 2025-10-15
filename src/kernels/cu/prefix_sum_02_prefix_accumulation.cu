@@ -15,7 +15,28 @@ __global__ void prefix_sum_02_prefix_accumulation(
     unsigned int n,
     unsigned int pow2)
 {
-    // TODO
+    const unsigned int index = blockDim.x * blockIdx.x + threadIdx.x;
+
+    const unsigned int left_boundary_of_accumulate = index / (1ull << pow2);
+    if (index >= n || left_boundary_of_accumulate == 0)
+        return;
+
+    if (!(index & (1ull << pow2)))
+        return;
+
+    // bit is present
+    //printf("lba %d\n", left_boundary_of_accumulate);
+
+
+   /*  pow2_sum[index - (index % (1ull << pow2))] */
+    prefix_sum_accum[index] += pow2_sum[left_boundary_of_accumulate - 1];
+
+    //index / (1ull << pow2)
+
+    // prefix_sum_accum[index] -> goes here
+
+
+
 }
 
 namespace cuda {
