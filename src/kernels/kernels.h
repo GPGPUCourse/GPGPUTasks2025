@@ -12,7 +12,7 @@ void prefix_sum_02_prefix_accumulation(const gpu::WorkSize &workSize, const gpu:
 namespace ocl {
 const ProgramBinaries& getAplusB();
 
-const ProgramBinaries& getFillBufferWithZeros();
+const ProgramBinaries& getFillBuffer();
 const ProgramBinaries& getPrefixSum01Reduction();
 const ProgramBinaries& getPrefixSum02PrefixAccumulation();
 }
