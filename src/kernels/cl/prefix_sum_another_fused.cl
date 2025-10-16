@@ -25,20 +25,26 @@ __kernel void prefix_sum_another_fused(
 {
     const uint x = get_global_id(0);
     const uint range = (1 << pow2);
-    const uint sumIdx = ((x >> pow2) << 1);
-    const uint begIdx = sumIdx * range; + range - 1;  
+    uint sumIdx = ((x >> pow2) << 1);
+    const uint begIdx = sumIdx * range + range - 1;  
     const uint idx = begIdx + (x % range);  
 
     uint sum0 = calcNextSum(pow2_sum, curN, sumIdx);
     uint sum1 = calcNextSum(pow2_sum, curN, sumIdx + 1);
+
     if (idx < n) {
         prefix_sum_accum[idx] += sum0;
     }
 
-    if (x % range == 0) {
+    if (sumIdx < (curN + 1) / 2 && x % range == 0) {
+        // printf("x: %d\tpow2: %d\tsumIdx: %d\tsum0: %d\n",
+        //     x, pow2, sumIdx, sum0);
         next_pow2_sum[sumIdx] = sum0;
     }
-    if (x % range == 1) {
-        next_pow2_sum[sumIdx + 1] = sum1;
+    ++sumIdx;
+    if (sumIdx < (curN + 1) / 2 && x % range == 1) {
+        // printf("x: %d\tpow2: %d\tsumIdx: %d\tsum1: %d\n",
+        //     x, pow2, sumIdx, sum1);
+        next_pow2_sum[sumIdx] = sum1;
     }
 }

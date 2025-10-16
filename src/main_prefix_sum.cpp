@@ -45,8 +45,8 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    // unsigned int n = 100*1000*1000;
-    unsigned int n = 2;
+    unsigned int n = 100*1000*1000;
+    // unsigned int n = 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -67,7 +67,7 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 1; ++iter) {
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
