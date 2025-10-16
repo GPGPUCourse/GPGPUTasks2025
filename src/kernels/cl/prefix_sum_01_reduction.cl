@@ -5,13 +5,37 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void prefix_sum_01_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* pow2_sum, // contains n values
-    __global       uint* next_pow2_sum, // will contain (n+1)/2 values
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__kernel void prefix_sum_01_reduction(
+    __global uint* pow2_sum,
+    unsigned int levels,
     unsigned int n)
 {
-    // TODO
+    __local uint buffer[2 * GROUP_SIZE - 1];
+    unsigned int offset = n - 1;
+
+    unsigned int index = get_global_id(0);
+    unsigned int local_index = get_local_id(0);
+    unsigned int lci = GROUP_SIZE - 1 + local_index;
+
+    if (index < n) {
+        buffer[lci] = pow2_sum[offset + index];
+    } else {
+        buffer[lci] = 0;
+    }
+
+    for (unsigned int i = 1; i <= levels; i++) {
+        offset = (offset - 1) >> 1;
+        lci = (lci - 1) >> 1;
+        index >>= 1;
+        n >>= 1;
+
+        if (local_index % (1 << i) == 0 && index < n) {
+            unsigned int tmp = buffer[(lci << 1) + 1] + buffer[(lci << 1) + 2];
+            buffer[lci] = tmp;
+            pow2_sum[offset + index] = tmp;
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
 }
