@@ -15,7 +15,7 @@ uint calcNextSum(__global const uint* pow2_sum,
 }
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void prefix_sum_another_fused(
+__kernel void prefix_sum_fused_compute_save(
     __global const uint* pow2_sum, // contains curN values
     __global       uint* next_pow2_sum, // will contain (curN+1)/2 values
     __global       uint* prefix_sum_accum,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "libgpu/opencl/engine.h"
 #include <libgpu/vulkan/engine.h>
 
 namespace cuda {
@@ -17,6 +18,8 @@ const ProgramBinaries& getPrefixSum01Reduction();
 const ProgramBinaries& getPrefixSum02PrefixAccumulation();
 const ProgramBinaries& getCopyArray();
 const ProgramBinaries& getPrefixSumFused();
+const ProgramBinaries& getPrefixSumFusedComputeSave();
+const ProgramBinaries& getPrefixSumFusedComputeSaveCoalesced();
 }
 
 namespace avk2 {

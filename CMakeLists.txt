@@ -64,7 +64,8 @@ set(OPENCL_SOURCES
         src/kernels/cl/prefix_sum_02_prefix_accumulation.cl
         src/kernels/cl/copy_array.cl
         src/kernels/cl/prefix_sum_fused.cl
-        src/kernels/cl/prefix_sum_another_fused.cl)
+        src/kernels/cl/prefix_sum_fused_compute_save.cl
+        src/kernels/cl/prefix_sum_fused_compute_save_coalesced.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)

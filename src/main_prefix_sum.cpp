@@ -39,14 +39,14 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
     ocl::KernelSource ocl_copy_array(ocl::getCopyArray());
-    ocl::KernelSource ocl_sum_fused(ocl::getPrefixSumFused());
+    ocl::KernelSource ocl_sum_fused(ocl::getPrefixSumFusedComputeSaveCoalesced());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
     unsigned int n = 100*1000*1000;
-    // unsigned int n = 1000;
+    // unsigned int n = 8;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -87,13 +87,13 @@ void run(int argc, char** argv)
             ++pow2;
             
             // std::cout << "curN: " << curN << "   pow2: " << pow2 << '\n';
-            // ocl_sum_fused.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, 
-            //     buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, curN, n, pow2);
-            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2), 
-                buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, curN);
+            ocl_sum_fused.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, 
+                buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, curN, n, pow2);
+            // ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2), 
+            //     buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, curN);
             curN = (curN + 1) / 2;
             // printf("\n");
-            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+            // ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
             std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
         }
 
