@@ -33,11 +33,13 @@ __kernel void prefix_sum_01_reduction(
         n >>= 1;
         take_from_group >>= 1;
 
-        unsigned int lci = lci_offset + local_index;
         unsigned int pow2_index = local_index + get_group_id(0) * take_from_group;
-        unsigned int tmp = buffer[(lci << 1) + 1] + buffer[(lci << 1) + 2];
 
         if (local_index < take_from_group && pow2_index < n) {
+            unsigned int lci = lci_offset + local_index;
+            unsigned int tmp = buffer[(lci << 1) + 1] + buffer[(lci << 1) + 2];
+
+
             buffer[lci] = tmp;
             pow2_sum[offset + pow2_index] = tmp;
         }
