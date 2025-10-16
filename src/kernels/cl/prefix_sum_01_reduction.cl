@@ -16,26 +16,30 @@ __kernel void prefix_sum_01_reduction(
 
     unsigned int index = get_global_id(0);
     unsigned int local_index = get_local_id(0);
-    unsigned int lci = GROUP_SIZE - 1 + local_index;
+    unsigned int lci_offset = GROUP_SIZE - 1;
+    unsigned int take_from_group = GROUP_SIZE;
 
     if (index < n) {
-        buffer[lci] = pow2_sum[offset + index];
+        buffer[lci_offset + local_index] = pow2_sum[offset + index];
     } else {
-        buffer[lci] = 0;
+        buffer[lci_offset + local_index] = 0;
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
     for (unsigned int i = 1; i <= levels; i++) {
         offset = (offset - 1) >> 1;
-        lci = (lci - 1) >> 1;
-        index >>= 1;
+        lci_offset = (lci_offset - 1) >> 1;
         n >>= 1;
+        take_from_group >>= 1;
 
-        if (local_index % (1 << i) == 0 && index < n) {
-            unsigned int tmp = buffer[(lci << 1) + 1] + buffer[(lci << 1) + 2];
+        unsigned int lci = lci_offset + local_index;
+        unsigned int pow2_index = local_index + get_group_id(0) * take_from_group;
+        unsigned int tmp = buffer[(lci << 1) + 1] + buffer[(lci << 1) + 2];
+
+        if (local_index < take_from_group && pow2_index < n) {
             buffer[lci] = tmp;
-            pow2_sum[offset + index] = tmp;
+            pow2_sum[offset + pow2_index] = tmp;
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);

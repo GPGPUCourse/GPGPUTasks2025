@@ -21,11 +21,8 @@ __kernel void prefix_sum_02_prefix_accumulation(
 
     unsigned int lci = 0;
     for (int i = m; i >= 0; --i) {
-        if ((index + 1) & (1 << i)) {
-            prefix_sum_accum[index] += pow2_sum[lci];
-            lci = (lci << 1) + 3;
-        } else {
-            lci = (lci << 1) + 1;
-        }
+        unsigned int flag = ((index + 1) >> i) & 1;
+        prefix_sum_accum[index] += pow2_sum[lci] * flag;
+        lci = (lci << 1) + 1 + (2 * flag);
     }
 }
