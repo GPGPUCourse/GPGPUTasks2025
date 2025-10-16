@@ -87,13 +87,13 @@ void run(int argc, char** argv)
             ++pow2;
             
             // std::cout << "curN: " << curN << "   pow2: " << pow2 << '\n';
-            ocl_sum_fused.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, 
-                buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, curN, n, pow2);
-            // ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2), 
-            //     buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, curN);
+            // ocl_sum_fused.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, 
+            //     buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, curN, n, pow2);
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2), 
+                buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, curN);
             curN = (curN + 1) / 2;
             // printf("\n");
-            // ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
             std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
         }
 
