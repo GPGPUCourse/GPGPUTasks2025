@@ -39,13 +39,14 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
     ocl::KernelSource ocl_copy_array(ocl::getCopyArray());
+    ocl::KernelSource ocl_sum_fused(ocl::getPrefixSumFused());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
-    // unsigned int n = 10;
+    // unsigned int n = 100*1000*1000;
+    unsigned int n = 2;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -55,17 +56,18 @@ void run(int argc, char** argv)
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
-    // std::cout << '\n';
+    // std::cout << "515: " << as[515] << '\n';
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u buffer3_even((n + 1) / 2);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
@@ -77,18 +79,21 @@ void run(int argc, char** argv)
         int curN = n;
         int pow2 = 0;
         // buffer1_pow2_sum_gpu.writeN(as.data(), n);
+        // ocl_sum_fused.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), 
+        //     input_gpu, buffer1_pow2_sum_gpu, buffer3_even, prefix_sum_accum_gpu, curN, n, pow2);
         ocl_copy_array.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1_pow2_sum_gpu, n);
         ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
         while (curN > 1){
             ++pow2;
             
             // std::cout << "curN: " << curN << "   pow2: " << pow2 << '\n';
-            
-            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2), 
-                buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, curN);
+            ocl_sum_fused.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, 
+                buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, curN, n, pow2);
+            // ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2), 
+            //     buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, curN);
             curN = (curN + 1) / 2;
             // printf("\n");
-            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+            // ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
             std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
         }
 
