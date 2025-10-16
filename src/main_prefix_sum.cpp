@@ -48,7 +48,7 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     unsigned int k = n;
     unsigned int n_pow = 0;
-    unsigned int levels = 3;
+    unsigned int levels = 2;
     unsigned int m = 124312312;
 
 
