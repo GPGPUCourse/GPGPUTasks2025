@@ -48,7 +48,10 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     unsigned int k = n;
     unsigned int n_pow = 0;
+    unsigned int levels = 4;
     unsigned int m = 124312312;
+
+
     while (k != 0) {
         k >>= 1;
         ++n_pow;
@@ -79,8 +82,8 @@ void run(int argc, char** argv)
             ocl_fill.exec(gpu::WorkSize(GROUP_SIZE, 2 * k - 1), input_gpu, buffer_pow2_sum_gpu, n, k);
             unsigned int t = k;
             while (t > 256) {
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, t), buffer_pow2_sum_gpu, 3, t);
-                t /= (1 << 3);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, t), buffer_pow2_sum_gpu, levels, t);
+                t /= (1 << levels);
             }
 
             unsigned int l = 0;

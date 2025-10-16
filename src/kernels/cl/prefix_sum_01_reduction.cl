@@ -24,6 +24,8 @@ __kernel void prefix_sum_01_reduction(
         buffer[lci] = 0;
     }
 
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     for (unsigned int i = 1; i <= levels; i++) {
         offset = (offset - 1) >> 1;
         lci = (lci - 1) >> 1;
