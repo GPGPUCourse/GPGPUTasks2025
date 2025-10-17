@@ -12,6 +12,7 @@
 #include <iomanip>
 
 #define DEBUG false
+// #define DEBUG true
 
 void print(std::string s)
 {
@@ -79,7 +80,7 @@ void calcPrefixSum(
     print(indent); printVec("B", b, bbase, bsz, "\n");
     print(indent); printVec("C", c, cbase, n, "\n");
 
-    //need to calculate pref for b[bbase;bbase+bsz)
+    // need to calculate pref for b[bbase;bbase+bsz)
     print(indent); print("Recurse\n");
     print(indent); printVec("B", b, bbase, bsz, "\n");
     print(indent); print("---\n");
@@ -130,11 +131,12 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100 *1000 * 1000;
+    unsigned int n = 100'000'000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         as[i] = (3 * (i + 5) + 7) % 17;
+        // as[i] = 1;
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }

@@ -20,7 +20,10 @@ __global__ void prefix_sum_post(
     if (blockIdx.x > 0) {
         offset = b[blockIdx.x - 1];
     }
-    c[glob_i] = c[glob_i] + offset;
+    
+    if (glob_i < n) {
+        c[glob_i] = c[glob_i] + offset;
+    }
 }
 
 namespace cuda {
