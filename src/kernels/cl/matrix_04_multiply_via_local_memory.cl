@@ -27,9 +27,9 @@ __kernel void matrix_04_multiply_via_local_memory(
     for (size_t l = 0; l < k; l += GROUP_SIZE_X) {
         // A block begin (l, j - loc_j)
         // B block begin (i - loc_i, l)
-        locA[loc_j * GROUP_SIZE_X + loc_i] = a[(j) * k + (l + loc_i)];
+        locA[loc_j * GROUP_SIZE_X + loc_i] = a[(j - loc_j + loc_j) * k + (l + loc_i)];
         // read transposed
-        locB[loc_j * GROUP_SIZE_X + loc_i] = b[(l + loc_i) * w + (i - loc_i + loc_j)];
+        locB[loc_i * GROUP_SIZE_X + loc_j] = b[(l + loc_j) * w + (i - loc_i + loc_i)];
         barrier(CLK_LOCAL_MEM_FENCE);
         for (size_t x = 0; x < GROUP_SIZE_X; ++x) {
             sum += locA[loc_j * GROUP_SIZE_X + x] * locB[loc_i * GROUP_SIZE_X + x];
