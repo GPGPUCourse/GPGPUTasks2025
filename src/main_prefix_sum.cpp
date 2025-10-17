@@ -51,7 +51,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), buffer(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -64,11 +64,15 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            unsigned int i = n;
+            static_assert(GROUP_SIZE % BLOCK_SIZE == 0);
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, i / BLOCK_SIZE), input_gpu, buffer, 0, 0, i);
+            unsigned int offset = 0;
+            for (i /= BLOCK_SIZE; i > BLOCK_SIZE; i /= BLOCK_SIZE) {
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, i / BLOCK_SIZE), buffer, buffer, offset, offset + i, i);
+                offset += i;
+            }
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer, prefix_sum_accum_gpu, n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
