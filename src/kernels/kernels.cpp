@@ -4,7 +4,12 @@
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/prefix_sum_01_reduction.h"
 #include "cl/generated_kernels/prefix_sum_02_prefix_accumulation.h"
+#include "cl/generated_kernels/copy_array.h"
+#include "cl/generated_kernels/prefix_sum_fused.h"
+#include "cl/generated_kernels/prefix_sum_fused_compute_save.h"
+#include "cl/generated_kernels/prefix_sum_fused_compute_save_coalesced.h"
 
+#include "libgpu/opencl/engine.h"
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
 #include "vk/generated_kernels/prefix_sum_01_reduction_comp.h"
@@ -58,6 +63,22 @@ const ProgramBinaries& getPrefixSum01Reduction()
 const ProgramBinaries& getPrefixSum02PrefixAccumulation()
 {
     return opencl_binaries_prefix_sum_02_prefix_accumulation;
+}
+
+const ProgramBinaries& getCopyArray() {
+    return opencl_binaries_copy_array;
+}
+
+const ProgramBinaries& getPrefixSumFused() {
+    return opencl_binaries_prefix_sum_fused;
+}
+
+const ProgramBinaries& getPrefixSumFusedComputeSave() {
+    return opencl_binaries_prefix_sum_fused_compute_save;
+}
+
+const ProgramBinaries& getPrefixSumFusedComputeSaveCoalesced() {
+    return opencl_binaries_prefix_sum_fused_compute_save_coalesced;
 }
 } // namespace ocl
 
