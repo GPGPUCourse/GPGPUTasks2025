@@ -65,10 +65,46 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             // ocl_fill_with_zeros.exec();
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
+
+            auto round_up = [](size_t x, size_t y){ return (x + y - 1) / y * y; };
+            auto ceil_div = [](size_t x, size_t y){ return (x + y - 1) / y; };
+
+            gpu::WorkSize ws_init(GROUP_SIZE, round_up(n, GROUP_SIZE));
+            ocl_fill_with_zeros.exec(ws_init, prefix_sum_accum_gpu, n);
+
+            gpu::gpu_mem_32u* src_buffer = &buffer1_pow2_sum_gpu;
+            gpu::gpu_mem_32u* dst_buffer = &buffer2_pow2_sum_gpu;
+
+            uint level = 0;
+            size_t len_level = n;
+            prefix_sum_accum_gpu.writeN(as.data(), n);
+            while (true) {
+                gpu::WorkSize ws_n(GROUP_SIZE, round_up(n, GROUP_SIZE));
+                if (level == 0) 
+                    ocl_prefix_accumulation.exec(ws_n, input_gpu, prefix_sum_accum_gpu, static_cast<uint>(n), level);
+                else 
+                    ocl_prefix_accumulation.exec(ws_n, *src_buffer, prefix_sum_accum_gpu, static_cast<uint>(n), level);
+
+                if (len_level <= 1) break;
+
+                size_t out_len = ceil_div(len_level, size_t(2));
+                gpu::WorkSize ws_red(GROUP_SIZE, round_up(out_len, GROUP_SIZE));
+
+                if (level == 0) 
+                    ocl_sum_reduction.exec(ws_red, input_gpu, *dst_buffer, static_cast<uint>(len_level));
+                else 
+                    ocl_sum_reduction.exec(ws_red, *src_buffer, *dst_buffer, static_cast<uint>(len_level));
+
+                gpu::gpu_mem_32u* tmp = src_buffer;
+                src_buffer = dst_buffer;
+                dst_buffer = tmp;
+                len_level = out_len;
+                level += 1;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
