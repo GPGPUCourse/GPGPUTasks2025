@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "any": "cpp",
+        "filesystem": "cpp",
+        "random": "cpp",
+        "istream": "cpp"
+    }
+}
