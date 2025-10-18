@@ -24,9 +24,12 @@ __kernel void prefix_sum_merge(
     if (lid % 2) {
         accum += local_as[lid - 1];
     }
+    __local uint common_accum;
+    if (lid == 0) {
+        common_accum = group_prefix_sum[get_group_id(0)];
+    }
     barrier(CLK_LOCAL_MEM_FENCE);
-
-    accum += group_prefix_sum[get_group_id(0)];
+    accum += common_accum;
 
     for (uint pow2 = 1; (1 << pow2) <= GROUP_SIZE; pow2++) {
         uint block_size = 1 << pow2;
