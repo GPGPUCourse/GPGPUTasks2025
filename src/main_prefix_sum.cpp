@@ -63,28 +63,21 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
+        gpu::WorkSize workSize(GROUP_SIZE, n);
+        unsigned int pow = 0;
+        ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+        ocl_prefix_accumulation.exec(workSize, input_gpu, prefix_sum_accum_gpu, n, pow++);
+        ocl_sum_reduction.exec(workSize, input_gpu, buffer1_pow2_sum_gpu, n);
 
+        unsigned int ncp = ((n + 1) / 2);
+        gpu::gpu_mem_32u* buffers[2] = {&buffer1_pow2_sum_gpu, &buffer2_pow2_sum_gpu};
+        int cur_idx = 0;
+        for (; ncp > 1; ) {
+            ocl_prefix_accumulation.exec(workSize, *buffers[cur_idx], prefix_sum_accum_gpu, n, pow++);
+            ocl_sum_reduction.exec(workSize, *buffers[cur_idx], *buffers[1 - cur_idx], ncp);
+            ncp = ((ncp + 1) / 2);
+            cur_idx = 1 - cur_idx;
+        }
         times.push_back(t.elapsed());
     }
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
