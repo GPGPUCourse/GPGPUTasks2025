@@ -1,0 +1,27 @@
+#ifndef binary_search_vk // pragma once
+#define binary_search_vk
+
+#ifndef BINARY_SEARCH_VALUES
+	raise compilation error // COMPILATION ERROR! define BINARY_SEARCH_VALUES to specify buffer used for binary search
+#endif
+
+int binarySearch(int value, int n) {
+	int l = -1;
+	int r = n;
+ 
+	while (l < r - 1) {
+		int m = (l + r) / 2;
+		if (BINARY_SEARCH_VALUES[m] < value) { // if you see 'error: '<my_array_name>' : undeclared identifier' - move #include <libgpu/vulkan/vk/binary_search.vk> after declaration of buffer <my_array_name>
+			l = m;
+		} else {
+			r = m;
+		}
+	}
+
+	rassert(r >= 0 && r <= n, 519324528);
+	rassert(r == n || BINARY_SEARCH_VALUES[r] >= value, 472318326);
+	rassert(r == 0 || BINARY_SEARCH_VALUES[r - 1] < value, 67355423);
+	return r;
+}
+
+#endif // pragma once

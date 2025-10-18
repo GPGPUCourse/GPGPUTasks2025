@@ -1,0 +1,8 @@
+#include "@PROGRAM_NAME@_spirv_vulkan.h"
+
+namespace avk2 {
+	static const avk2::VersionedBinary* vulkan_versioned_binaries_@PROGRAM_NAME@[] = {
+		&vulkan_binary_@PROGRAM_NAME@_spirv,
+	};
+	static ProgramBinaries vulkan_binaries_@PROGRAM_NAME@ = ProgramBinaries(std::vector<const VersionedBinary *>(vulkan_versioned_binaries_@PROGRAM_NAME@, vulkan_versioned_binaries_@PROGRAM_NAME@ + sizeof(vulkan_versioned_binaries_@PROGRAM_NAME@) / sizeof(vulkan_versioned_binaries_@PROGRAM_NAME@[0])), "@PROGRAM_NAME@");
+}

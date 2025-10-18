@@ -1,0 +1,6 @@
+**/*_cl.h
+**/generated_kernels/*
+.idea
+build*
+cmake-build*
+.vs

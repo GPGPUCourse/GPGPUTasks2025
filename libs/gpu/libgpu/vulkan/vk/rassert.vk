@@ -1,0 +1,37 @@
+#ifndef rassert_vk // pragma once
+#define rassert_vk
+
+//______________________________________________Device and Host code____________________________________________________
+#define VK_MAIN_BINDING_SET				0 // it is expected that kernel uses this set for its layout
+#define VK_RASSERT_CODE_SET				1
+#define VK_RASSERT_CODE_BINDING_SLOT	0
+#define VK_RASSERT_CODE_EMPTY			0
+#define VK_RASSERT_CODE_MAGIC_GUARDS	(239239239)
+#define VK_RASSERT_LINE_EMPTY			0
+
+
+#ifndef HOST_CODE
+//______________________________________________Device-only code________________________________________________________
+
+layout (std430, set = VK_RASSERT_CODE_SET, binding = VK_RASSERT_CODE_BINDING_SLOT) restrict buffer RassertCodeOut {
+	uint code_and_line[];
+};
+
+void rassert_set_code(uint code, uint line)
+{
+	if (code_and_line[1] == VK_RASSERT_CODE_EMPTY) {
+		code_and_line[1] = code;
+		code_and_line[2] = line;
+	}
+}
+
+#define rassert(condition, error_code)					\
+	do {												\
+		if (!(condition)) {								\
+			rassert_set_code((error_code), __LINE__);	\
+		}												\
+	} while (false)
+
+#endif // not HOST_CODE
+
+#endif // pragma once
