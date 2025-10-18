@@ -2,16 +2,38 @@
 #include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
 #endif
 
-#include "helpers/rassert.cl"
 #include "../defines.h"
+#include "helpers/rassert.cl"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void prefix_sum_01_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* pow2_sum, // contains n values
-    __global       uint* next_pow2_sum, // will contain (n+1)/2 values
-    unsigned int n)
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__kernel void
+prefix_sum_01_reduction(
+    __global uint *arr, // contains n values
+    unsigned int n,
+    unsigned int k)
 {
-    // TODO
+    __local uint local_data[GROUP_SIZE];
+    const uint local_index = get_local_id(0);
+    const uint index = get_global_id(0) * (1 << k) + (1 << k) - 1;
+    if (index < n)
+    {
+        local_data[local_index] = arr[index];
+    }
+    else
+    {
+        local_data[local_index] = 0;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    for (uint i = 1; (1 << i) <= GROUP_SIZE; ++i)
+    {
+        if (((local_index + 1) & ((1 << i) - 1)) == 0)
+        {
+            local_data[local_index] += local_data[local_index - (1 << (i - 1))];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    if (index < n)
+    {
+        arr[index] = local_data[local_index];
+    }
 }
