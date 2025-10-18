@@ -45,7 +45,7 @@ void run(int argc, char** argv)
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
-        as[i] = 1;
+        as[i] = (3 * (i + 5) + 7) % 17;
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
