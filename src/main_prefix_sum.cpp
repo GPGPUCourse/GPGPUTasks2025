@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdint>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -7,6 +9,8 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libbase/runtime_assert.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
@@ -49,42 +53,27 @@ void run(int argc, char** argv)
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
+    std::cout << "TOTAL SUM " << total_sum << std::endl;
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
-
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
+        input_gpu.copyToN(buffer2_pow2_sum_gpu, n);
+        prefix_sum_accum_gpu.fill(0);
+        // Надеюсь здесь можно так заполнять , просто у меня
+        // не используется input напрямую, его по хорошему надо на первую итерацию передавать
+        // просто там много ифов некрасивых возникнет, но если нужно я поправлю
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        for (uint32_t k = 0; (1 << k) <= n; ++k) {
+            buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, k, n);
         }
-
         times.push_back(t.elapsed());
     }
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
@@ -108,6 +97,7 @@ void run(int argc, char** argv)
     for (size_t i = 0; i < n; ++i) {
         rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);
     }
+    std::cout << "done" << std::endl;
 }
 
 int main(int argc, char** argv)
