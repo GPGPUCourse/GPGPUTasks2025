@@ -36,6 +36,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
+    ocl::KernelSource ocl_prefix_group_sum(ocl::getPrefixSumGroupSum());
+    ocl::KernelSource ocl_prefix_merge(ocl::getPrefixSumMerge());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
@@ -51,7 +53,8 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    unsigned int buf_size = 1 << int(ceil(log2((n - 1) / GROUP_SIZE + 1)));
+    gpu::gpu_mem_32u input_gpu(n), buffer1(2 * buf_size), buffer2(buf_size), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -63,12 +66,17 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+        if (context.type() == gpu::Context::TypeOpenCL) {            
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, 2 * buf_size), buffer1, 2 * buf_size);
+            ocl_prefix_group_sum.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1, n, buf_size);
+            // у buffer1 layout как в дереве отрезков - в цикле считаем
+            for (unsigned int current_buf_size = buf_size; current_buf_size > 1; current_buf_size /= GROUP_SIZE) {
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, current_buf_size), buffer1, current_buf_size);
+            }
+            // считаем префиксные суммы для массива сумм блоков
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, buf_size), buffer1, buffer2, buf_size);
+            // итоговые префиксные суммы - набираем внутри блока, прибавляем преф сумму предыдущих блоков
+            ocl_prefix_merge.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer2, prefix_sum_accum_gpu, n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);

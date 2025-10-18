@@ -7,6 +7,17 @@ set(CMAKE_CXX_STANDARD 17)
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
 option(GPU_CUDA_SUPPORT "CUDA support." OFF)
 
+set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+set(SPIR_CLANG_BIN "/Program Files/LLVM/bin/clang.exe")
+list(APPEND CMAKE_PREFIX_PATH "/VulkanSDK/1.3.283.0")
+list(APPEND CMAKE_PREFIX_PATH "$ENV{VCPKG_ROOT}/installed/x64-windows")
+list(APPEND CMAKE_PREFIX_PATH "/Program Files/LLVM/bin")
+list(APPEND CMAKE_PREFIX_PATH "/Program Files/LLVM/lib")
+list(APPEND CMAKE_PREFIX_PATH "/Program Files/LLVM/include")
+set(GLSLC_BIN "/VulkanSDK/1.3.283.0/Bin/glslc.exe")
+
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -ffast-math")
+
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
 if (NOT DEFINED GLSLC_BIN)
     # В случае Linux глобальный glslc будет использован (вы его установили среди прочего в scripts/linux/install_vulkan_sdk.sh)
@@ -61,7 +72,10 @@ set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/fill_buffer_with_zeros.cl
         src/kernels/cl/prefix_sum_01_reduction.cl
-        src/kernels/cl/prefix_sum_02_prefix_accumulation.cl)
+        src/kernels/cl/prefix_sum_02_prefix_accumulation.cl
+        src/kernels/cl/prefix_sum_group_sum.cl
+        src/kernels/cl/prefix_sum_merge.cl
+)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)
