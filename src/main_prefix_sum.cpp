@@ -69,7 +69,6 @@ void run(int argc, char** argv)
         // не используется input напрямую, его по хорошему надо на первую итерацию передавать
         // просто там много ифов некрасивых возникнет, но если нужно я поправлю
         timer t;
-
         for (uint32_t k = 0; 1 << k < n; ++k) {
             buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
             ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, k, n);
