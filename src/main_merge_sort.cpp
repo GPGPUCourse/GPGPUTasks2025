@@ -26,7 +26,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -101,8 +101,20 @@ void run(int argc, char** argv)
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            int sorted_k = 1;
+            gpu::gpu_mem_32u *a_gpu = &input_gpu;
+            gpu::gpu_mem_32u *b_gpu = &buffer1_gpu;
+            while (sorted_k < n) {
+                if (2 * sorted_k >= n) {
+                    b_gpu = &buffer_output_gpu;
+                }
+                cuda::merge_sort(gpu::WorkSize(256, n), *a_gpu, *b_gpu, sorted_k, n);
+                if (sorted_k == 1) {
+                    a_gpu = &buffer2_gpu;
+                }
+                std::swap(a_gpu, b_gpu);
+                sorted_k *= 2;
+            }
         } else if (context.type() == gpu::Context::TypeVulkan) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
