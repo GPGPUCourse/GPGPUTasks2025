@@ -77,9 +77,9 @@ void run(int argc, char** argv)
             ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer_in, n);
 
             unsigned int pow2 = 1;
-            size_t m = (n + 1) / 2;
+            unsigned int m = (n + 1) / 2;
             while (m > 1) {
-                size_t next_m = (m + 1) / 2;
+                unsigned int next_m = (m + 1) / 2;
 
                 ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_in, prefix_sum_accum_gpu, n, pow2);
                 ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, next_m), buffer_in, buffer_out, m);
