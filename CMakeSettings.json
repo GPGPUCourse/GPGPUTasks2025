@@ -1,0 +1,14 @@
+﻿{
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [ "clang_cl_x64" ],
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "ctestCommandArgs": "",
+      "cmakeCommandArgs": "-DGLSLC_BIN=C:\\VulkanSDK\\1.3.283.0\\Bin\\glslc.exe -DSPIR_CLANG_BIN=\"C:\\Program Files\\LLVM\\bin\\clang.exe\" -DCMAKE_PREFIX_PATH=\"C:\\VulkanSDK\\1.3.283.0\""
+    }
+  ]
+}
