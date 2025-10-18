@@ -30,16 +30,5 @@ find_package(Threads REQUIRED)
 
 add_library(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-# Добавляем поиск OpenMP
-find_package(OpenMP)
-if (OpenMP_CXX_FOUND)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif ()
-
-# Добавляем линковку OpenMP если найден
-if (OpenMP_CXX_FOUND)
-    target_link_libraries(${PROJECT_NAME} OpenMP::OpenMP_CXX)
-endif ()
-
 target_link_libraries(${PROJECT_NAME} Threads::Threads ${GTEST_BOTH_LIBRARIES} ${CMAKE_DL_LIBS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR})
