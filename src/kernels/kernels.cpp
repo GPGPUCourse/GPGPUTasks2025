@@ -1,18 +1,10 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
-#include "cl/generated_kernels/fill_buffer_with_zeros.h"
-#include "cl/generated_kernels/radix_sort_01_local_counting.h"
-#include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
-#include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
-#include "cl/generated_kernels/radix_sort_04_scatter.h"
+#include "cl/generated_kernels/merge_sort.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
-#include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
-#include "vk/generated_kernels/radix_sort_01_local_counting_comp.h"
-#include "vk/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction_comp.h"
-#include "vk/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation_comp.h"
-#include "vk/generated_kernels/radix_sort_04_scatter_comp.h"
+#include "vk/generated_kernels/merge_sort_comp.h"
 
 #ifndef CUDA_SUPPORT
 namespace cuda {
@@ -39,7 +31,7 @@ const ocl::ProgramBinaries& getAplusB()
 
 const ProgramBinaries& getMergeSort()
 {
-    return opencl_binaries_fill_buffer_with_zeros;
+    return opencl_binaries_merge_sort;
 }
 } // namespace ocl
 
@@ -51,6 +43,6 @@ const ProgramBinaries& getAplusB()
 
 const ProgramBinaries& getMergeSort()
 {
-    return vulkan_binaries_fill_buffer_with_zeros_comp;
+    return vulkan_binaries_merge_sort_comp;
 }
 } // namespace avk2
