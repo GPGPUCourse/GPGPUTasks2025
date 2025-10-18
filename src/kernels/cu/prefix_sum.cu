@@ -10,11 +10,10 @@
 static constexpr unsigned int BLOCK_THREADS = 256;
 static constexpr unsigned int THREAD_ELEMS = 8;
 static constexpr unsigned int BLOCK_ELEMS = BLOCK_THREADS * THREAD_ELEMS;
+static constexpr unsigned int WARPS_CNT = BLOCK_THREADS / WARP_SIZE;
 
 __global__ void excl_block_scan(const unsigned int* in, unsigned int* out, unsigned int* block_sums, unsigned int n)
 {
-    static constexpr unsigned int warps_cnt = BLOCK_THREADS / WARP_SIZE;
-
     const unsigned int thread_ind = threadIdx.x;
     const unsigned int lane_ind = thread_ind & (WARP_SIZE - 1);
     const unsigned int warp_ind = thread_ind >> 5;
@@ -22,7 +21,7 @@ __global__ void excl_block_scan(const unsigned int* in, unsigned int* out, unsig
     const unsigned int block_start_ind = block_ind * BLOCK_ELEMS;
     const unsigned int lane_mask = __activemask();
 
-    __shared__ unsigned int warp_totals[warps_cnt];
+    __shared__ unsigned int warp_totals[WARPS_CNT];
     __shared__ unsigned int block_sum;
 
     unsigned int vals[THREAD_ELEMS];
@@ -52,17 +51,17 @@ __global__ void excl_block_scan(const unsigned int* in, unsigned int* out, unsig
         __syncthreads();
 
         if (warp_ind == 0) {
-            const unsigned int warp_val = (lane_ind < warps_cnt) ? warp_totals[lane_ind] : 0u;
+            const unsigned int warp_val = (lane_ind < WARPS_CNT) ? warp_totals[lane_ind] : 0u;
             unsigned int warp_incl_sum = warp_val;
 
 #pragma unroll
-            for (int offset = 1; offset < warps_cnt; offset <<= 1) {
-                tmp = __shfl_up_sync(lane_mask, warp_incl_sum, offset, warps_cnt);
+            for (int offset = 1; offset < WARPS_CNT; offset <<= 1) {
+                tmp = __shfl_up_sync(lane_mask, warp_incl_sum, offset, WARPS_CNT);
                 if (lane_ind >= offset)
                     warp_incl_sum += tmp;
             }
 
-            if (lane_ind < warps_cnt)
+            if (lane_ind < WARPS_CNT)
                 warp_totals[lane_ind] = warp_incl_sum - warp_val;
         }
         __syncthreads();
@@ -85,8 +84,6 @@ __global__ void excl_block_scan(const unsigned int* in, unsigned int* out, unsig
 
 __global__ void incl_block_scan(const unsigned int* in, unsigned int* out, unsigned int* block_sums, unsigned int n)
 {
-    static constexpr unsigned int warps_cnt = BLOCK_THREADS / WARP_SIZE;
-
     const unsigned int thread_ind = threadIdx.x;
     const unsigned int lane_ind = thread_ind & (WARP_SIZE - 1);
     const unsigned int warp_ind = thread_ind >> 5;
@@ -94,7 +91,7 @@ __global__ void incl_block_scan(const unsigned int* in, unsigned int* out, unsig
     const unsigned int block_start_ind = block_ind * BLOCK_ELEMS;
     const unsigned int lane_mask = __activemask();
 
-    __shared__ unsigned int warp_totals[warps_cnt];
+    __shared__ unsigned int warp_totals[WARPS_CNT];
     __shared__ unsigned int block_sum;
 
     unsigned int vals[THREAD_ELEMS];
@@ -124,17 +121,17 @@ __global__ void incl_block_scan(const unsigned int* in, unsigned int* out, unsig
         __syncthreads();
 
         if (warp_ind == 0) {
-            const unsigned int warp_val = (lane_ind < warps_cnt) ? warp_totals[lane_ind] : 0u;
+            const unsigned int warp_val = (lane_ind < WARPS_CNT) ? warp_totals[lane_ind] : 0u;
             unsigned int warp_incl_sum = warp_val;
 
 #pragma unroll
-            for (int offset = 1; offset < warps_cnt; offset <<= 1) {
-                tmp = __shfl_up_sync(lane_mask, warp_incl_sum, offset, warps_cnt);
+            for (int offset = 1; offset < WARPS_CNT; offset <<= 1) {
+                tmp = __shfl_up_sync(lane_mask, warp_incl_sum, offset, WARPS_CNT);
                 if (lane_ind >= offset)
                     warp_incl_sum += tmp;
             }
 
-            if (lane_ind < warps_cnt)
+            if (lane_ind < WARPS_CNT)
                 warp_totals[lane_ind] = warp_incl_sum - warp_val;
         }
         __syncthreads();
