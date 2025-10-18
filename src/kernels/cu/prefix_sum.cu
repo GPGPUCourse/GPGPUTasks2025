@@ -6,6 +6,7 @@
 
 #include "../defines.h"
 #include "helpers/rassert.cu"
+#include <cub/cub.cuh>
 
 static constexpr unsigned int BLOCK_THREADS = 256;
 static constexpr unsigned int THREAD_ELEMS = 8;
@@ -160,11 +161,7 @@ __global__ void acc(unsigned int* data, const unsigned int* block_offsets, unsig
         return;
 
     const unsigned int thread_ind = threadIdx.x;
-    __shared__ unsigned int block_offset;
-    if (thread_ind == 0)
-        block_offset = __ldg(block_offsets + block_ind);
-    __syncthreads();
-
+    const unsigned int block_offset = __ldg(block_offsets + block_ind);
 #pragma unroll
     for (unsigned int i = 0; i < THREAD_ELEMS; ++i) {
         const unsigned int ind = block_start_ind + thread_ind + i * BLOCK_THREADS;
