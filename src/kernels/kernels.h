@@ -7,6 +7,7 @@ void aplusb(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& a, const gpu:
 void fill_buffer_with_zeros(const gpu::WorkSize &workSize, gpu::gpu_mem_32u &buffer, unsigned int n);
 void prefix_sum_01_sum_reduction(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &pow2_sum, gpu::gpu_mem_32u &next_pow2_sum, unsigned int n);
 void prefix_sum_02_prefix_accumulation(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &pow2_sum, gpu::gpu_mem_32u &prefix_sum_accum, unsigned int n, unsigned int pow2);
+void prefix_sum(const gpu::gpu_mem_32u& in, gpu::gpu_mem_32u& out, const unsigned int& n);
 }
 
 namespace ocl {
