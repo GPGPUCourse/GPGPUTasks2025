@@ -61,22 +61,29 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
+    std::vector<double> times1, times2, times3;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {            
+        if (context.type() == gpu::Context::TypeOpenCL) { 
+            timer tt;           
             ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, 2 * buf_size), buffer1, 2 * buf_size);
             ocl_prefix_group_sum.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1, n, buf_size);
+            times1.push_back(tt.elapsed());
+            tt.restart();
             // у buffer1 layout как в дереве отрезков - в цикле считаем
             for (unsigned int current_buf_size = buf_size; current_buf_size > 1; current_buf_size /= GROUP_SIZE) {
                 ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, current_buf_size), buffer1, current_buf_size);
             }
             // считаем префиксные суммы для массива сумм блоков
             ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, buf_size), buffer1, buffer2, buf_size);
+            times2.push_back(tt.elapsed());
+            tt.restart();
             // итоговые префиксные суммы - набираем внутри блока, прибавляем преф сумму предыдущих блоков
             ocl_prefix_merge.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer2, prefix_sum_accum_gpu, n);
+            times3.push_back(tt.elapsed());
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -96,6 +103,7 @@ void run(int argc, char** argv)
         times.push_back(t.elapsed());
     }
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
+    std::cout << stats::median(times1) << "\n" << stats::median(times2) << "\n" << stats::median(times3) << "\n";
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
