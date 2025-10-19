@@ -51,8 +51,8 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u prefix_sum_accum_gpu(n);
-    size_t global_size = ((n + GROUP_SIZE - 1) / GROUP_SIZE) * GROUP_SIZE;
-    size_t n_blocks = global_size / GROUP_SIZE;
+    unsigned int global_size = ((n + GROUP_SIZE - 1) / GROUP_SIZE) * GROUP_SIZE;
+    unsigned int n_blocks = global_size / GROUP_SIZE;
 
     gpu::gpu_mem_32u block_sums_swap_1_gpu(n_blocks);
     gpu::gpu_mem_32u block_sums_swap_2_gpu(n_blocks);
@@ -82,7 +82,7 @@ void run(int argc, char** argv)
                     gpu::gpu_mem_32u* input_block_ptr = &block_sums_swap_1_gpu;
                     gpu::gpu_mem_32u* output_block_ptr = &block_sums_swap_2_gpu;
 
-                    size_t stride = 1;
+                    unsigned int stride = 1;
                     while (stride < n_blocks) {
                         ocl_scan_reduction.exec(ws_block_scan, *input_block_ptr, *output_block_ptr, (unsigned int)n_blocks, stride);
                         std::swap(input_block_ptr, output_block_ptr);
