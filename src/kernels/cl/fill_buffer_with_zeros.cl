@@ -10,7 +10,6 @@ __kernel void fill_buffer_with_zeros(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global uint* buffer1,
-    __global uint* buffer2,
     unsigned int n)
 {
     const uint i = get_global_id(0);
@@ -20,5 +19,4 @@ __kernel void fill_buffer_with_zeros(
     }
 
     buffer1[i] = 0;
-    buffer2[i] = 0;
 }

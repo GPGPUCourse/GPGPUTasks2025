@@ -13,11 +13,11 @@ __kernel void prefix_sum_01_reduction(
 {
     const uint i = get_global_id(0);
 
-    uint id = (i << 1);
+    uint real_i = (i << 1);
     
-    if (id >= n) {
+    if (real_i >= n) {
         return;
     }
 
-    next_pow2_sum[i] = pow2_sum[id] + pow2_sum[id + 1] * (id + 1 < n);
+    next_pow2_sum[i] = pow2_sum[real_i] + pow2_sum[real_i + 1] * (real_i + 1 < n);
 }
