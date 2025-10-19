@@ -5,7 +5,7 @@
 #define GROUP_SIZE_X 16
 #define GROUP_SIZE_Y 16
 
-#define MAX_GROUP_SIZE 1024 // I just assume that it is so :)
+#define MAX_GROUP_SIZE 512 // I just assume that it is so :)
 #define RASSERT_ENABLED 0 // disabled by default, enable for debug by changing 0 to 1, disable before performance evaluation/profiling/commiting
 
 #endif // pragma once
