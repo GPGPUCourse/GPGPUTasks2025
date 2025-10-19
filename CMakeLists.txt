@@ -8,14 +8,14 @@ set(CMAKE_CXX_STANDARD 17)
 option(GPU_CUDA_SUPPORT "CUDA support." OFF)
 
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
-if (NOT DEFINED GLSLC_BIN)
+if(NOT DEFINED GLSLC_BIN)
     # В случае Linux глобальный glslc будет использован (вы его установили среди прочего в scripts/linux/install_vulkan_sdk.sh)
     set(GLSLC_BIN glslc)
     message(STATUS "Vulkan glslc compiler from system PATH will be used")
-else ()
+else()
     # В случае Windows вам нужно указать его через CMake options: -DSPIR_CLANG_BIN="C:\Program Files\LLVM\bin\clang.exe" (установлен по инструкции scripts/windows/install_dependencies.txt)
     message(STATUS "Vulkan glslc compiler is specified")
-endif ()
+endif()
 
 # GTest позволяет писать удобные unit-test-ы
 find_package(GTest REQUIRED)
@@ -25,30 +25,30 @@ set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
 
 # OpenMP позволит распараллеливать циклы на все ядра процессора простыми директивами
 find_package(OpenMP)
-if (OpenMP_CXX_FOUND)
+if(OpenMP_CXX_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-else ()
+else()
     # Это не ошибка т.к. если нет OpenMP - код будет работать, просто директивы распараллеливания ничего не будут делать
     message(WARNING "OpenMP not found!")
-endif ()
+endif()
 
 add_subdirectory(libs)
 
 set(HEADERS
-        src/kernels/kernels.h
+    src/kernels/kernels.h
 )
 
 set(SOURCES
-        src/kernels/kernels.cpp
+    src/kernels/kernels.cpp
 )
 
 set(LIBRARIES
-        libclew
-        libgpu
-        libimages
-        libutils
-        libjson
+    libclew
+    libgpu
+    libimages
+    libutils
+    libjson
 )
 
 # compile_opencl CMake-функция объявлена в libs/gpu/libgpu/CMakeLists.txt:157
@@ -58,10 +58,13 @@ set(LIBRARIES
 # (чтобы не нужно было в runtime читать исходник с диска, чтобы был монолитный исполняемый файл)
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(OPENCL_SOURCES
-        src/kernels/cl/aplusb.cl
-        src/kernels/cl/fill_buffer_with_zeros.cl
-        src/kernels/cl/prefix_sum_01_reduction.cl
-        src/kernels/cl/prefix_sum_02_prefix_accumulation.cl)
+    src/kernels/cl/copy.cl
+    # src/kernels/cl/aplusb.cl
+    src/kernels/cl/fill_buffer_with_zeros.cl
+    src/kernels/cl/prefix_sum_01_local_scan.cl
+    src/kernels/cl/prefix_sum_02_scan_reduction.cl
+    src/kernels/cl/prefix_sum_03_add_block_sum.cl
+)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)
@@ -77,17 +80,17 @@ endforeach()
 # (чтобы не нужно было в runtime читать шейдер/байткод с диска, чтобы был монолитный исполняемый файл)
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb_comp.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(VULKAN_SOURCES
-        src/kernels/vk/aplusb.comp
-        src/kernels/vk/fill_buffer_with_zeros.comp
-        src/kernels/vk/prefix_sum_01_reduction.comp
-        src/kernels/vk/prefix_sum_02_prefix_accumulation.comp)
+    src/kernels/vk/aplusb.comp
+    src/kernels/vk/fill_buffer_with_zeros.comp
+    src/kernels/vk/prefix_sum_01_reduction.comp
+    src/kernels/vk/prefix_sum_02_prefix_accumulation.comp)
 
 set(VULKAN_DEFINES)
 foreach(VK_FILE IN LISTS VULKAN_SOURCES)
     compile_vulkan(HEADERS ${VK_FILE} VULKAN_DEFINES)
 endforeach()
 
-if (GPU_CUDA_SUPPORT)
+if(GPU_CUDA_SUPPORT)
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
 
@@ -96,27 +99,27 @@ if (GPU_CUDA_SUPPORT)
     # 2) второй раз специальным CUDA-компилятором NVCC - для DEVICE-side кода, например функции помеченные специальным модификатором __global__ (кернелы) или __device__ (функции которые можно вызвать на видеокарте, т.е. из кернелов)
     # Вероятно вам стоит выставить в CMake options: -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
     set(CUDA_SOURCES
-            src/kernels/cu/aplusb.cu
-            src/kernels/cu/fill_buffer_with_zeros.cu
-            src/kernels/cu/prefix_sum_01_reduction.cu
-            src/kernels/cu/prefix_sum_02_prefix_accumulation.cu)
+        src/kernels/cu/aplusb.cu
+        src/kernels/cu/fill_buffer_with_zeros.cu
+        src/kernels/cu/prefix_sum_01_reduction.cu
+        src/kernels/cu/prefix_sum_02_prefix_accumulation.cu)
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})
     target_link_libraries(${PROJECT_NAME}_core ${LIBRARIES})
     target_include_directories(${PROJECT_NAME}_core PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
-else ()
+else()
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${HEADERS})
     target_link_libraries(${PROJECT_NAME}_core ${LIBRARIES})
-endif ()
+endif()
 
-add_executable(main_aplusb     src/main_aplusb.cpp)
+# add_executable(main_aplusb src/main_aplusb.cpp)
 add_executable(main_prefix_sum src/main_prefix_sum.cpp)
 
-target_link_libraries(main_aplusb     ${PROJECT_NAME}_core)
+# target_link_libraries(main_aplusb ${PROJECT_NAME}_core)
 target_link_libraries(main_prefix_sum ${PROJECT_NAME}_core)
 
-if (GPU_CUDA_SUPPORT)
-    target_include_directories(main_aplusb     PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+if(GPU_CUDA_SUPPORT)
+    # target_include_directories(main_aplusb PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
     target_include_directories(main_prefix_sum PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
-endif ()
+endif()
