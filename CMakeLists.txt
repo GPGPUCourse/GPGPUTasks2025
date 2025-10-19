@@ -59,7 +59,7 @@ set(LIBRARIES
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(OPENCL_SOURCES
     src/kernels/cl/copy.cl
-    # src/kernels/cl/aplusb.cl
+    src/kernels/cl/aplusb.cl
     src/kernels/cl/fill_buffer_with_zeros.cl
     src/kernels/cl/prefix_sum_01_local_scan.cl
     src/kernels/cl/prefix_sum_02_scan_reduction.cl
@@ -113,13 +113,13 @@ else()
     target_link_libraries(${PROJECT_NAME}_core ${LIBRARIES})
 endif()
 
-# add_executable(main_aplusb src/main_aplusb.cpp)
+add_executable(main_aplusb src/main_aplusb.cpp)
 add_executable(main_prefix_sum src/main_prefix_sum.cpp)
 
-# target_link_libraries(main_aplusb ${PROJECT_NAME}_core)
+target_link_libraries(main_aplusb ${PROJECT_NAME}_core)
 target_link_libraries(main_prefix_sum ${PROJECT_NAME}_core)
 
 if(GPU_CUDA_SUPPORT)
-    # target_include_directories(main_aplusb PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+    target_include_directories(main_aplusb PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
     target_include_directories(main_prefix_sum PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 endif()
