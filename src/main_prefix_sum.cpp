@@ -79,7 +79,6 @@ void run(int argc, char** argv)
             //     rassert(p == out[i], 100001, i, out[i], p);
             // }
             // std::cout << "\n";
-            // ocl_sum_reduction.exec();
             ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), data, prefix_sum_accum_gpu, n);
             // out = prefix_sum_accum_gpu.readVector();
             // for (int i = 0; i < out.size(); ++i) {

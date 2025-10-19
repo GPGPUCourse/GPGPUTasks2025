@@ -13,18 +13,27 @@ prefix_sum_02_prefix_accumulation(
     unsigned int n)
 {
     uint index = get_global_id(0) + 1;
+    // const uint local_index = get_local_id(0);
+    // __local uint add;
+    // __local uint lower;
+    // if (local_index == 0)
+    // {
+    //     lower = index - local_index;
+    //     add = 0;
+    //     uint x = (index - local_index) >> 8;
+    //     while (x > 0)
+    //     {
+    //         add += pow2_sum[x - 1];
+    //         x = (x & (x - 1));
+    //     }
+    // }
     if (index <= n)
     {
         uint sum = 0;
-        uint p = 0;
         while (index > 0)
         {
-            while ((index & (1 << p)) == 0)
-            {
-                p++;
-            }
             sum += pow2_sum[index - 1];
-            index ^= (1 << p);
+            index = (index & (index - 1));
         }
         prefix_sum_accum[get_global_id(0)] = sum;
     }
