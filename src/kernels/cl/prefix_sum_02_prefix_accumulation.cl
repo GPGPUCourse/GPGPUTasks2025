@@ -5,14 +5,45 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_sum_02_prefix_accumulation(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* pow2_sum, // pow2_sum[i] = sum[i*2^pow2; 2*i*2^pow2)
-    __global       uint* prefix_sum_accum, // we want to make it finally so that prefix_sum_accum[i] = sum[0, i]
-    unsigned int n,
-    unsigned int pow2)
+    __global       uint* buf1,
+    __global const uint* buf2,
+    const unsigned int n,
+    const unsigned int need_to_add_buf3,
+    __global const uint* buf3
+  )
 {
-    // TODO
+    __local unsigned int data[GROUP_SIZE >> BATCH_LG];
+    __local unsigned int buf3data[GROUP_SIZE];
+
+    const unsigned int idx = get_global_id(0);
+    unsigned int local_idx = get_local_id(0);
+
+    if (local_idx < (GROUP_SIZE >> BATCH_LG)) {
+        unsigned int pt = ((idx - local_idx) >> BATCH_LG) + local_idx - 1;
+        if (pt < n / 8) {
+            data[local_idx] = buf2[pt];
+        } else {
+            data[local_idx] = 0;
+        }
+    }
+
+    if (need_to_add_buf3) {
+        buf3data[local_idx] = buf3[idx];
+    } else {
+        buf3data[local_idx] = buf1[idx];
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (idx < n) {
+        unsigned int summ = data[local_idx >> BATCH_LG];
+        while (local_idx & BATCH_MASK) {
+            summ += buf3data[local_idx];
+            --local_idx;
+        }
+        summ += buf3data[local_idx];
+        buf1[idx] = summ;
+    }
 }
