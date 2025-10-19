@@ -5,13 +5,13 @@
 __kernel void prefix_sum_01_local_scan(
     __global int* data,
     __global int* block_sums,
-    size_t n,
+    unsigned int n,
     int is_inclusive)
 {
-    size_t gid = get_global_id(0);
-    size_t lid = get_local_id(0);
-    size_t group_id = get_group_id(0);
-    size_t local_size = get_local_size(0);
+    unsigned int gid = get_global_id(0);
+    unsigned int lid = get_local_id(0);
+    unsigned int group_id = get_group_id(0);
+    unsigned int local_size = get_local_size(0);
 
     if (gid >= n) return;
 
@@ -21,8 +21,8 @@ __kernel void prefix_sum_01_local_scan(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // up-pass
-    for (size_t stride = 1; stride < local_size; stride *= 2) {
-        size_t index = (lid + 1) * stride * 2 - 1;
+    for (unsigned int stride = 1; stride < local_size; stride *= 2) {
+        unsigned int index = (lid + 1) * stride * 2 - 1;
         if (index < local_size) {
             local_array[index] += local_array[index - stride];
         }
@@ -36,8 +36,8 @@ __kernel void prefix_sum_01_local_scan(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // down-pass
-    for (size_t stride = local_size / 2; stride > 0; stride /= 2) {
-        size_t index_j = (lid + 1) * stride * 2 - 1;
+    for (unsigned int stride = local_size / 2; stride > 0; stride /= 2) {
+        unsigned int index_j = (lid + 1) * stride * 2 - 1;
         if (index_j < local_size) {
             int temp = local_array[index_j - stride];
             local_array[index_j - stride] = local_array[index_j];

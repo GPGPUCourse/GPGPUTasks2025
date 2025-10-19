@@ -5,10 +5,10 @@
 __kernel void prefix_sum_02_scan_reduction(
     __global int* input,
     __global int* output,
-    size_t n_blocks,
-    size_t stride)
+    unsigned int n_blocks,
+    unsigned int stride)
 {
-    size_t gid = get_global_id(0);
+    unsigned int gid = get_global_id(0);
 
     if (gid < n_blocks) {
         if (gid >= stride) {
