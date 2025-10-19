@@ -35,7 +35,7 @@ void run(const int argc, char** argv) {
     std::vector<unsigned int> buffers_gpu_sizes;
 
     while (sz > WARP_SIZE) {
-        sz = sz >> BATCH_LG; // sz /= BATCH_SZ, but we know that BATCH_SZ = (1 << BATCH_LOG)
+        sz >>= BATCH_LG; // sz /= BATCH_SZ, but we know that BATCH_SZ = (1 << BATCH_LOG)
         buffers_gpu.push_back(gpu::gpu_mem_32u(sz));
         buffers_gpu_sizes.push_back(sz);
     }
@@ -49,10 +49,6 @@ void run(const int argc, char** argv) {
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
-
-        for (unsigned int i = 0; i < buffers_gpu_count; ++i) {
-            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, buffers_gpu_sizes[i]), buffers_gpu[i], buffers_gpu_sizes[i]);
-        }
 
         ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffers_gpu[0], n);
         for (unsigned int i = 0; i < buffers_gpu_count; ++i) {

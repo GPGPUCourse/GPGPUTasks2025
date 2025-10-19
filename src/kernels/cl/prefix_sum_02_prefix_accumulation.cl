@@ -21,7 +21,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int local_idx = get_local_id(0);
 
     if (local_idx < (GROUP_SIZE >> BATCH_LG)) {
-        unsigned int pt = ((idx - local_idx) >> BATCH_LG) + local_idx - 1;
+        const unsigned int pt = ((idx - local_idx) >> BATCH_LG) + local_idx - 1;
         if (pt < (n >> BATCH_LG)) {
             data[local_idx] = buf2[pt];
         } else {
@@ -39,11 +39,11 @@ __kernel void prefix_sum_02_prefix_accumulation(
 
     if (idx < n) {
         unsigned int summ = data[local_idx >> BATCH_LG];
-        while (local_idx & BATCH_MASK) {
-            summ += buf3data[local_idx];
-            --local_idx;
-        }
         summ += buf3data[local_idx];
+        while (local_idx & BATCH_MASK) {
+            --local_idx;
+            summ += buf3data[local_idx];
+        }
         buf1[idx] = summ;
     }
 }
