@@ -33,9 +33,9 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
-    ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
-    ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
+    ocl::KernelSource ocl_reduce(ocl::getPrefixSum01Reduction());
+    ocl::KernelSource ocl_inplace_sparse(ocl::getPrefixSum02InplaceSparse());
+    ocl::KernelSource ocl_accumulate(ocl::getPrefixSum03Accumulate());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
@@ -51,24 +51,44 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), prefix_sum_accum_gpu(n), pow_buffer(n / GROUP_SIZE + 1);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
+    std::vector<double> first_stage;
+    std::vector<double> second_stage;
+    std::vector<double> third_stage;
     for (int iter = 0; iter < 10; ++iter) {
+        prefix_sum_accum_gpu.fill(0);
+        pow_buffer.fill(0);
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            {
+                timer tt;
+                ocl_reduce.exec(gpu::WorkSize(GROUP_SIZE,n), input_gpu, pow_buffer, n);
+                first_stage.push_back(tt.elapsed());
+            }
+            {
+                timer tt;
+                size_t reduced_n = n / GROUP_SIZE + 1;
+                // level=1: [0, 1] -> 1,    [2, 3] -> 3,    [4, 5] -> 5
+                // level=2: [1, 3] -> 3,    [5, 7] -> 7,    [9, 11] -> 11
+                for (size_t level = 1; level < reduced_n; level *= 2) {
+                    ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, reduced_n / (2 * level) + 1), pow_buffer, reduced_n, level);
+                }
+                second_stage.push_back(tt.elapsed());
+            }
+            {
+                timer tt;
+                ocl_accumulate.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, pow_buffer, prefix_sum_accum_gpu, n);
+                third_stage.push_back(tt.elapsed());
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -88,6 +108,9 @@ void run(int argc, char** argv)
         times.push_back(t.elapsed());
     }
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
+    std::cout << "first_stage times (in seconds) - " << stats::valuesStatsLine(first_stage) << std::endl;
+    std::cout << "second_stage times (in seconds) - " << stats::valuesStatsLine(second_stage) << std::endl;
+    std::cout << "third_stage times (in seconds) - " << stats::valuesStatsLine(third_stage) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
