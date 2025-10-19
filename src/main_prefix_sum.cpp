@@ -51,8 +51,8 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu((n + 1) / 2), buffer2_pow2_sum_gpu(n),
-     buffer3_pow2_sum_gpu(n), buffer4_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n),
+     buffer3_pow2_sum_gpu(n), buffer4_pow2_sum_gpu(n), zero_buffer(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -76,23 +76,31 @@ void run(int argc, char** argv)
             
             // ocl_fill_with_zeros.exec(workSize, buffer1_pow2_sum_gpu, n);
             ocl_fill_with_zeros.exec(workSize, buffer2_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(workSize, buffer3_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(workSize, buffer4_pow2_sum_gpu, n);
 
-            ocl_prefix_accumulation.exec(workSize, input_gpu, prefix_sum_accum_gpu, n, 0);
-
+            ocl_prefix_accumulation.exec(workSize, buffer4_pow2_sum_gpu, buffer3_pow2_sum_gpu, buffer2_pow2_sum_gpu, input_gpu, prefix_sum_accum_gpu, n, 0, 0, 0, 0);
             ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), input_gpu, buffer1_pow2_sum_gpu, n);
 
             uint group_size = (n + 1) / 2;
-            for (uint pow2 = 1; group_size > 1; ++pow2) {
+            for (uint pow2 = 1; group_size > 1 || pow2 % 4 != 1; ++pow2) {
                 unsigned int next_group_size = (group_size + 1) / 2;
 
-                ocl_prefix_accumulation.exec(workSize, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);     
+                if (pow2 % 4 == 0) {
+                    ocl_prefix_accumulation.exec(workSize,
+                     buffer4_pow2_sum_gpu, buffer3_pow2_sum_gpu, buffer2_pow2_sum_gpu, buffer1_pow2_sum_gpu, 
+                     prefix_sum_accum_gpu, n, pow2 - 3, pow2 - 2, pow2 - 1, pow2);
+                }           
 
-                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, next_group_size), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, group_size);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, next_group_size), buffer1_pow2_sum_gpu, buffer4_pow2_sum_gpu, group_size);
 
                 group_size = next_group_size;
-
+                
+                std::swap(buffer3_pow2_sum_gpu, buffer4_pow2_sum_gpu);
+                std::swap(buffer2_pow2_sum_gpu, buffer3_pow2_sum_gpu);
                 std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);   
             }
+            
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
