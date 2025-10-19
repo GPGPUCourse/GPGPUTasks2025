@@ -19,6 +19,11 @@ const ProgramBinaries& getRadixSort01LocalCounting();
 const ProgramBinaries& getRadixSort02GlobalPrefixesScanSumReduction();
 const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation();
 const ProgramBinaries& getRadixSort04Scatter();
+
+const ProgramBinaries& getPrefixSum01Reduction();
+const ProgramBinaries& getPrefixSum02PrefixAccumulation();
+const ProgramBinaries& getPrefixSumGroupSum();
+const ProgramBinaries& getPrefixSumMerge();
 }
 
 namespace avk2 {

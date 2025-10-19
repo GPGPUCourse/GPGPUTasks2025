@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
 option(GPU_CUDA_SUPPORT "CUDA support." OFF)
 
+
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
 if (NOT DEFINED GLSLC_BIN)
     # В случае Linux глобальный glslc будет использован (вы его установили среди прочего в scripts/linux/install_vulkan_sdk.sh)
@@ -63,7 +64,12 @@ set(OPENCL_SOURCES
         src/kernels/cl/radix_sort_01_local_counting.cl
         src/kernels/cl/radix_sort_02_global_prefixes_scan_sum_reduction.cl
         src/kernels/cl/radix_sort_03_global_prefixes_scan_accumulation.cl
-        src/kernels/cl/radix_sort_04_scatter.cl)
+        src/kernels/cl/radix_sort_04_scatter.cl
+        src/kernels/cl/prefix_sum_01_reduction.cl
+        src/kernels/cl/prefix_sum_02_prefix_accumulation.cl
+        src/kernels/cl/prefix_sum_group_sum.cl
+        src/kernels/cl/prefix_sum_merge.cl
+)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)
