@@ -19,5 +19,11 @@ __kernel void prefix_sum_01_reduction(
         return;
     }
 
-    next_pow2_sum[i] = pow2_sum[real_i] + pow2_sum[real_i + 1] * (real_i + 1 < n);
+    uint sum = pow2_sum[real_i];
+
+    if (real_i + 1 < n) {
+        sum += pow2_sum[real_i + 1];
+    }
+
+    next_pow2_sum[i] = sum;
 }
