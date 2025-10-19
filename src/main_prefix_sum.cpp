@@ -79,7 +79,7 @@ void run(int argc, char** argv)
                 size_t reduced_n = n / GROUP_SIZE + 1;
                 // level=1: [0, 1] -> 1,    [2, 3] -> 3,    [4, 5] -> 5
                 // level=2: [1, 3] -> 3,    [5, 7] -> 7,    [9, 11] -> 11
-                for (size_t level = 1; level < reduced_n; level *= 2) {
+                for (unsigned int level = 1; level < reduced_n; level *= 2) {
                     ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, reduced_n / (2 * level) + 1), pow_buffer, reduced_n, level);
                 }
                 second_stage.push_back(tt.elapsed());

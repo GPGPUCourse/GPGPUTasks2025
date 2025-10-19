@@ -10,7 +10,7 @@ __kernel void
 prefix_sum_02_inplace_sparse(
     __global uint* in,
     unsigned int n,
-    uint level)
+    unsigned int level)
 {
     // no barriers because work items do not intersect
     size_t i = get_global_id(0);
