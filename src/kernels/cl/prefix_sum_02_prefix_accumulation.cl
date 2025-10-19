@@ -30,23 +30,8 @@ __kernel void prefix_sum_02_prefix_accumulation(
         return;
     }
 
-    uint sum = 0;
-
-    if (i_shift_1 != 0) {
-        sum += pow2_sum1[i_shift_1 - 1] * (i_shift_1 & 1);
-    }
-
-    if (i_shift_2 != 0) {
-        sum += pow2_sum2[i_shift_2 - 1] * (i_shift_2 & 1);
-    }
-
-    if (i_shift_3 != 0) {
-        sum += pow2_sum3[i_shift_3 - 1] * (i_shift_3 & 1);
-    }
-
-    if (i_shift_4 != 0) {
-        sum += pow2_sum4[i_shift_4 - 1] * (i_shift_4 & 1);
-    }
-
-    prefix_sum_accum[i] += sum;
+    prefix_sum_accum[i] += pow2_sum1[i_shift_1 - (i_shift_1 != 0)] * (i_shift_1 & 1) * (i_shift_1 != 0) + 
+            pow2_sum2[i_shift_2 - (i_shift_2 != 0)] * (i_shift_2 & 1) * (i_shift_2 != 0) +    
+            pow2_sum3[i_shift_3 - (i_shift_3 != 0)] * (i_shift_3 & 1) * (i_shift_3 != 0) +
+            pow2_sum4[i_shift_4 - (i_shift_4 != 0)] * (i_shift_4 & 1) * (i_shift_4 != 0);
 }
