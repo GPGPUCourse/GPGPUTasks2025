@@ -37,10 +37,6 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
-    avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
-    avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
-    avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
-
     unsigned int n = 100*1000*1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
@@ -55,36 +51,29 @@ void run(int argc, char** argv)
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
-
+    
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
+        ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);    
+        auto input_ptr = &input_gpu;
+        auto output_ptr = &buffer1_pow2_sum_gpu;
+        for (int pw = 0; (1 << pw) <= n; pw++) {
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), *input_ptr, prefix_sum_accum_gpu, n, pw);
+            auto next_sz = n >> (pw + 1);
+            if (next_sz >= 1) {
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, next_sz), *input_ptr, *output_ptr, next_sz);
+            }
 
+            if (pw == 0) {
+                input_ptr = &buffer2_pow2_sum_gpu;
+            }
+
+            std::swap(input_ptr, output_ptr);
+        }
+        
         times.push_back(t.elapsed());
     }
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
