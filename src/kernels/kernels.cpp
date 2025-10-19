@@ -1,11 +1,11 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/prefix_sum.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
-#include "cl/generated_kernels/radix_sort_01_local_counting.h"
-#include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
-#include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
-#include "cl/generated_kernels/radix_sort_04_scatter.h"
+#include "cl/generated_kernels/copy.h"
+#include "cl/generated_kernels/radix_sort_map.h"
+#include "cl/generated_kernels/radix_sort_scatter.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
@@ -57,30 +57,32 @@ const ocl::ProgramBinaries& getAplusB()
     return opencl_binaries_aplusb;
 }
 
+const ProgramBinaries& getPrefixSum()
+{
+    return opencl_binaries_prefix_sum;
+}
+
 const ProgramBinaries& getFillBufferWithZeros()
 {
     return opencl_binaries_fill_buffer_with_zeros;
 }
 
-const ProgramBinaries& getRadixSort01LocalCounting()
+const ProgramBinaries& getCopy()
 {
-    return opencl_binaries_radix_sort_01_local_counting;
+    return opencl_binaries_copy;
 }
 
-const ProgramBinaries& getRadixSort02GlobalPrefixesScanSumReduction()
+const ProgramBinaries& getRadixSortMap()
 {
-    return opencl_binaries_radix_sort_02_global_prefixes_scan_sum_reduction;
+    return opencl_binaries_radix_sort_map;
 }
 
-const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation()
+const ProgramBinaries& getRadixSortScatter()
 {
-    return opencl_binaries_radix_sort_03_global_prefixes_scan_accumulation;
+    return opencl_binaries_radix_sort_scatter;
 }
 
-const ProgramBinaries& getRadixSort04Scatter()
-{
-    return opencl_binaries_radix_sort_04_scatter;
-}
+
 } // namespace ocl
 
 namespace avk2 {
