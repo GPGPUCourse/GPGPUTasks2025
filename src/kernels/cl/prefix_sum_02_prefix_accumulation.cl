@@ -22,7 +22,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
 
     if (local_idx < (GROUP_SIZE >> BATCH_LG)) {
         unsigned int pt = ((idx - local_idx) >> BATCH_LG) + local_idx - 1;
-        if (pt < n / 8) {
+        if (pt < (n >> BATCH_LG)) {
             data[local_idx] = buf2[pt];
         } else {
             data[local_idx] = 0;

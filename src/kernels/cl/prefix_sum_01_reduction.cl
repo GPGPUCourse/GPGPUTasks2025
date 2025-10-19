@@ -17,11 +17,11 @@ __kernel void prefix_sum_01_reduction(
     const unsigned int idx = get_global_id(0);
     const unsigned int local_idx = get_local_id(0);
 
-    if (idx >= n) {
-        return;
-    }
-
     if (n <= WARP_SIZE) { // then actually buf1 == buf2
+        if (idx >= n) {
+            return;
+        }
+
         data[idx] = buf1[idx];
 
         unsigned int local_pref_summ = 0;
@@ -31,9 +31,8 @@ __kernel void prefix_sum_01_reduction(
             --i;
         }
         buf2[idx] = local_pref_summ;
-
     } else {
-        data[local_idx] = buf1[idx];
+        data[local_idx] = (idx < n ? buf1[idx] : 0);
 
         unsigned int local_pref_summ = 0;
         unsigned int i = local_idx;
