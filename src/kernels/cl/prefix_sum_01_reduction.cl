@@ -14,7 +14,7 @@ prefix_sum_01_reduction(
     __global const unsigned int* input,
     __global unsigned int* partial_sums_out,
     __global unsigned int* group_sums_out,
-    unsigned long long n)
+    unsigned int n)
 {
     __local unsigned int local_data_buffer[CHUNK_SIZE];
     __local unsigned int local_sums_buffer[PADDED_INDEX(GROUP_SIZE)];
