@@ -86,6 +86,8 @@ prefix_sum_01_reduction(
 #pragma unroll
     for (int i = 0; i < ELEM_PER_THREAD; i++) {
         int global_idx = global_base_idx_striped + i * GROUP_SIZE;
-        partial_sums_out[global_idx] = local_data_buffer[local_id + i * GROUP_SIZE];
+        if (global_idx < n) {
+            partial_sums_out[global_idx] = local_data_buffer[local_id + i * GROUP_SIZE];
+        }
     }
 }
