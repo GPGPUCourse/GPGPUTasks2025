@@ -55,18 +55,23 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
-
-        gpu::WorkSize workSize(GROUP_SIZE, n);
-        gpu::WorkSize workSizeAccum(GROUP_SIZE, n / 2);
+        
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
             buffer1_pow2_sum_gpu.writeN(as.data(), n);
-            for (int pow2 = 0; (1 << pow2) <= n; pow2++) {
+            gpu::WorkSize workSizeAccum(GROUP_SIZE, n / 2);
+            
+            unsigned int k = (n + 1) / 2;
+            unsigned int prev_k = n;
+            for (int pow2 = 0; (1 << pow2) < n; pow2++) {
+                gpu::WorkSize workSizeReduction(GROUP_SIZE, k);
                 ocl_prefix_accumulation.exec(workSizeAccum, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
-                ocl_sum_reduction.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, n);
+                ocl_sum_reduction.exec(workSizeReduction, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, prev_k);
                 buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+                prev_k = k;
+                k = (k + 1) / 2;
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
