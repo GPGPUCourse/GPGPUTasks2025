@@ -63,7 +63,6 @@ void run(int argc, char** argv)
         timer t;
 
         gpu::WorkSize workSize(GROUP_SIZE, n);
-        prefix_sum_accum_gpu.writeN(as.data(), n);
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
@@ -76,6 +75,8 @@ void run(int argc, char** argv)
             
             // ocl_fill_with_zeros.exec(workSize, buffer1_pow2_sum_gpu, n);
             ocl_fill_with_zeros.exec(workSize, buffer2_pow2_sum_gpu, n);
+
+            input_gpu.copyToN(prefix_sum_accum_gpu, n);
 
             ocl_prefix_accumulation.exec(workSize, input_gpu, prefix_sum_accum_gpu, n, 0);
 
