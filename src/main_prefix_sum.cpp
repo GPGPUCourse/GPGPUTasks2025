@@ -65,10 +65,31 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             // ocl_fill_with_zeros.exec();
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
+            unsigned int maximal_pow2 = 0;
+            while ((1 << maximal_pow2) <= n) {
+                ++maximal_pow2;
+            }
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+            for (unsigned int pow2 = 0; pow2 <= maximal_pow2; ++pow2) {
+                auto prev_pow2_sum_gpu = (pow2 % 2 == 0) ? buffer1_pow2_sum_gpu : buffer2_pow2_sum_gpu;
+                auto cur_pow2_sum_gpu = (pow2 % 2 == 0) ? buffer2_pow2_sum_gpu : buffer1_pow2_sum_gpu;
+                if (pow2 == 0) {
+                    cur_pow2_sum_gpu = input_gpu;
+                } else {
+                    if (pow2 == 1) {
+                        prev_pow2_sum_gpu = input_gpu;
+                    }
+                    unsigned int prev_pow2 = pow2 - 1;
+                    unsigned int pow2_sum_count = div_ceil(n, (1u << prev_pow2));
+                    ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, pow2_sum_count), prev_pow2_sum_gpu, cur_pow2_sum_gpu, pow2_sum_count);
+                }
+
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(n, 2u)), cur_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
