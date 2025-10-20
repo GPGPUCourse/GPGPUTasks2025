@@ -11,7 +11,7 @@ prefix_sum_02_prefix_accumulation(
     __global const unsigned int* partial_sums_in,
     __global const unsigned int* offsets_in,
     __global unsigned int* final_sums_out,
-    int n)
+    unsigned long long n)
 {
     int thread_idx = get_global_id(0);
     int base_global_idx = thread_idx * ELEM_PER_THREAD;

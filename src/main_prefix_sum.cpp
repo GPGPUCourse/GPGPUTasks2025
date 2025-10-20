@@ -36,7 +36,7 @@ void run(int argc, char** argv)
     }
 
     // Некоторые размеры
-    size_t l1_size = n, // ~100 миллионов
+    unsigned long long l1_size = n, // ~100 миллионов
         l2_size = (l1_size + CHUNK_SIZE - 1) / CHUNK_SIZE, // ~195 тыс
         l3_size = (l2_size + CHUNK_SIZE - 1) / CHUNK_SIZE, // 381
         l4_size = (l3_size + CHUNK_SIZE - 1) / CHUNK_SIZE; // 1

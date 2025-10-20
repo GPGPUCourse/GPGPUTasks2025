@@ -5,16 +5,19 @@
 #include "../defines.h"
 #include "helpers/rassert.cl"
 
+#define LOCAL_MEM_BANKS 32
+#define PADDED_INDEX(idx) ((idx) + (idx) / LOCAL_MEM_BANKS)
+
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
 prefix_sum_01_reduction(
     __global const unsigned int* input,
     __global unsigned int* partial_sums_out,
     __global unsigned int* group_sums_out,
-    int n)
+    unsigned long long n)
 {
     __local unsigned int local_data_buffer[CHUNK_SIZE];
-    __local unsigned int local_sums_buffer[GROUP_SIZE];
+    __local unsigned int local_sums_buffer[PADDED_INDEX(GROUP_SIZE)];
 
     int local_id = get_local_id(0);
     int group_id = get_group_id(0);
@@ -22,7 +25,7 @@ prefix_sum_01_reduction(
     int global_base_idx_striped = group_id * CHUNK_SIZE + local_id;
 #pragma unroll
     for (int i = 0; i < ELEM_PER_THREAD; i++) {
-        int global_idx = global_base_idx_striped + i * GROUP_SIZE;
+        unsigned long long global_idx = global_base_idx_striped + i * GROUP_SIZE;
         local_data_buffer[local_id + i * GROUP_SIZE] = (global_idx < n) ? input[global_idx] : 0;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -40,14 +43,14 @@ prefix_sum_01_reduction(
         my_elements[i] = running_sum;
     }
 
-    local_sums_buffer[local_id] = running_sum;
+    local_sums_buffer[PADDED_INDEX(local_id)] = running_sum;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     int offset = 1;
     for (int d = GROUP_SIZE >> 1; d > 0; d >>= 1) {
         if (local_id < d) {
-            int ai = offset * (2 * local_id + 1) - 1;
-            int bi = offset * (2 * local_id + 2) - 1;
+            int ai = PADDED_INDEX(offset * (2 * local_id + 1) - 1);
+            int bi = PADDED_INDEX(offset * (2 * local_id + 2) - 1);
             local_sums_buffer[bi] += local_sums_buffer[ai];
         }
         offset *= 2;
@@ -55,16 +58,16 @@ prefix_sum_01_reduction(
     }
 
     if (local_id == 0) {
-        group_sums_out[group_id] = local_sums_buffer[GROUP_SIZE - 1];
-        local_sums_buffer[GROUP_SIZE - 1] = 0;
+        group_sums_out[group_id] = local_sums_buffer[PADDED_INDEX(GROUP_SIZE - 1)];
+        local_sums_buffer[PADDED_INDEX(GROUP_SIZE - 1)] = 0;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
     for (int d = 1; d < GROUP_SIZE; d *= 2) {
         offset >>= 1;
         if (local_id < d) {
-            int ai = offset * (2 * local_id + 1) - 1;
-            int bi = offset * (2 * local_id + 2) - 1;
+            int ai = PADDED_INDEX(offset * (2 * local_id + 1) - 1);
+            int bi = PADDED_INDEX(offset * (2 * local_id + 2) - 1);
             unsigned int temp = local_sums_buffer[ai];
             local_sums_buffer[ai] = local_sums_buffer[bi];
             local_sums_buffer[bi] += temp;
@@ -72,7 +75,7 @@ prefix_sum_01_reduction(
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    unsigned int thread_offset = local_sums_buffer[local_id];
+    unsigned int thread_offset = local_sums_buffer[PADDED_INDEX(local_id)];
 
 #pragma unroll
     for (int i = 0; i < ELEM_PER_THREAD; i++) {
