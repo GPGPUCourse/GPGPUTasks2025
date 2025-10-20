@@ -13,5 +13,12 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    size_t gx = get_global_id(0); // in [0, w)
+    size_t gy = get_global_id(1); // in [0, h)
+
+    float sum = 0.0;
+    for (int j = 0; j < k; ++j) {
+        sum += a[gy * k + j] * b[j * w + gx];
+    }
+    c[gy * w + gx] = sum;
 }
