@@ -64,11 +64,20 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            gpu::WorkSize work_size(GROUP_SIZE, n);
+            buffer1_pow2_sum_gpu.writeN(as.data(), n);
+            ocl_fill_with_zeros.exec(work_size, prefix_sum_accum_gpu, n);
+            unsigned int pow2 = 0;
+            unsigned int bufferSize = n;
+            while (bufferSize > 1) {
+                unsigned int reduction_grpup_size = (bufferSize + GROUP_SIZE - 1) / GROUP_SIZE * GROUP_SIZE;
+                gpu::WorkSize reduction_work_size(reduction_grpup_size, 1);
+                ocl_prefix_accumulation.exec(work_size, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+                ocl_sum_reduction.exec(work_size, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, bufferSize);
+                std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
+                pow2++;
+                bufferSize = (bufferSize + 1)/2;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
