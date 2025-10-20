@@ -5,7 +5,7 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(256, 1, 1)))
 __kernel void prefix_sum_02_prefix_accumulation(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
@@ -14,5 +14,17 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int n,
     unsigned int pow2)
 {
-    // TODO
+    const unsigned int index = get_global_id(0);
+
+    if (index >= n) {
+        return;
+    }
+
+    const unsigned int mask = 1 << pow2;
+
+    if ((mask & index) == 0) {
+        return;
+    }
+
+    prefix_sum_accum[index] += pow2_sum[(index >> pow2) - 1];
 }
