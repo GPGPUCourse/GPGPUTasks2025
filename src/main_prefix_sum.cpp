@@ -76,7 +76,7 @@ void run(int argc, char** argv)
             }
             {
                 timer tt;
-                size_t reduced_n = n / GROUP_SIZE + 1;
+                unsigned int reduced_n = n / GROUP_SIZE + 1;
                 // level=1: [0, 1] -> 1,    [2, 3] -> 3,    [4, 5] -> 5
                 // level=2: [1, 3] -> 3,    [5, 7] -> 7,    [9, 11] -> 11
                 for (unsigned int level = 1; level < reduced_n; level *= 2) {
