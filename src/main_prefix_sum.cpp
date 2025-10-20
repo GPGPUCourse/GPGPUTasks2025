@@ -20,28 +20,13 @@ void run(int argc, char** argv)
     //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
-    // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
-    // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
-    // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
-    // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
-    //          если же вас это не останавливает - профилировщик (nsight-systems) при запуске на NVIDIA тоже работает (хоть и менее мощный чем nsight-compute)
-    //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
-    //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
+    // ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
-    avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
-    avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
-    avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
-
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -50,40 +35,66 @@ void run(int argc, char** argv)
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
 
+    // Некоторые размеры
+    size_t l1_size = n, // ~100 миллионов
+        l2_size = (l1_size + CHUNK_SIZE - 1) / CHUNK_SIZE, // ~195 тыс
+        l3_size = (l2_size + CHUNK_SIZE - 1) / CHUNK_SIZE, // 381
+        l4_size = (l3_size + CHUNK_SIZE - 1) / CHUNK_SIZE; // 1
+
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u
+        input_gpu(n), // входные данные, ~100 миллионов
+        final_sums_l1(n), // здесь будет результат
+        partial_sums_l1(l1_size), // тут группы, в каждой рассчитана её собственная префиксная сумма
+        group_sums_l1(l2_size), // тут для каждой группы лежит её сумма, ~195 тыс элементов
+
+        final_sums_l2(l2_size),
+        partial_sums_l2(l2_size), // и аналогично считаем префиксные суммы среди сумм групп
+        group_sums_l2(l3_size), // делим l2 на чанки, для каждого чанка считаем префиксные суммы
+
+        final_sums_l3(l3_size), // и ещё раз
+        partial_sums_l3(l3_size),
+        group_sums_l3(l4_size),
+
+        partial_sums_l4(l4_size), // наконец-то закончили
+        group_sums_l4(l4_size);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
+
+    auto get_thread_count = [](size_t n_elements) {
+        return (n_elements + ELEM_PER_THREAD - 1) / ELEM_PER_THREAD;
+    };
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
+        // Подъем
+        ocl_sum_reduction.exec(
+            gpu::WorkSize(GROUP_SIZE, l2_size * GROUP_SIZE),
+            input_gpu, partial_sums_l1, group_sums_l1, l1_size);
+        ocl_sum_reduction.exec(
+            gpu::WorkSize(GROUP_SIZE, l3_size * GROUP_SIZE),
+            group_sums_l1, partial_sums_l2, group_sums_l2, l2_size);
+        ocl_sum_reduction.exec(
+            gpu::WorkSize(GROUP_SIZE, l4_size * GROUP_SIZE),
+            group_sums_l2, partial_sums_l3, group_sums_l3, l3_size);
+        ocl_sum_reduction.exec(
+            gpu::WorkSize(GROUP_SIZE, l4_size * GROUP_SIZE),
+            group_sums_l3, partial_sums_l4, group_sums_l4, l4_size);
+
+        // Спуск
+        ocl_prefix_accumulation.exec(
+            gpu::WorkSize(GROUP_SIZE, get_thread_count(l3_size)),
+            partial_sums_l3, partial_sums_l4, final_sums_l3, l3_size);
+        ocl_prefix_accumulation.exec(
+            gpu::WorkSize(GROUP_SIZE, get_thread_count(l2_size)),
+            partial_sums_l2, final_sums_l3, final_sums_l2, l2_size);
+        ocl_prefix_accumulation.exec(
+            gpu::WorkSize(GROUP_SIZE, get_thread_count(l1_size)),
+            partial_sums_l1, final_sums_l2, final_sums_l1, l1_size);
 
         times.push_back(t.elapsed());
     }
@@ -94,7 +105,7 @@ void run(int argc, char** argv)
     std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
+    std::vector<unsigned int> gpu_prefix_sum = final_sums_l1.readVector();
 
     // Сверяем результат
     size_t cpu_sum = 0;
@@ -119,7 +130,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
