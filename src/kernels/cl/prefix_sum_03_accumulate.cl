@@ -29,6 +29,7 @@ __kernel void prefix_sum_03_accumulate(
             }
         }
     }
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (local_idx < 32) {
         if (buf2[local_idx] != 0) {
             buf2[local_idx] = sparse[buf2[local_idx] - 1];
