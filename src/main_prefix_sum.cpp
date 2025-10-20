@@ -36,6 +36,9 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
+    ocl::KernelSource ocl_scan_block(ocl::getScanBlock());
+    ocl::KernelSource ocl_uniform_add(ocl::getUniformAdd());
+
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
@@ -69,27 +72,78 @@ void run(int argc, char** argv)
             // ocl_fill_with_zeros.exec();
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
-            unsigned int maximal_pow2 = 0;
-            while ((1 << maximal_pow2) <= n) {
-                ++maximal_pow2;
-            }
-            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
-            for (unsigned int pow2 = 0; pow2 <= maximal_pow2; ++pow2) {
-                auto prev_pow2_sum_gpu = (pow2 % 2 == 0) ? buffer1_pow2_sum_gpu : buffer2_pow2_sum_gpu;
-                auto cur_pow2_sum_gpu = (pow2 % 2 == 0) ? buffer2_pow2_sum_gpu : buffer1_pow2_sum_gpu;
-                if (pow2 == 0) {
-                    cur_pow2_sum_gpu = input_gpu;
-                } else {
-                    if (pow2 == 1) {
-                        prev_pow2_sum_gpu = input_gpu;
-                    }
-                    unsigned int prev_pow2 = pow2 - 1;
-                    unsigned int pow2_sum_count = div_ceil(n, (1u << prev_pow2));
-                    ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, pow2_sum_count), prev_pow2_sum_gpu, cur_pow2_sum_gpu, pow2_sum_count);
-                }
+            const unsigned WG = GROUP_SIZE;
+            const unsigned ITEMS_PER_BLOCK = 2u * WG;
+            const unsigned blocks_L0 = (n + ITEMS_PER_BLOCK - 1) / ITEMS_PER_BLOCK;
 
-                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(n, 2u)), cur_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+            auto& out0 = prefix_sum_accum_gpu;
+            gpu::gpu_mem_32u block_sums_L0(blocks_L0);
+
+            ocl_scan_block.exec(gpu::WorkSize(WG, blocks_L0 * WG),
+                                input_gpu,
+                                out0,
+                                block_sums_L0,
+                                n);
+
+            struct Level {
+                gpu::gpu_mem_32u out;
+                gpu::gpu_mem_32u sums_next;
+                unsigned elems = 0;
+            };
+
+            std::vector<Level> levels;
+
+            {
+                Level L;
+                L.elems = blocks_L0;
+                if (L.elems > 0) {
+                    const unsigned nb = (L.elems + ITEMS_PER_BLOCK - 1) / ITEMS_PER_BLOCK;
+                    L.out       = gpu::gpu_mem_32u(L.elems);
+                    L.sums_next = gpu::gpu_mem_32u(nb);
+
+                    ocl_scan_block.exec(gpu::WorkSize(WG, nb * WG),
+                                        block_sums_L0,
+                                        L.out,
+                                        L.sums_next,
+                                        L.elems);
+                }
+                levels.push_back(std::move(L));
             }
+
+            while (levels.back().elems > ITEMS_PER_BLOCK) {
+                const Level& prev = levels.back();
+
+                Level L;
+                L.elems = (prev.elems + ITEMS_PER_BLOCK - 1) / ITEMS_PER_BLOCK;
+                const unsigned nb = (L.elems + ITEMS_PER_BLOCK - 1) / ITEMS_PER_BLOCK;
+
+                L.out       = gpu::gpu_mem_32u(L.elems);
+                L.sums_next = gpu::gpu_mem_32u(nb);
+
+                ocl_scan_block.exec(gpu::WorkSize(WG, nb * WG),
+                                    prev.sums_next,
+                                    L.out,
+                                    L.sums_next,
+                                    L.elems);
+
+                levels.push_back(std::move(L));
+            }
+
+            for (int li = (int)levels.size() - 1; li >= 1; --li) {
+                const unsigned blocks = (levels[li - 1].elems + ITEMS_PER_BLOCK - 1) / ITEMS_PER_BLOCK;
+                ocl_uniform_add.exec(gpu::WorkSize(WG, blocks * WG),
+                                     levels[li - 1].out,
+                                     levels[li].out,
+                                     levels[li - 1].elems);
+            }
+
+            if (levels[0].elems > 0) {
+                ocl_uniform_add.exec(gpu::WorkSize(WG, blocks_L0 * WG),
+                                     out0,
+                                     levels[0].out,
+                                     n);
+            }
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
