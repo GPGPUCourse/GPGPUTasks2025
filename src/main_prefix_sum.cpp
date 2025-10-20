@@ -68,7 +68,7 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1000; ++iter) {
         timer t;
 
         // Подъем
