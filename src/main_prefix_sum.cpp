@@ -59,7 +59,8 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+            gpu::WorkSize workSizeFillZeros(GROUP_SIZE, n);
+            ocl_fill_with_zeros.exec(workSizeFillZeros, prefix_sum_accum_gpu, n);
             buffer1_pow2_sum_gpu.writeN(as.data(), n);
             gpu::WorkSize workSizeAccum(GROUP_SIZE, n / 2);
             
