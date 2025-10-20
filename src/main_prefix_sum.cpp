@@ -61,22 +61,31 @@ void run(int argc, char** argv)
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
+        input_gpu.copyToN(buffer1_pow2_sum_gpu, n);
+        
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            gpu::WorkSize workSize(GROUP_SIZE, n);
+            unsigned int offset = 1;
+            bool ping = true;
+            
+            while (offset < n) {
+                if (ping) {
+                    ocl_prefix_accumulation.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, n, offset);
+                } else {
+                    ocl_prefix_accumulation.exec(workSize, buffer2_pow2_sum_gpu, buffer1_pow2_sum_gpu, n, offset);
+                }
+                offset *= 2;
+                ping = !ping;
+            }
+            
+            if (ping) {
+                buffer1_pow2_sum_gpu.copyToN(prefix_sum_accum_gpu, n);
+            } else {
+                buffer2_pow2_sum_gpu.copyToN(prefix_sum_accum_gpu, n);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
         } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             // vk_fill_with_zeros.exec();
             // vk_sum_reduction.exec();
