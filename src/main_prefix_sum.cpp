@@ -60,29 +60,22 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
+        gpu::WorkSize workSize(GROUP_SIZE, n);
+        ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+        auto buffer1_ptr = &buffer1_pow2_sum_gpu;
+        auto buffer2_ptr = &buffer2_pow2_sum_gpu;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+
+        unsigned int k = 2;
+        unsigned int size = (n + 1) / 2;
+        ocl_sum_reduction.exec(workSize, input_gpu, *buffer1_ptr, n, 1);
+        ocl_prefix_accumulation.exec(workSize, *buffer1_ptr, prefix_sum_accum_gpu, n, 1);
+        while (k < n) {
+            ocl_sum_reduction.exec(workSize, *buffer1_ptr, *buffer2_ptr, size, 0);
+            ocl_prefix_accumulation.exec(workSize, *buffer2_ptr, prefix_sum_accum_gpu, n, k);
+            std::swap(buffer1_ptr, buffer2_ptr);
+            k *= 2;
+            size = (size + 1) / 2;
         }
 
         times.push_back(t.elapsed());
