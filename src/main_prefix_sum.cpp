@@ -33,9 +33,10 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
+    // ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
+    ocl::KernelSource ocl_copy_with_offset(ocl::getCopyWithOffset());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
@@ -51,24 +52,29 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+
+    const unsigned int pow2_size = 1 << (32 - __builtin_clz(n));
+    gpu::gpu_mem_32u input_gpu(n), buffer1_gpu(pow2_size * 2), buffer2_gpu(pow2_size * 2), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            ocl_copy_with_offset.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1_gpu, n, 0, pow2_size);
+            for(uint m = pow2_size >> 1; m > 1; m >>= 1) {
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, m), buffer1_gpu, m, m);
+            }
+            for(uint m = 2; m <= pow2_size; m <<= 1) {
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, m), buffer1_gpu, buffer2_gpu, m, m);
+            }
+            ocl_copy_with_offset.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_gpu, prefix_sum_accum_gpu, n, pow2_size+1, 0);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
