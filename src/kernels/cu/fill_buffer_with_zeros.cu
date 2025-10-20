@@ -8,12 +8,16 @@
 #include "../defines.h"
 
 __global__ void fill_buffer_with_zeros(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     unsigned int* buffer,
     unsigned int n)
 {
-    // TODO
+    unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx >= n) {
+        return;
+    }
+
+    buffer[idx] = 0;
 }
 
 namespace cuda {
