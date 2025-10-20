@@ -5,7 +5,6 @@
 #include "cl/generated_kernels/reduce_block_sums.h"
 #include "cl/generated_kernels/scan_block_inclusive.h"
 
-#include "vk/generated_kernels/add_block_offsets_comp.h"
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
 #include "vk/generated_kernels/prefix_sum_01_reduction_comp.h"
@@ -94,8 +93,4 @@ const ProgramBinaries& getScanBlockInclusive()
     return vulkan_binaries_scan_block_inclusive_comp;
 }
 
-const ProgramBinaries& getAddBlockOffsets()
-{
-    return vulkan_binaries_add_block_offsets_comp;
-}
 } // namespace avk2
