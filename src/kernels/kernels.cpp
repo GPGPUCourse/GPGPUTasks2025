@@ -24,7 +24,7 @@ void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void prefix_sum_01_sum_reduction(const gpu::WorkSize &workSize,
+void prefix_sum_01_reduction(const gpu::WorkSize &workSize,
             const gpu::gpu_mem_32u &pow2_sum, gpu::gpu_mem_32u &next_pow2_sum, unsigned int n)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
