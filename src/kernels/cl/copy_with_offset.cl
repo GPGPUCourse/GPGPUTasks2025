@@ -6,13 +6,15 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void fill_buffer_with_zeros(
-    __global uint* buffer,
-    unsigned int n)
+__kernel void copy_with_offset(
+    __global const uint* a,
+    __global       uint* b, 
+    unsigned int n,
+    unsigned int offset_a,
+    unsigned int offset_b)
 {
-    uint id = get_global_id(0);
-    if (id >= n) {
-        return;
+    uint i = get_global_id(0);
+    if (i < n) {
+        b[offset_b + i] = a[offset_a + i];
     }
-    buffer[id] = 0;
 }
