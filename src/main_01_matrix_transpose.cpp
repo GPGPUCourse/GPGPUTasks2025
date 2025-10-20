@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -47,7 +47,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32f input_matrix_gpu (h * w); // rows=H x cols=W
+    gpu::gpu_mem_32f input_matrix_gpu(h * w); // rows=H x cols=W
     gpu::gpu_mem_32f output_matrix_gpu(w * h); // rows=W x cols=H
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -58,6 +58,8 @@ void run(int argc, char** argv)
         "02 transpose via local memory (coalesced)",
     };
 
+    std::vector zeros(w * h, 0.0f);
+
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
         const std::string& algorithm = algorithm_names[algorithm_index];
         std::cout << "______________________________________________________" << std::endl;
@@ -66,15 +68,16 @@ void run(int argc, char** argv)
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
+            output_matrix_gpu.writeN(zeros.data(), w * h); // очищаем выходной буфер перед каждым запуском, но не учитываем при подсчете времени исполнения
             timer t;
 
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
-            // _______________________________OpenCL_____________________________________________
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED); // TODO remove me
+            //  _______________________________OpenCL_____________________________________________
             if (context.type() == gpu::Context::TypeOpenCL) {
                 if (algorithm == "01 naive transpose (non-coalesced)") {
                     ocl_matrix01TransposeNaive.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
-                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
+                    ocl_matrix02TransposeCoalescedViaLocalMemory.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), input_matrix_gpu, output_matrix_gpu, w, h);
                 } else {
                     rassert(false, 652345234321, algorithm, algorithm_index);
                 }
@@ -92,7 +95,7 @@ void run(int argc, char** argv)
                 struct {
                     unsigned int w;
                     unsigned int h;
-                } params = {w, h};
+                } params = { w, h };
                 if (algorithm == "01 naive transpose (non-coalesced)") {
                     vk_matrix01TransposeNaive.exec(params, gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
