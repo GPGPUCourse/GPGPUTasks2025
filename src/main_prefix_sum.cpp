@@ -41,7 +41,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -64,11 +64,42 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, n);
+
+            unsigned int len = n;
+            unsigned int k = 0;
+
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, n, k);
+            ++k;
+
+            auto* buf1 = &buffer1_pow2_sum_gpu;
+            auto* buf2 = &buffer2_pow2_sum_gpu;
+            auto* src = &input_gpu; // на входе у нас исходный массив
+            auto* dst = buf1;
+
+            while (len > 1) {
+                const unsigned int next_len = (len + 1) / 2;
+
+                if (k == 1) {
+                    src = &input_gpu;
+                    dst = buf1;
+                } else if (k % 2 == 0) {
+                    src = buf1;
+                    dst = buf2;
+                } else {
+                    src = buf2;
+                    dst = buf1;
+                }
+
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, next_len), *src, *dst, next_len);
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), *dst, prefix_sum_accum_gpu, n, k);
+
+                len = next_len;
+                ++k;
+            }
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -119,7 +150,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
