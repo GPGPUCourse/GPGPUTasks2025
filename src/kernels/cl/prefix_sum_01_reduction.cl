@@ -31,6 +31,7 @@ __kernel void prefix_sum_01_reduction(
     //     printf("group : %ld\n", group);
     // }
     // build segment tree
+    #pragma unroll
     for (unsigned int l = GROUP_SIZE, r = (2 * GROUP_SIZE - 1); l != 0; l /= 2, r /= 2) {
         if (thr >= l && thr <= r)
             tree[thr] = tree[2 * thr] + tree[2 * thr + 1];
@@ -57,6 +58,7 @@ __kernel void prefix_sum_01_reduction(
     // }
 
     // build prefix sums
+    #pragma unroll
     for (unsigned int l = 1, r = 1; l != GROUP_SIZE; l <<= 1, r = (r << 1) + 1) {
         if (thr >= l && thr <= r) {
             tree[thr * 2 + 1] = tree[thr] + tree[thr * 2];
