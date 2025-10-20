@@ -8,6 +8,7 @@
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
 
+#include <cuda_runtime_api.h>
 #include <fstream>
 
 void run(int argc, char** argv)
@@ -25,7 +26,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -70,8 +71,20 @@ void run(int argc, char** argv)
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            gpu::WorkSize workGroup{GROUP_SIZE, n};
+            input_gpu.copyToN(buffer1_pow2_sum_gpu, n);
+            cuda::fill_buffer_with_zeros(workGroup, prefix_sum_accum_gpu, n);
+            cuda::fill_buffer_with_zeros(workGroup, buffer2_pow2_sum_gpu, n);
+
+            cuda::prefix_sum_02_prefix_accumulation(workGroup, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, 1);
+            unsigned int size = n;
+            for (unsigned int pow = 2; pow < n; pow <<= 1) {
+                gpu::WorkSize workGroup2(GROUP_SIZE, size);
+                cuda::prefix_sum_01_sum_reduction(workGroup2, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, size);
+                cuda::prefix_sum_02_prefix_accumulation(workGroup, buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow);
+                buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+                size = (size + 1) / 2;
+            }
             // cuda::fill_buffer_with_zeros();
             // cuda::prefix_sum_01_sum_reduction();
             // cuda::prefix_sum_02_prefix_accumulation();
