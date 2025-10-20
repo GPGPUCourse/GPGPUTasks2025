@@ -29,6 +29,17 @@ prefix_sum_01_reduction(
         local_data_buffer[local_id + i * GROUP_SIZE] = (global_idx < n) ? input[global_idx] : 0;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
+
+#if ELEM_PER_THREAD == 4
+    __local uint4* local_data_as_uint4 = (__local uint4*)local_data_buffer;
+    uint4 my_elements_vec = local_data_as_uint4[local_id];
+
+    my_elements_vec.y += my_elements_vec.x;
+    my_elements_vec.z += my_elements_vec.y;
+    my_elements_vec.w += my_elements_vec.z;
+
+    unsigned int running_sum = my_elements_vec.w;
+#else
     int local_base_idx_sequential = local_id * ELEM_PER_THREAD;
     unsigned int my_elements[ELEM_PER_THREAD];
 #pragma unroll
@@ -42,6 +53,7 @@ prefix_sum_01_reduction(
         running_sum += my_elements[i];
         my_elements[i] = running_sum;
     }
+#endif
 
     local_sums_buffer[PADDED_INDEX(local_id)] = running_sum;
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -77,10 +89,15 @@ prefix_sum_01_reduction(
 
     unsigned int thread_offset = local_sums_buffer[PADDED_INDEX(local_id)];
 
+#if ELEM_PER_THREAD == 4
+    my_elements_vec += (uint4)(thread_offset);
+    local_data_as_uint4[local_id] = my_elements_vec;
+#else
 #pragma unroll
     for (int i = 0; i < ELEM_PER_THREAD; i++) {
         local_data_buffer[local_base_idx_sequential + i] = my_elements[i] + thread_offset;
     }
+#endif
     barrier(CLK_LOCAL_MEM_FENCE);
 
 #pragma unroll
