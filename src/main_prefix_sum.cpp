@@ -72,15 +72,15 @@ void run(int argc, char** argv)
             uint curr_size = n;
             uint pow = 0;
             
-            const auto& buff_1 = buffer1_pow2_sum_gpu;
-            const auto& buff_2 = buffer2_pow2_sum_gpu;
+            auto& buff_1 = buffer1_pow2_sum_gpu;
+            auto& buff_2 = buffer2_pow2_sum_gpu;
             ocl_prefix_accumulation.exec(work_size, buff_2, prefix_sum_accum_gpu, n, pow);
             while (n >= (1 << ++pow)) {
                 gpu::WorkSize red_size(GROUP_SIZE, curr_size);
-                ocl_sum_reduction.exec(red_size, buff_1, buff_2, curr_size);
+                ocl_sum_reduction.exec(red_size, buff_2, buff_1, curr_size);
                 curr_size = (curr_size + 1) / 2;
 
-                ocl_prefix_accumulation.exec(work_size, buff_2, prefix_sum_accum_gpu, n, pow);
+                ocl_prefix_accumulation.exec(work_size, buff_1, prefix_sum_accum_gpu, n, pow);
                 std::swap(buff_1, buff_2);
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
