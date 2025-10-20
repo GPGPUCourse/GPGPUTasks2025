@@ -1,9 +1,9 @@
 #include "kernels.h"
 
+#include "cl/generated_kernels/add_block_offsets.h"
 #include "cl/generated_kernels/aplusb.h"
-#include "cl/generated_kernels/fill_buffer_with_zeros.h"
-#include "cl/generated_kernels/prefix_sum_01_reduction.h"
-#include "cl/generated_kernels/prefix_sum_02_prefix_accumulation.h"
+#include "cl/generated_kernels/reduce_block_sums.h"
+#include "cl/generated_kernels/scan_block_inclusive.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
@@ -18,20 +18,20 @@ void aplusb(const gpu::WorkSize& workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
-            gpu::gpu_mem_32u &buffer, unsigned int n)
+void fill_buffer_with_zeros(const gpu::WorkSize& workSize,
+    gpu::gpu_mem_32u& buffer, unsigned int n)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void prefix_sum_01_sum_reduction(const gpu::WorkSize &workSize,
-            const gpu::gpu_mem_32u &pow2_sum, gpu::gpu_mem_32u &next_pow2_sum, unsigned int n)
+void prefix_sum_01_sum_reduction(const gpu::WorkSize& workSize,
+    const gpu::gpu_mem_32u& pow2_sum, gpu::gpu_mem_32u& next_pow2_sum, unsigned int n)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void prefix_sum_02_prefix_accumulation(const gpu::WorkSize &workSize,
-            const gpu::gpu_mem_32u &pow2_sum, gpu::gpu_mem_32u &prefix_sum_accum, unsigned int n, unsigned int pow2)
+void prefix_sum_02_prefix_accumulation(const gpu::WorkSize& workSize,
+    const gpu::gpu_mem_32u& pow2_sum, gpu::gpu_mem_32u& prefix_sum_accum, unsigned int n, unsigned int pow2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 546237686412414);
@@ -45,19 +45,19 @@ const ocl::ProgramBinaries& getAplusB()
     return opencl_binaries_aplusb;
 }
 
-const ProgramBinaries& getFillBufferWithZeros()
+const ProgramBinaries& getReduceBlockSums()
 {
-    return opencl_binaries_fill_buffer_with_zeros;
+    return opencl_binaries_reduce_block_sums;
 }
 
-const ProgramBinaries& getPrefixSum01Reduction()
+const ProgramBinaries& getScanBlockInclusive()
 {
-    return opencl_binaries_prefix_sum_01_reduction;
+    return opencl_binaries_scan_block_inclusive;
 }
 
-const ProgramBinaries& getPrefixSum02PrefixAccumulation()
+const ProgramBinaries& getAddBlockOffsets()
 {
-    return opencl_binaries_prefix_sum_02_prefix_accumulation;
+    return opencl_binaries_add_block_offsets;
 }
 } // namespace ocl
 
@@ -81,4 +81,5 @@ const ProgramBinaries& getPrefixSum02PrefixAccumulation()
 {
     return vulkan_binaries_prefix_sum_02_prefix_accumulation_comp;
 }
+
 } // namespace avk2
