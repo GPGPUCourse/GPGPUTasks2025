@@ -64,11 +64,26 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            gpu::WorkSize work_size(GROUP_SIZE, n);
+            ocl_fill_with_zeros.exec(work_size, prefix_sum_accum_gpu, n);
+            ocl_prefix_accumulation.exec(work_size, input_gpu, prefix_sum_accum_gpu, n, 1);
+            ocl_sum_reduction.exec(work_size, input_gpu, buffer1_pow2_sum_gpu, n);
+
+            uint cur_size = (n + 1) >> 1;
+            uint pow2 = 2;
+
+            gpu::gpu_mem_32u* buf1 = &buffer1_pow2_sum_gpu;
+            gpu::gpu_mem_32u* buf2 = &buffer2_pow2_sum_gpu;
+
+            while (pow2 < n) {
+                ocl_prefix_accumulation.exec(work_size, *buf1, prefix_sum_accum_gpu, n, pow2);
+                gpu::WorkSize cur_work_size(GROUP_SIZE, cur_size);
+                ocl_sum_reduction.exec(cur_work_size, *buf1, *buf2, cur_size);
+
+                std::swap(buf1, buf2);
+                cur_size >>= 1;
+                pow2 <<= 1;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -119,7 +134,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
