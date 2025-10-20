@@ -39,16 +39,11 @@ void run(int argc, char** argv)
     unsigned int n = 100*1000*1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
-    std::cout << "as prefix:\n";
     for (size_t i = 0; i < n; ++i) {
         as[i] = (3 * (i + 5) + 7) % 17;
-        if (i < 10) {
-            std::cout << as[i] << ' ';
-        }
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
-    std::cout << "\n";
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
