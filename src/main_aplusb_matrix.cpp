@@ -81,7 +81,17 @@
             std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
             // TODO Удалите этот rassert - вычислите достигнутую эффективную пропускную способность видеопамяти
-            // rassert(false, 54623414231);
+
+            const size_t sizeof_liliput = sizeof(unsigned int);
+            const size_t all_liliputs = static_cast<size_t>(width) * height;
+            const size_t all_liliputs_read = 2 * all_liliputs * sizeof_liliput;
+            const size_t all_liliputs_written = all_liliputs * sizeof_liliput;
+            const size_t all_data_bytes = all_liliputs_read + all_liliputs_written;
+
+            double median_t_s = stats::median(times);
+            double bandwidth = static_cast<double>(all_data_bytes) / median_t_s;
+            std::cout << bandwidth / (1024.0 * 1024.0 * 1024.0) << "GB/s" << std::endl;
+
 
             // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
             std::vector<unsigned int> cs(width * height, 0);
@@ -107,11 +117,24 @@
 
                 times.push_back(t.elapsed());
             }
+
+            const size_t sizeof_liliput = sizeof(unsigned int);
+            const size_t all_liliputs = static_cast<size_t>(width) * height;
+            const size_t all_liliputs_read = 2 * all_liliputs * sizeof_liliput;
+            const size_t all_liliputs_written = all_liliputs * sizeof_liliput;
+            const size_t all_data_bytes = all_liliputs_read + all_liliputs_written;
+
+            double median_t_s = stats::median(times);
+            double bandwidth = static_cast<double>(all_data_bytes) / median_t_s;
+            std::cout << bandwidth / (1024.0 * 1024.0 * 1024.0) << "GB/s" << std::endl;
+
             std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
             // TODO Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
             std::vector<unsigned int> cs(width * height, 0);
             c_gpu.readN(cs.data(), width*height);
+
+
 
             // Сверяем результат
             for (size_t i = 0; i < width * height; ++i) {
