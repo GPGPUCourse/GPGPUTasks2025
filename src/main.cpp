@@ -31,22 +31,22 @@ void reportError(cl_int err, const std::string &filename, int line)
 void printDeviceType(cl_device_type type) {
     switch (type) {
         case CL_DEVICE_TYPE_CPU:
-            std::cout << "    Device type: CPU" << std::endl;
+            std::cout << "        Device type: CPU" << std::endl;
             break;
         case CL_DEVICE_TYPE_GPU:
-            std::cout << "    Device type: GPU" << std::endl;
+            std::cout << "        Device type: GPU" << std::endl;
             break;
         case CL_DEVICE_TYPE_ACCELERATOR:
-            std::cout << "    Device type: ACCELERATOR" << std::endl;
+            std::cout << "        Device type: ACCELERATOR" << std::endl;
             break;
         case CL_DEVICE_TYPE_DEFAULT:
-            std::cout << "    Device type: DEFAULT" << std::endl;
+            std::cout << "        Device type: DEFAULT" << std::endl;
             break;
         case CL_DEVICE_TYPE_CUSTOM:
-            std::cout << "    Device type: CUSTOM" << std::endl;
+            std::cout << "        Device type: CUSTOM" << std::endl;
             break;
         default:
-            std::cout << "    Device type: UNKNOWN" << std::endl;
+            std::cout << "        Device type: UNKNOWN" << std::endl;
             break;
     }
 }
@@ -111,6 +111,7 @@ int main()
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
         OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+        std::cout << "    Number of devices: " << devicesCount << std::endl;
 
         std::vector<cl_device_id> devices(devicesCount);
         OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
@@ -123,6 +124,7 @@ int main()
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+            std::cout << "    Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
             cl_device_id device = devices[deviceIndex];
 
             size_t deviceNameSize = 0;
@@ -130,7 +132,7 @@ int main()
 
             std::vector<unsigned char> deviceName(deviceNameSize, 0);
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
-            std::cout << "    Device name: " << deviceName.data() << std::endl;
+            std::cout << "        Device name: " << deviceName.data() << std::endl;
 
             cl_device_type deviceType = 0;
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, 0, nullptr, &deviceType));
@@ -138,21 +140,21 @@ int main()
 
             cl_ulong deviceMemSize = 0;
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, 0, nullptr, &deviceMemSize));
-            std::cout << "    Device global mem size: " << deviceMemSize << std::endl;
+            std::cout << "        Device global mem size: " << deviceMemSize << std::endl;
 
             size_t deviceVendorSize = 0;
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, 0, nullptr, &deviceVendorSize));
 
             std::vector<unsigned char> deviceVendor(deviceVendorSize, 0);
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, deviceVendorSize, deviceVendor.data(), nullptr));
-            std::cout << "    Device vendor: " << deviceVendor.data() << std::endl;
+            std::cout << "        Device vendor: " << deviceVendor.data() << std::endl;
 
             size_t deviceVersionSize = 0;
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VERSION, 0, nullptr, &deviceVersionSize));
 
             std::vector<unsigned char> deviceVersion(deviceVersionSize, 0);
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VERSION, deviceVersionSize, deviceVersion.data(), nullptr));
-            std::cout << "    Device version: " << deviceVersion.data() << std::endl;
+            std::cout << "        Device version: " << deviceVersion.data() << std::endl;
 		}
     }
 
