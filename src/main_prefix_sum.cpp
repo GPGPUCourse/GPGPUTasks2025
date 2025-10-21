@@ -64,11 +64,22 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            gpu::WorkSize ws_all(GROUP_SIZE, n);
+            ocl_fill_with_zeros.exec(ws_all, prefix_sum_accum_gpu, n); // обнуляем буфер с префиксами
+            unsigned int copy_n = n; // текущая длина для редукции
+            unsigned int p = 0; // номер прохода редукции (пов2)
+            ocl_prefix_accumulation.exec(ws_all, input_gpu, prefix_sum_accum_gpu, n, p++); // первый проход - копируем входные данные в префиксные суммы
+            buffer1_pow2_sum_gpu.writeN(as.data(), n); // копируем входные данные в буфер для редукции
+
+            while (copy_n > 1)
+            {
+                unsigned int next_len = (copy_n + 1u) / 2u; // длина следующего прохода редукции (пов2)
+                gpu::WorkSize ws_red(GROUP_SIZE, next_len); // рабочее пространство для редукции
+                ocl_sum_reduction.exec(ws_red, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, copy_n); // редукция суммы
+                ocl_prefix_accumulation.exec(ws_all, buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, p++); // префиксная сумма от результатов редукции
+                std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu); // меняем буферы местами
+                copy_n = next_len;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
