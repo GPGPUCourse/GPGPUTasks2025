@@ -115,48 +115,20 @@ std::string formatDriverError(CUresult code)
 
 }
 
-typedef CUresult				(CUDAAPI * p_pfn_cuDeviceGet)				(CUdevice *, int);
-typedef CUresult				(CUDAAPI * p_pfn_cuCtxCreate)				(CUcontext *, unsigned int, CUdevice);
-typedef CUresult				(CUDAAPI * p_pfn_cuCtxDestroy)				(CUcontext);
-
-p_pfn_cuDeviceGet				pfn_cuDeviceGet				= 0;
-p_pfn_cuCtxCreate				pfn_cuCtxCreate				= 0;
-p_pfn_cuCtxDestroy				pfn_cuCtxDestroy			= 0;
-
+// Check if CUDA driver library can be loaded
 bool cuda_api_init()
 {
-	if (pfn_cuCtxCreate)
-		return true;
-
+	static bool initialized = false;
+	static bool init_result = false;
+	
+	if (initialized)
+		return init_result;
+	
+	initialized = true;
 	CudaLibrary lib = cudaLoadLibrary();
-	if (!lib)
-		return false;
-
-	pfn_cuDeviceGet				= (p_pfn_cuDeviceGet)				cudaGetProcAddress(lib, "cuDeviceGet");
-	pfn_cuCtxCreate				= (p_pfn_cuCtxCreate)				cudaGetProcAddress(lib, "cuCtxCreate_v2");
-	pfn_cuCtxDestroy			= (p_pfn_cuCtxDestroy)				cudaGetProcAddress(lib, "cuCtxDestroy_v2");
-
-	return true;
+	init_result = (lib != nullptr);
+	
+	return init_result;
 }
 
-CUresult CUDAAPI cuDeviceGet(CUdevice *device, int ordinal)
-{
-	if (!pfn_cuDeviceGet) return CUDA_ERROR_NOT_INITIALIZED;
-
-	return pfn_cuDeviceGet(device, ordinal);
-}
-
-CUresult CUDAAPI cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
-{
-	if (!pfn_cuCtxCreate) return CUDA_ERROR_NOT_INITIALIZED;
-
-	return pfn_cuCtxCreate(pctx, flags, dev);
-}
-
-CUresult CUDAAPI cuCtxDestroy(CUcontext ctx)
-{
-	if (!pfn_cuCtxDestroy) return CUDA_ERROR_NOT_INITIALIZED;
-
-	return pfn_cuCtxDestroy(ctx);
-}
 #endif
