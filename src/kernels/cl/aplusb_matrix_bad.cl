@@ -18,6 +18,6 @@ __kernel void aplusb_matrix_bad(__global const uint* a,
 
     const unsigned int column_index = get_global_id(0);
     const unsigned int row_index = get_global_id(1);
-    const unsigned int target_index = width * row_index + column_index;
+    const unsigned int target_index = row_index + column_index * height;
     c[target_index] = a[target_index] + b[target_index];
 }

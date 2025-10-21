@@ -61,7 +61,6 @@ void run(int argc, char** argv)
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) {
-            std::cout << "iter " << iter << std::endl;
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)

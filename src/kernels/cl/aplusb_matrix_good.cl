@@ -19,6 +19,6 @@ __kernel void aplusb_matrix_good(__global const uint* a,
     // TODO реализуйте этот кернел - просуммируйте две матрицы так чтобы получить максимально ХОРОШУЮ производительность с точки зрения memory coalesced паттерна доступа
     const unsigned int column_index = get_global_id(0);
     const unsigned int row_index = get_global_id(1);
-    const unsigned int target_index = row_index + column_index * height;
+    const unsigned int target_index = row_index * width + column_index;
     c[target_index] = a[target_index] + b[target_index];
 }
