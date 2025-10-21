@@ -121,7 +121,6 @@ void run(int argc, char** argv)
             rassert(cs[i] == as[i] + bs[i], 321418230365731436, cs[i], as[i] + bs[i], i);
         }
     }
-    std::cout << "leaving run" << std::endl;
 }
 
 int main(int argc, char** argv)
