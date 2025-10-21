@@ -9,6 +9,7 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <vector>
 
 void run(int argc, char** argv)
 {
@@ -41,7 +42,8 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
+    // unsigned int n = 300;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -49,9 +51,34 @@ void run(int argc, char** argv)
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
     }
+    // unsigned int n = 300;
+    // std::vector<unsigned int> as(n, 0);
+    // size_t total_sum = 0;
+    // for (size_t i = 0; i < n; ++i) {
+    //     as[i] = 1;
+    //     // total_sum += as[i];
+    //     // rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
+    // }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    std::vector<uint32_t> bufsizes;
+    std::vector<uint32_t> bufoffsets;
+    bufoffsets.push_back(0);
+
+    {
+        auto nn = n;
+        bufsizes.push_back(nn);
+        while (nn > 1) {
+            nn -= 1;
+            nn /= 256;
+            nn += 1;
+            bufsizes.push_back(nn);
+        }
+
+        for (auto k : bufsizes)
+            bufoffsets.push_back(bufoffsets.back() + k);
+    }
+    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(bufoffsets.back()), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -65,8 +92,30 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            // ocl_fill_with_zeros.exec(gpu::WorkSize(256, n), buffer1_pow2_sum_gpu, n, input_gpu);
+            // std::cout << "dfx" << bufoffsets.size() << "\n";
+
+            for (int i = 0; i < bufoffsets.size() - 2; i++) {
+                ocl_sum_reduction.exec(gpu::WorkSize(256, bufoffsets[i + 1] - bufoffsets[i]), buffer1_pow2_sum_gpu, bufoffsets[i], bufoffsets[i + 1], input_gpu);
+            }
+
+            ocl_prefix_accumulation.exec(gpu::WorkSize(256, n), buffer1_pow2_sum_gpu, n, prefix_sum_accum_gpu);
+
+            if constexpr (false)
+            {
+                auto buf = buffer1_pow2_sum_gpu.readVector();
+                for (int i = 0; i < buf.size(); i++)
+                {
+                    if (i == 299) std::cout << "\n";
+                    std::cout << i << " " << buf[i] << "\n";}
+
+                auto res = prefix_sum_accum_gpu.readVector();
+                for (int i = 0; i < res.size(); i++)
+                {std::cout << i << " " << res[i] << "\n";}
+                return ;
+            }
+
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
         } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -96,6 +145,18 @@ void run(int argc, char** argv)
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
 
+    if constexpr (false) {
+        auto midbuf = buffer1_pow2_sum_gpu.readVector();
+        for (int i = 0; i < bufoffsets.size() - 1; i++) {
+            for (int j = bufoffsets[i]; j < bufoffsets[i+1]; j++) {
+                std::cout << midbuf[j] << " " << j;
+                if (i == 0) std::cout << " realval: " << as[j];
+                std::cout << "\n";
+            }
+            std::cout << "\n";
+        }
+    }
+
     // Сверяем результат
     size_t cpu_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -119,7 +180,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
