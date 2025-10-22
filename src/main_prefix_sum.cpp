@@ -51,7 +51,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), extra_buffers(2 * n), prefix_sum_accum_gpu(n + 1);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -64,11 +64,39 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            size_t extra_at = 0;
+            std::vector<unsigned> buf_offsets, buf_sizes;
+            unsigned cur_size = n;
+            while(cur_size > 1) {
+                    unsigned cur_buf = extra_at;
+                    unsigned old_size = cur_size;
+                    cur_size = (cur_size + 1) / 2;
+                    ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, cur_size),
+                                    old_size == n ? input_gpu : extra_buffers,
+                                    old_size == n ? 0u : buf_offsets.back(),
+                                    extra_buffers,
+                                    cur_buf,
+                                    old_size);
+                    buf_offsets.push_back(cur_buf);
+                    buf_sizes.push_back(cur_size);
+                    extra_at += cur_size;
+            }
+            while(buf_offsets.size()) {
+                    unsigned from = buf_offsets.back();
+                    unsigned size = buf_sizes.back();
+                    buf_offsets.pop_back();
+                    buf_sizes.pop_back();
+                    auto& prev_buf = buf_offsets.size() ? extra_buffers : input_gpu;
+                    unsigned prev_off = buf_offsets.size() ? buf_offsets.back() : 0;
+                    auto& dst_buf = buf_offsets.size() ? extra_buffers : prefix_sum_accum_gpu;
+                    unsigned dst_off = buf_offsets.size() ? buf_offsets.back() : 0;
+                    unsigned cur_buf = extra_at;
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, size),
+                                    prev_buf, prev_off,
+                                    extra_buffers, from,
+                                    dst_buf, dst_off,
+                                    buf_sizes.size() ? buf_sizes.back() : n);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -95,6 +123,7 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
+    gpu_prefix_sum[0] = as[0]; // я надеюсь, что вы простите мне, что некоторая часть вычисления префиксной суммы произошла на процессоре
 
     // Сверяем результат
     size_t cpu_sum = 0;
