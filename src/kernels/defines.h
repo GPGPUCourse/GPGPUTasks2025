@@ -5,7 +5,7 @@
 #define GROUP_SIZE_X 16
 #define GROUP_SIZE_Y 16
 #define LOG_GROUP_SIZE 8
-#define RADIX 2
+#define RADIX 3
 #define RADIX_MASK ((1 << RADIX) - 1)
 #define BIN_COUNT (1 << RADIX)
 #define MAX (~0)
