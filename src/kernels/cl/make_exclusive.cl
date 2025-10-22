@@ -6,14 +6,13 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void prefix_sum_02_prefix_accumulation(
-    __global const uint* per_elem_sums,
+__kernel void make_exclusive(
+    __global const uint* input,
     __global uint* output,
-    __global const uint* block_sums,
     unsigned int n)
 {
-    uint global_id = get_global_id(0);
+    unsigned int global_id = get_global_id(0);
     if (global_id >= n) return;
-    uint group_id = get_group_id(0);
-    output[global_id] = per_elem_sums[global_id] + block_sums[group_id];
+    if (global_id == 0u) output[global_id] = 0u;
+    else output[global_id] = input[global_id - 1u];
 }
