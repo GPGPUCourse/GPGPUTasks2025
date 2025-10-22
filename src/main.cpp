@@ -70,24 +70,86 @@ int main()
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		size_t platformVendorSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &platformVendorSize));
+
+		std::vector<unsigned char> platformVendor(platformVendorSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, platformVendorSize, platformVendor.data(), nullptr));
+		std::cout << "    Platform vendor: " << platformVendor.data() << std::endl;
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+
+		std::vector<cl_device_id> devices(devicesCount);
+		OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
+			std::cout << "    Device #" << (deviceIndex + 1) << "/" << devicesCount << std::endl;
 			// TODO 2.2
 			// Запросите и напечатайте в консоль:
 			// - Название устройства
 			// - Тип устройства (видеокарта/процессор/что-то странное)
 			// - Размер памяти устройства в мегабайтах
 			// - Еще пару или более свойств устройства, которые вам покажутся наиболее интересными
+			cl_device_id device = devices[deviceIndex];
+
+			size_t deviceNameSize = 0;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+
+			std::string deviceName(deviceNameSize, '\n');
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
+			std::cout << "        Device name: " << deviceName << std::endl;
+
+			cl_device_type deviceType;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
+
+			std::string deviceTypeString;
+			if(deviceType & CL_DEVICE_TYPE_CPU)
+			{
+				deviceTypeString += "CPU; ";
+			}
+			if(deviceType & CL_DEVICE_TYPE_GPU)
+			{
+				deviceTypeString += "GPU; ";
+			}
+			if(deviceType & CL_DEVICE_TYPE_ACCELERATOR)
+			{
+				deviceTypeString += "Accelerator; ";
+			}
+			if(deviceType & CL_DEVICE_TYPE_DEFAULT)
+			{
+				deviceTypeString += "Default; ";
+			}
+			if(deviceType & CL_DEVICE_TYPE_CUSTOM)
+			{
+				deviceTypeString += "Custom; ";
+			}
+
+			std::cout << "        Device type: " << deviceTypeString << std::endl;
+
+			cl_ulong globalMemorySizeBytes;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemorySizeBytes), &globalMemorySizeBytes, nullptr));
+			std::cout << "        Global memory size (MB): " << globalMemorySizeBytes / (1024 * 1024)  << std::endl;
+
+			cl_ulong globalMemoryCacheSizeBytes;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(globalMemoryCacheSizeBytes), &globalMemoryCacheSizeBytes, nullptr));
+			std::cout << "        Global memory cache size (bytes): " << globalMemoryCacheSizeBytes  << std::endl;
+
+			cl_uint globalMemoryCachelineSizeBytes;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(globalMemoryCachelineSizeBytes), &globalMemoryCachelineSizeBytes, nullptr));
+			std::cout << "        Global memory cacheline size (bytes): " << globalMemoryCachelineSizeBytes  << std::endl;
+
+			cl_ulong localMemorySizeBytes;
+			OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(localMemorySizeBytes), &localMemorySizeBytes, nullptr));
+			std::cout << "        Local memory size (KB): " << localMemorySizeBytes / 1024 << std::endl;
 		}
 	}
 
