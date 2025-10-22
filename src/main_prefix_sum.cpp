@@ -1,5 +1,6 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
+#include <iostream>
 
 #include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
@@ -9,6 +10,20 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+
+gpu::gpu_mem_32u recursive(ocl::KernelSource& ocl_sum_local, ocl::KernelSource& ocl_prefix_accumulation, const gpu::gpu_mem_32u &data, int n) {
+    gpu::WorkSize workSize(GROUP_SIZE, n);
+    int blocks_n = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+    gpu::gpu_mem_32u prefixes(n);
+    gpu::gpu_mem_32u block_prefixes(blocks_n);
+    ocl_sum_local.exec(workSize, data, prefixes, block_prefixes, n);
+    if (n <= GROUP_SIZE) {
+        return prefixes;
+    }
+    auto blocks_res = recursive(ocl_sum_local, ocl_prefix_accumulation, block_prefixes, blocks_n);
+    ocl_prefix_accumulation.exec(workSize, prefixes, blocks_res, n);
+    return prefixes;
+}
 
 void run(int argc, char** argv)
 {
@@ -33,7 +48,6 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
@@ -51,7 +65,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), prefix_sum_accum_gpu;
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -64,11 +78,9 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+
+            prefix_sum_accum_gpu = recursive(ocl_sum_reduction, ocl_prefix_accumulation, input_gpu, n);
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -100,6 +112,7 @@ void run(int argc, char** argv)
     size_t cpu_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         cpu_sum += as[i];
+        // std::cout << i << ": " << cpu_sum << " " << gpu_prefix_sum[i] << std::endl;
         rassert(cpu_sum == gpu_prefix_sum[i], 566324523452323, cpu_sum, gpu_prefix_sum[i], i);
     }
 
@@ -119,7 +132,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
