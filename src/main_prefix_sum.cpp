@@ -9,6 +9,7 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <functional>
 
 void run(int argc, char** argv)
 {
