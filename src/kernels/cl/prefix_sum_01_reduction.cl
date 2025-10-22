@@ -17,7 +17,6 @@ __kernel void prefix_sum_01_reduction(
     uint out_n = (n + 1u) >> 1u; // размер выходного буфера  вдвое меньше
     if (idx >= out_n)
         return;
-
     uint i1 = idx << 1; // индекс первого элемента из пары
     uint s  = pow2_sum[i1]; // берем первое значение
     if (i1 + 1 < n)

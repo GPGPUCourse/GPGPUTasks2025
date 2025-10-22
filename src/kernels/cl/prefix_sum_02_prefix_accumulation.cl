@@ -17,7 +17,6 @@ __kernel void prefix_sum_02_prefix_accumulation(
     uint idx = get_global_id(0);
     if (idx >= n)
         return;
-
     if (pow2 == 0u) {
         uint v = pow2_sum[idx]; // берем текущее значение
         if (idx >= 1u) // если есть слева

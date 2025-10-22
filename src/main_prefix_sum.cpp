@@ -70,7 +70,6 @@ void run(int argc, char** argv)
             unsigned int p = 0; // номер прохода редукции (пов2)
             ocl_prefix_accumulation.exec(ws_all, input_gpu, prefix_sum_accum_gpu, n, p++); // первый проход - копируем входные данные в префиксные суммы
             buffer1_pow2_sum_gpu.writeN(as.data(), n); // копируем входные данные в буфер для редукции
-
             while (copy_n > 1)
             {
                 unsigned int next_len = (copy_n + 1u) / 2u; // длина следующего прохода редукции (пов2)

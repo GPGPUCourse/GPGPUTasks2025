@@ -13,7 +13,7 @@ __kernel void fill_buffer_with_zeros(
     unsigned int n)
 {
     uint i = get_global_id(0);
-    if(i < n)
+    if (i < n)
     {
         buffer[i] = 0;
     }
