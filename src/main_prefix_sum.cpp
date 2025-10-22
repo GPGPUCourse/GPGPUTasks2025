@@ -64,9 +64,9 @@ void run(int argc, char** argv)
         timer t;
 
         if (context.type() == gpu::Context::TypeOpenCL) {
-            std::function<void(gpu::gpu_mem_32u&, gpu::gpu_mem_32u&, gpu::gpu_mem_32u&, size_t)> recurse;
+            std::function<void(gpu::gpu_mem_32u&, gpu::gpu_mem_32u&, gpu::gpu_mem_32u&, unsigned int)> recurse;
 
-            recurse = [&](gpu::gpu_mem_32u& input, gpu::gpu_mem_32u& per_elem_sums, gpu::gpu_mem_32u& block_sums, size_t cur_n) {
+            recurse = [&](gpu::gpu_mem_32u& input, gpu::gpu_mem_32u& per_elem_sums, gpu::gpu_mem_32u& block_sums, unsigned int cur_n) {
                 ocl_sum_reduction.exec(
                     gpu::WorkSize(GROUP_SIZE, cur_n),
                     input,
@@ -75,7 +75,7 @@ void run(int argc, char** argv)
                     cur_n
                 );
 
-                size_t numBlocks = (cur_n + GROUP_SIZE - 1) / GROUP_SIZE;
+                unsigned int numBlocks = (cur_n + GROUP_SIZE - 1) / GROUP_SIZE;
 
                 if (numBlocks <= 1) return;
 
