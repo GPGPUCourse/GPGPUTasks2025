@@ -98,7 +98,7 @@ if (GPU_CUDA_SUPPORT)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
             src/kernels/cu/fill_buffer_with_zeros.cu
-            src/kernels/cu/prefix_sum_01_reduction.cu
+            src/kernels/cu/prefix_sum_01_build_fenwick.cu
             src/kernels/cu/prefix_sum_02_prefix_accumulation.cu)
 
     add_definitions(-DCUDA_SUPPORT)
