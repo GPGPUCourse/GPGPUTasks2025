@@ -5,15 +5,26 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void radix_sort_04_scatter(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global const uint* buffer2,
-                   uint* buffer3,
-    unsigned int a1,
-    unsigned int a2)
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__kernel void
+radix_sort_04_scatter(
+    __global const uint* input,
+    __global const uint* bins,
+    __global const uint* scatter,
+    __global const uint* global_scan,
+    __global uint* output,
+    const uint compressed,
+    const uint n)
 {
-    // TODO
+    const uint index = get_global_id(0);
+    if (index >= n) {
+        return;
+    }
+
+#pragma unroll
+    for (uint bin = 0, global_offset = 0; bin < BIN_COUNT; global_offset += global_scan[(++bin) * compressed - 1]) {
+        if (bins[index] == bin) {
+            output[scatter[index] + (index >= GROUP_SIZE ? global_scan[bin * compressed + (index / GROUP_SIZE) - 1] : 0) + global_offset] = input[index];
+        }
+    }
 }
