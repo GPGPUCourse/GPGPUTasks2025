@@ -79,7 +79,6 @@ void run(int argc, char** argv)
             while ((1u << passes) < n) ++passes;
 
             gpu::gpu_mem_32u* src = &input_gpu;
-            // выбираем dst для финальной записи в prefix_sum_accum_gpu
             gpu::gpu_mem_32u* dst = (passes % 2 == 1) ? &prefix_sum_accum_gpu : &buffer2_pow2_sum_gpu;
 
             for (unsigned int k = 0; k < passes; ++k) {
