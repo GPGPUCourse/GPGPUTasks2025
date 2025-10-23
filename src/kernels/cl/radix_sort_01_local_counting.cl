@@ -42,7 +42,7 @@ radix_sort_01_local_counting(
             local_scan[local_index] = (k > 0 ? local_scan[local_index] : 0) + (is_adding ? local_accum[divided - 1] : 0);
 
             const uint next = local_index << 1;
-            uint to_write = next < (GROUP_SIZE >> k) ? (local_accum[next] + local_accum[next + 1]) : 0;
+            const uint to_write = next < (GROUP_SIZE >> k) ? (local_accum[next] + local_accum[next + 1]) : 0;
             barrier(CLK_LOCAL_MEM_FENCE);
 
             local_accum[local_index] = to_write;
