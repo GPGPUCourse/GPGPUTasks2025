@@ -94,7 +94,7 @@ void run(int argc, char** argv)
     static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
     static constexpr unsigned int BINS_IN_NUM = sizeof(unsigned int) << 1; // (sizeof(unsigned int) * <bits in byte>) / BITS_AT_A_TIME
 
-    const unsigned int blocks_cnt = std::min(std::max(1u, (n + BLOCK_ELEMS - 1u) / BLOCK_ELEMS), 1024u);
+    const unsigned int blocks_cnt = (n + BLOCK_ELEMS - 1u) / BLOCK_ELEMS;
 
     gpu::gpu_mem_32u buf(n), block_data(blocks_cnt << BITS_AT_A_TIME), bin_counter(BINS_CNT), bin_base(BINS_CNT);
     gpu::gpu_mem_32u buffer_output_gpu(n);
