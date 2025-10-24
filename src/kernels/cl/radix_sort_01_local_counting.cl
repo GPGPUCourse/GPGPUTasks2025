@@ -5,14 +5,46 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_01_local_counting(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* input_buffer,
+    __global       uint* local_counting_buffer,
+    unsigned int n1,
+    unsigned int nk_width,
+    unsigned int shift)
 {
-    // TODO
+    __local uint buffer[GROUP_SIZE];
+
+    unsigned int global_index = get_global_id(0);
+    unsigned int local_index = get_local_id(0);
+    unsigned int group_index = get_group_id(0);
+
+    unsigned int mask32 = 31;
+
+
+    unsigned int n = n1 - (global_index - local_index);
+
+    n = n > GROUP_SIZE ? GROUP_SIZE : n;
+
+    if (local_index < n) {
+        buffer[local_index] = input_buffer[global_index];
+    }
+
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    unsigned int counting_row = local_index >> 5;
+    unsigned int count = 0;
+    if ((local_index & mask32) == 0 && counting_row < BUCKETS) {
+        for (unsigned int i = 0; i < n; ++i) {
+            count += ((buffer[i] >> shift) & 3) == counting_row;
+        }
+
+        local_counting_buffer[group_index + nk_width * counting_row] = count;
+    }
+
+
+
+
+
 }
