@@ -88,7 +88,7 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
     const unsigned int blocks_cnt = (n + BLOCK_ELEMS_32 - 1u) / BLOCK_ELEMS_32;
-    gpu::gpu_mem_32u buf(n), block_hist(blocks_cnt << BITS_AT_A_TIME), block_offsets(blocks_cnt << BITS_AT_A_TIME), bin_counter(BINS_CNT), bin_base(BINS_CNT);
+    gpu::gpu_mem_32u buf(n), block_data(blocks_cnt << BITS_AT_A_TIME), bin_counter(BINS_CNT), bin_base(BINS_CNT);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -97,8 +97,7 @@ void run(int argc, char** argv)
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
     buf.fill(255);
-    block_hist.fill(255);
-    block_offsets.fill(255);
+    block_data.fill(255);
     bin_counter.fill(255);
     bin_base.fill(255);
     buffer_output_gpu.fill(255);
@@ -117,10 +116,10 @@ void run(int argc, char** argv)
                                                                         : buffer_output_gpu;
             gpu::gpu_mem_32u& out = (i == 0) ? buf : (i & 1) ? buffer_output_gpu
                                                              : buf;
-            cuda::radix_sort_01_local_counting(in, block_hist, n, shift, blocks_cnt);
-            cuda::radix_sort_02_global_prefixes_scan_sum_reduction(block_hist, block_offsets, bin_counter, blocks_cnt);
+            cuda::radix_sort_01_local_counting(in, block_data, n, shift, blocks_cnt);
+            cuda::radix_sort_02_global_prefixes_scan_sum_reduction(block_data, block_data, bin_counter, blocks_cnt);
             cuda::radix_sort_03_global_prefixes_scan_accumulation(bin_counter, bin_base);
-            cuda::radix_sort_04_scatter(in, block_offsets, bin_base, out, n, shift, blocks_cnt);
+            cuda::radix_sort_04_scatter(in, block_data, bin_base, out, n, shift, blocks_cnt);
         }
 
         times.push_back(t.elapsed());

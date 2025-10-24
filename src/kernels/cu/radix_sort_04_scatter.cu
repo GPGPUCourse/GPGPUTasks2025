@@ -15,8 +15,7 @@ __global__ void radix_sort_04_scatter(
     const unsigned int* bin_base,
     unsigned int* out,
     unsigned int n,
-    unsigned int shift,
-    unsigned int blocks_cnt)
+    unsigned int shift)
 {
     const unsigned int thread_ind = threadIdx.x, block_ind = blockIdx.x;
     const unsigned int warp_base = (thread_ind >> 5) << BITS_AT_A_TIME;
@@ -33,7 +32,7 @@ __global__ void radix_sort_04_scatter(
     __shared__ unsigned int shared_bin_base[BINS_CNT];
     if (thread_ind < BINS_CNT) {
         block_bin_base[thread_ind] = 0;
-        shared_block_offsets[thread_ind] = __ldg(block_offsets + block_ind + thread_ind * blocks_cnt);
+        shared_block_offsets[thread_ind] = __ldg(block_offsets + thread_ind + (block_ind << BITS_AT_A_TIME));
         shared_bin_base[thread_ind] = __ldg(bin_base + thread_ind);
     }
     __syncthreads();
@@ -89,7 +88,7 @@ void radix_sort_04_scatter(const gpu::gpu_mem_32u& in, const gpu::gpu_mem_32u& b
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::radix_sort_04_scatter<<<blocks_cnt, BLOCK_THREADS, 0, stream>>>(in.cuptr(), block_offsets.cuptr(), bin_base.cuptr(), out.cuptr(), n, shift, blocks_cnt);
+    ::radix_sort_04_scatter<<<blocks_cnt, BLOCK_THREADS, 0, stream>>>(in.cuptr(), block_offsets.cuptr(), bin_base.cuptr(), out.cuptr(), n, shift);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
