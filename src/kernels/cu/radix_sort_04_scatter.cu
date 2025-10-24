@@ -35,8 +35,13 @@ __global__ void radix_sort_04_scatter(
     __shared__ unsigned int warp_pref[WARP_BINS_CNT];
     __shared__ unsigned int bin_counter_by_all_warps[BINS_CNT];
     __shared__ unsigned int block_bin_base[BINS_CNT];
-    if (thread_ind < BINS_CNT)
+    __shared__ unsigned int shared_block_offsets[BINS_CNT];
+    __shared__ unsigned int shared_bin_base[BINS_CNT];
+    if (thread_ind < BINS_CNT) {
         block_bin_base[thread_ind] = 0;
+        shared_block_offsets[thread_ind] = block_offsets[thread_ind + (block_ind << BITS_AT_A_TIME)];
+        shared_bin_base[thread_ind] = bin_base[thread_ind];
+    }
     __syncthreads();
 
     for (unsigned int start = block_l; start < block_r; start += BLOCK_THREADS) {
@@ -56,7 +61,7 @@ __global__ void radix_sort_04_scatter(
         unsigned int masks[BINS_CNT];
 #pragma unroll
         for (unsigned int b = 0; b < BINS_CNT; ++b)
-            masks[b] = __ballot_sync(0xFFFFFFFFu, (ind < block_r) && (bin == b));
+            masks[b] = __ballot_sync(__activemask(), (ind < block_r) && (bin == b));
         const unsigned int mask = masks[bin];
         if ((ind < block_r) && (__ffs(mask) == (lane_ind + 1u)))
             bin_counter[bin + warp_base] = __popc(mask);
@@ -75,7 +80,7 @@ __global__ void radix_sort_04_scatter(
         __syncthreads();
 
         if (ind < block_r)
-            out[bin_base[bin] + block_offsets[bin + (block_ind << BITS_AT_A_TIME)] + block_bin_base[bin] + warp_pref[bin + warp_base] + __popc(mask & ((1u << lane_ind) - 1u))] = val;
+            out[shared_bin_base[bin] + shared_block_offsets[bin] + block_bin_base[bin] + warp_pref[bin + warp_base] + __popc(mask & ((1u << lane_ind) - 1u))] = val;
         __syncthreads();
 
         if (thread_ind < BINS_CNT)
