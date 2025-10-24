@@ -15,7 +15,8 @@ __global__ void radix_sort_01_local_counting(
     const unsigned int* in,
     unsigned int* block_hist,
     unsigned int n,
-    unsigned int shift)
+    unsigned int shift,
+    unsigned int blocks_cnt)
 {
     static constexpr unsigned int WARPS_CNT = BLOCK_THREADS >> 5;
     static constexpr unsigned int BITS_AT_A_TIME = 4;
@@ -41,7 +42,7 @@ __global__ void radix_sort_01_local_counting(
         unsigned int bin_sum = 0;
         for (unsigned int i = 0; i < WARPS_CNT; ++i)
             bin_sum += warp_hist[thread_ind + (i << BITS_AT_A_TIME)];
-        block_hist[thread_ind + (block_ind << BITS_AT_A_TIME)] = bin_sum;
+        block_hist[block_ind + thread_ind * blocks_cnt] = bin_sum;
     }
 }
 
@@ -51,7 +52,7 @@ void radix_sort_01_local_counting(const gpu::gpu_mem_32u& in, gpu::gpu_mem_32u& 
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::radix_sort_01_local_counting<<<blocks_cnt, BLOCK_THREADS, 0, stream>>>(in.cuptr(), block_hist.cuptr(), n, shift);
+    ::radix_sort_01_local_counting<<<blocks_cnt, BLOCK_THREADS, 0, stream>>>(in.cuptr(), block_hist.cuptr(), n, shift, blocks_cnt);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
