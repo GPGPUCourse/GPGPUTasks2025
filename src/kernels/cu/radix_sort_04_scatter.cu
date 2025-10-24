@@ -39,8 +39,8 @@ __global__ void radix_sort_04_scatter(
     __shared__ unsigned int shared_bin_base[BINS_CNT];
     if (thread_ind < BINS_CNT) {
         block_bin_base[thread_ind] = 0;
-        shared_block_offsets[thread_ind] = block_offsets[thread_ind + (block_ind << BITS_AT_A_TIME)];
-        shared_bin_base[thread_ind] = bin_base[thread_ind];
+        shared_block_offsets[thread_ind] = __ldg(block_offsets + thread_ind + (block_ind << BITS_AT_A_TIME));
+        shared_bin_base[thread_ind] = __ldg(bin_base + thread_ind);
     }
     __syncthreads();
 
