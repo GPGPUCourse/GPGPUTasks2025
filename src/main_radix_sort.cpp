@@ -87,7 +87,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    const unsigned int blocks_cnt = (n + BLOCK_ELEMS_32 - 1u) / BLOCK_ELEMS_32;
+    const unsigned int blocks_cnt = (n + BLOCK_ELEMS - 1u) / BLOCK_ELEMS;
     gpu::gpu_mem_32u buf(n), block_data(blocks_cnt << BITS_AT_A_TIME), bin_counter(BINS_CNT), bin_base(BINS_CNT);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
