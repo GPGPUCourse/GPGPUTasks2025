@@ -22,8 +22,6 @@ __kernel void radix_sort_04_scatter(
     unsigned int local_index = get_local_id(0);
     unsigned int group_index = get_group_id(0);
 
-    unsigned int mask32 = 31;
-
     n -= (global_index - local_index);
 
     n = n > GROUP_SIZE ? GROUP_SIZE : n;
@@ -35,9 +33,9 @@ __kernel void radix_sort_04_scatter(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    unsigned int counting_row = local_index >> 5;
+    unsigned int counting_row = local_index >> WORKITEM_MASK_BIT;
     unsigned int count = 0;
-    if ((local_index & mask32) == 0 && counting_row < BUCKETS) {
+    if ((local_index & WORKITEM_MASK) == 0) {
         unsigned int s = 0;
         if (group_index + counting_row * nk_width > 0) {
             s = prefix_sum_buffer[group_index + counting_row * nk_width - 1];
@@ -45,7 +43,7 @@ __kernel void radix_sort_04_scatter(
 
         for (unsigned int i = 0; i < n; ++i) {
             unsigned int tmp = buffer[i];
-            if (((tmp >> shift) & 3) == counting_row) {
+            if (((tmp >> shift) & COUNTING_MASK) == counting_row) {
                 output_buffer[s++] = tmp;
             }
         }

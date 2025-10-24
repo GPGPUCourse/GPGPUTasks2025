@@ -13,6 +13,7 @@
 #include "libgpu/work_size.h"
 
 #include <fstream>
+#include <limits>
 
 void run(int argc, char** argv)
 {
@@ -23,7 +24,7 @@ void run(int argc, char** argv)
     //   - Если аргументов запуска нет или переданное число не находится в диапазоне от 0 до N-1 - кинет ошибку
     //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
-gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -129,11 +130,12 @@ gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            for (unsigned int i = 0; i <= (sizeof(decltype(as)::value_type) * 8) / DIGITS_PER_BLOCK; i++) {
+            for (unsigned int i = 0; i < (sizeof(decltype(as)::value_type) * 8) / DIGITS_PER_BLOCK; i++) {
                 ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), local_counting_gpu, nk);
                 ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), input2_gpu, local_counting_gpu, n, nk / BUCKETS, DIGITS_PER_BLOCK * i);
 
                 ocl_fillBuffer.exec(gpu::WorkSize(GROUP_SIZE, 2 * k_t - 1), local_counting_gpu, buffer_pow2_sum_gpu, nk, k_t);
+
                 unsigned int t = k_t;
                 while (t > 256) {
                     ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, t), buffer_pow2_sum_gpu, 3, t);
@@ -155,6 +157,8 @@ gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
                 ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n),input2_gpu, prefix_sum_accum_gpu, buffer_output_gpu, n, nk / BUCKETS, DIGITS_PER_BLOCK * i);
                 buffer_output_gpu.swap(input2_gpu);
             }
+
+            buffer_output_gpu.swap(input2_gpu);
         } else {
             rassert(false, 4531412341, context.type());
         }

@@ -19,9 +19,6 @@ __kernel void radix_sort_01_local_counting(
     unsigned int local_index = get_local_id(0);
     unsigned int group_index = get_group_id(0);
 
-    unsigned int mask32 = 31;
-
-
     unsigned int n = n1 - (global_index - local_index);
 
     n = n > GROUP_SIZE ? GROUP_SIZE : n;
@@ -33,11 +30,11 @@ __kernel void radix_sort_01_local_counting(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    unsigned int counting_row = local_index >> 5;
+    unsigned int counting_row = local_index >> WORKITEM_MASK_BIT;
     unsigned int count = 0;
-    if ((local_index & mask32) == 0 && counting_row < BUCKETS) {
+    if ((local_index & WORKITEM_MASK) == 0) {
         for (unsigned int i = 0; i < n; ++i) {
-            count += ((buffer[i] >> shift) & 3) == counting_row;
+            count += ((buffer[i] >> shift) & COUNTING_MASK) == counting_row;
         }
 
         local_counting_buffer[group_index + nk_width * counting_row] = count;
