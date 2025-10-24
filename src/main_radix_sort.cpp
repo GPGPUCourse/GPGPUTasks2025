@@ -13,6 +13,13 @@
 
 #include <fstream>
 
+static constexpr unsigned int BLOCK_THREADS = 256;
+static constexpr unsigned int THREAD_ELEMS = 32;
+static constexpr unsigned int BLOCK_ELEMS = BLOCK_THREADS * THREAD_ELEMS;
+static constexpr unsigned int BITS_AT_A_TIME = 4;
+static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
+static constexpr unsigned int BINS_IN_NUM = sizeof(unsigned int) << 1; // (sizeof(unsigned int) * <bits in byte>) / BITS_AT_A_TIME
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:

@@ -7,6 +7,13 @@
 #include "../defines.h"
 #include "helpers/rassert.cu"
 
+static constexpr unsigned int BLOCK_THREADS = 256;
+static constexpr unsigned int THREAD_ELEMS = 32;
+static constexpr unsigned int BLOCK_ELEMS = BLOCK_THREADS * THREAD_ELEMS;
+static constexpr unsigned int WARPS_CNT = BLOCK_THREADS >> 5;
+static constexpr unsigned int BITS_AT_A_TIME = 4;
+static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
+
 __global__ void radix_sort_02_global_prefixes_scan_sum_reduction(const unsigned int* in, unsigned int* out, unsigned int* block_sums, unsigned int n)
 {
     const unsigned int thread_ind = threadIdx.x;

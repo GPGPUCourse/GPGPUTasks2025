@@ -7,6 +7,12 @@
 #include "../defines.h"
 #include "helpers/rassert.cu"
 
+static constexpr unsigned int BLOCK_THREADS = 256;
+static constexpr unsigned int WARPS_CNT = BLOCK_THREADS >> 5;
+static constexpr unsigned int BITS_AT_A_TIME = 4;
+static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
+static constexpr unsigned int WARP_BINS_CNT = WARPS_CNT << BITS_AT_A_TIME;
+
 __global__ void radix_sort_01_local_counting(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
