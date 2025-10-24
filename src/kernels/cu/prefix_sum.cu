@@ -8,14 +8,8 @@
 #include "helpers/rassert.cu"
 #include <cub/cub.cuh>
 
-static constexpr unsigned int BLOCK_THREADS = 256;
-static constexpr unsigned int THREAD_ELEMS = 8;
-static constexpr unsigned int BLOCK_ELEMS = BLOCK_THREADS * THREAD_ELEMS;
-
 __global__ void excl_block_scan(const unsigned int* in, unsigned int* out, unsigned int* block_sums, unsigned int n)
 {
-    static constexpr unsigned int WARPS_CNT = BLOCK_THREADS / WARP_SIZE;
-
     const unsigned int thread_ind = threadIdx.x;
     const unsigned int lane_ind = thread_ind & (WARP_SIZE - 1);
     const unsigned int warp_ind = thread_ind >> 5;

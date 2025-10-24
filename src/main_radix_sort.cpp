@@ -87,15 +87,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-
-    static constexpr unsigned int BLOCK_THREADS = 256;
-    static constexpr unsigned int BLOCK_ELEMS = BLOCK_THREADS * 32u; // BLOCK_THREADS * WARP_SIZE
-    static constexpr unsigned int BITS_AT_A_TIME = 4;
-    static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
-    static constexpr unsigned int BINS_IN_NUM = sizeof(unsigned int) << 1; // (sizeof(unsigned int) * <bits in byte>) / BITS_AT_A_TIME
-
-    const unsigned int blocks_cnt = (n + BLOCK_ELEMS - 1u) / BLOCK_ELEMS;
-
+    const unsigned int blocks_cnt = (n + BLOCK_ELEMS_32 - 1u) / BLOCK_ELEMS_32;
     gpu::gpu_mem_32u buf(n), block_hist(blocks_cnt << BITS_AT_A_TIME), block_offsets(blocks_cnt << BITS_AT_A_TIME), bin_counter(BINS_CNT), bin_base(BINS_CNT);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 

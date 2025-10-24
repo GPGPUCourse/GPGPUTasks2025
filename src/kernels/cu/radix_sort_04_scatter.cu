@@ -7,8 +7,6 @@
 #include "../defines.h"
 #include "helpers/rassert.cu"
 
-static constexpr unsigned int BLOCK_THREADS = 256;
-
 __global__ void radix_sort_04_scatter(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
@@ -20,11 +18,6 @@ __global__ void radix_sort_04_scatter(
     unsigned int shift,
     unsigned int blocks_cnt)
 {
-    static constexpr unsigned int BITS_AT_A_TIME = 4;
-    static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
-    static constexpr unsigned int WARPS_CNT = BLOCK_THREADS >> 5;
-    static constexpr unsigned int WARP_BINS_CNT = WARPS_CNT << BITS_AT_A_TIME;
-
     const unsigned int thread_ind = threadIdx.x, block_ind = blockIdx.x;
     const unsigned int warp_base = (thread_ind >> 5) << BITS_AT_A_TIME;
     const unsigned int lane_ind = thread_ind & (WARP_SIZE - 1);

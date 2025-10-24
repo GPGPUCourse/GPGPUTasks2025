@@ -8,9 +8,6 @@
 #include "../kernels.h"
 #include "helpers/rassert.cu"
 
-static constexpr unsigned int BITS_AT_A_TIME = 4;
-static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
-
 __global__ void radix_sort_02_global_prefixes_scan_sum_reduction(const unsigned int* block_hist, const unsigned int* block_offsets, unsigned int* bin_counter, unsigned int blocks_cnt)
 {
     const unsigned int thread_ind = threadIdx.x;

@@ -13,9 +13,6 @@ __global__ void radix_sort_03_global_prefixes_scan_accumulation(
     const unsigned int* bin_counter,
     unsigned int* bin_base)
 {
-    static constexpr unsigned int BITS_AT_A_TIME = 4;
-    static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
-
     __shared__ unsigned int bins[BINS_CNT];
     const unsigned int thread_ind = threadIdx.x;
     if (thread_ind < BINS_CNT)
