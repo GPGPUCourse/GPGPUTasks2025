@@ -28,7 +28,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -87,7 +87,16 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+
+    static constexpr unsigned int BLOCK_THREADS = 256;
+    static constexpr unsigned int BLOCK_ELEMS = BLOCK_THREADS * 32u; // BLOCK_THREADS * WARP_SIZE
+    static constexpr unsigned int BITS_AT_A_TIME = 4;
+    static constexpr unsigned int BINS_CNT = 1u << BITS_AT_A_TIME;
+    static constexpr unsigned int BINS_IN_NUM = sizeof(unsigned int) << 1; // (sizeof(unsigned int) * <bits in byte>) / BITS_AT_A_TIME
+
+    const unsigned int blocks_cnt = std::min(std::max(1u, (n + BLOCK_ELEMS - 1u) / BLOCK_ELEMS), 1024u);
+
+    gpu::gpu_mem_32u buf(n), block_data(blocks_cnt << BITS_AT_A_TIME), bin_counter(BINS_CNT), bin_base(BINS_CNT);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -95,10 +104,10 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
+    buf.fill(255);
+    block_data.fill(255);
+    bin_counter.fill(255);
+    bin_base.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -108,32 +117,17 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+#pragma unroll
+        for (unsigned int i = 0; i < BINS_IN_NUM; ++i) {
+            const unsigned int shift = i << 2; // i * BITS_AT_A_TIME
+            const gpu::gpu_mem_32u& in = (i == 0) ? input_gpu : (i & 1) ? buf
+                                                                        : buffer_output_gpu;
+            gpu::gpu_mem_32u& out = (i == 0) ? buf : (i & 1) ? buffer_output_gpu
+                                                             : buf;
+            cuda::radix_sort_01_local_counting(in, block_data, n, shift, blocks_cnt);
+            cuda::radix_sort_02_global_prefixes_scan_sum_reduction(block_data, block_data, bin_counter, blocks_cnt);
+            cuda::radix_sort_03_global_prefixes_scan_accumulation(bin_counter, bin_base);
+            cuda::radix_sort_04_scatter(in, block_data, bin_base, out, n, shift, blocks_cnt);
         }
 
         times.push_back(t.elapsed());
