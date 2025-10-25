@@ -48,8 +48,12 @@ __kernel void radix_sort_04_scatter(
 
     if (id < n) {
         const unsigned int bucket = (array[id] >> bit_start) & BUCKET_MASK;
+        unsigned int global_pref = 0;
 
-        unsigned int global_pref = prefix_sums[bucket * ((n + GROUP_SIZE - 1) / GROUP_SIZE) + group - 1];
+        unsigned int i = bucket * ((n + GROUP_SIZE - 1) / GROUP_SIZE) + group - 1;
+        if (i >= 0) {
+            global_pref = prefix_sums[i];
+        }
 
         unsigned int local_pref_add = 0;
         if (local_id > 0) {
