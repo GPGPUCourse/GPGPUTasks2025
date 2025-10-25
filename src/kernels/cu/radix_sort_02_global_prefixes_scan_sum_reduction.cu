@@ -78,7 +78,7 @@ __global__ void radix_sort_02_global_prefixes_scan_sum_reduction(const unsigned 
         total += block_total;
     }
 
-    if (block_sums && thread_ind == BLOCK_THREADS - 1u)
+    if (thread_ind == BLOCK_THREADS - 1u)
         block_sums[block_ind] = total;
 }
 
