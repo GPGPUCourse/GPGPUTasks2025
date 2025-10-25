@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -10,8 +11,10 @@
 #include "kernels/kernels.h"
 
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
+#include "libgpu/work_size.h"
 
 #include <fstream>
+#include <utility>
 
 void run(int argc, char** argv)
 {
@@ -88,7 +91,8 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u map(n);
+    gpu::gpu_mem_32u pref(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -99,42 +103,23 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(255);
     buffer3_gpu.fill(255);
     buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    input_gpu.copyToN(buffer1_gpu, n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    auto ws = gpu::WorkSize(GROUP_SIZE, n);
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
-        }
+        for (int pos = 0; pos < 32; ++pos) {
+            ocl_radixSort01LocalCounting.exec(ws, buffer1_gpu, map, pref, n, pos);
+            for (uint k = 0; 1 << k < n; ++k) {
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, n / 2), pref, n, k);
+            }
+
+            ocl_radixSort04Scatter.exec(ws, buffer1_gpu, map, pref, buffer2_gpu, n);
+            buffer1_gpu.swap(buffer2_gpu);
+        }    
 
         times.push_back(t.elapsed());
     }
@@ -145,7 +130,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = buffer1_gpu.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
@@ -157,6 +142,7 @@ void run(int argc, char** argv)
     for (size_t i = 0; i < n; ++i) {
         rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);
     }
+    std::cout << "uraa" << std::endl;
 }
 
 int main(int argc, char** argv)
