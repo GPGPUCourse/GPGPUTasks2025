@@ -138,7 +138,7 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
 
-            for (size_t i = 0; i < 32; ++i) {
+            for (int i = 0; i < 32; ++i) {
                 auto& next = (i == 0 ? input_gpu : buffer_output_gpu);
                 ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), next, buffer1_gpu, n, i);
 
