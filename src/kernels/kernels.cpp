@@ -2,6 +2,7 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
+#include "cl/generated_kernels/copy_array.h"
 #include "cl/generated_kernels/radix_sort_01_local_counting.h"
 #include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
 #include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
@@ -60,6 +61,11 @@ const ocl::ProgramBinaries& getAplusB()
 const ProgramBinaries& getFillBufferWithZeros()
 {
     return opencl_binaries_fill_buffer_with_zeros;
+}
+
+const ProgramBinaries& getCopyArray()
+{
+    return opencl_binaries_copy_array;
 }
 
 const ProgramBinaries& getRadixSort01LocalCounting()
