@@ -21,13 +21,18 @@ __kernel void radix_sort_04_scatter(
     const unsigned int local_id = get_local_id(0);
     const unsigned int group = get_group_id(0);
     
-    __local unsigned int local_pref[GROUP_SIZE * BUCKET_COUNT];
-    __local unsigned int bucket_pref[BUCKET_COUNT];
+    __local unsigned int local_pref[2 * GROUP_SIZE * BUCKET_COUNT];
+    __local unsigned int bucket_pref[2 * BUCKET_COUNT];
 
     if (local_id == 0) {
         unsigned int bucket = (array[group * GROUP_SIZE] >> bit_start) & BUCKET_MASK;
+
         for (int i = 0; i < BUCKET_COUNT; ++i) {
-            local_pref[i * GROUP_SIZE] = (bucket == i ? 1 : 0);
+            if (bucket == i) {
+                local_pref[i * GROUP_SIZE] = 1;
+            } else {
+                local_pref[i * GROUP_SIZE] = 0;
+            }
         }
     }
     
@@ -36,10 +41,12 @@ __kernel void radix_sort_04_scatter(
     for (unsigned int i = 1; i < GROUP_SIZE; i++) {
         if (i + group * GROUP_SIZE < n && local_id < BUCKET_COUNT) {
             const unsigned int bucket = (array[i + group * GROUP_SIZE] >> bit_start) & BUCKET_MASK;
+            const unsigned int local_pref_id = local_id * GROUP_SIZE + i;
 
-            local_pref[local_id * GROUP_SIZE + i] = local_pref[local_id * GROUP_SIZE + i - 1];
             if (bucket == local_id) {
-                ++local_pref[local_id * GROUP_SIZE + i];
+                local_pref[local_pref_id] = local_pref[local_pref_id - 1] + 1;
+            } else {
+                local_pref[local_pref_id] = local_pref[local_pref_id - 1];
             }
         }
     }
