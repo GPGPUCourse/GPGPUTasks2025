@@ -64,11 +64,11 @@ __kernel void radix_sort_04_scatter(
 
         unsigned int local_pref_add = 0;
         unsigned int j = bucket * GROUP_SIZE + local_id - 1;
-        if (local_id > 0 && j > 0 && (j < GROUP_SIZE * BUCKET_COUNT)) {
+        if (local_id > 0 && j >= 0 && (j < GROUP_SIZE * BUCKET_COUNT)) {
             local_pref_add = local_pref[j];
         }
 
-        if (global_pref + local_pref_add > 0 && global_pref + local_pref_add < n) {
+        if (global_pref + local_pref_add >= 0 && global_pref + local_pref_add < n) {
             result[global_pref + local_pref_add] = array[id];
         }
     }
