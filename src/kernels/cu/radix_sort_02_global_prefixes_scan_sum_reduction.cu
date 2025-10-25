@@ -13,19 +13,27 @@ __global__ void radix_sort_02_global_prefixes_scan_sum_reduction(
     // TODO try char
     const unsigned int* buffer1,
           unsigned int* buffer2,
-    unsigned int a1)
+    unsigned int n)
 {
-    // TODO
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (const unsigned int new_n = (n + 1) / 2; index < new_n && index * 2 < n) {
+        buffer2[index] = buffer1[index * 2];
+        if (index * 2 + 1 < n) {
+            buffer2[index] += buffer1[index * 2 + 1];
+        }
+    }
 }
 
 namespace cuda {
 void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize &workSize,
-    const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1)
+    const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int n)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::radix_sort_02_global_prefixes_scan_sum_reduction<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(buffer1.cuptr(), buffer2.cuptr(), a1);
+    ::radix_sort_02_global_prefixes_scan_sum_reduction<<<workSize.cuGridSize(),
+        workSize.cuBlockSize(), 0, stream>>>(buffer1.cuptr(), buffer2.cuptr(), n);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
