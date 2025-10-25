@@ -48,10 +48,37 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_radixSort03GlobalPrefixesScanAccumulation(avk2::getRadixSort03GlobalPrefixesScanAccumulation());
     avk2::KernelSource vk_radixSort04Scatter(avk2::getRadixSort04Scatter());
 
+
+
+    // Copy-paste from previous HW
+    auto CalcPrefixSum = [&](gpu::gpu_mem_32u& input, gpu::gpu_mem_32u& buffer1_gpu, gpu::gpu_mem_32u& buffer2_gpu, gpu::gpu_mem_32u& output, int n) mutable {
+        ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), output, n);
+
+        ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input, output,n, 1);
+
+        ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input, buffer1_gpu, n);
+
+        auto* buffer1 = &buffer1_gpu;
+        auto* buffer2 = &buffer2_gpu;
+
+        uint curr_size = (n + 1) / 2;
+        uint pow2 = 2;
+        while (pow2 <= n) {
+            ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), *buffer1, output, n, pow2);
+
+            ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, curr_size), *buffer1, *buffer2, curr_size);
+
+            std::swap(buffer1, buffer2);
+            curr_size /= 2;
+            pow2 <<= 1;
+        }
+    };
+
     FastRandom r;
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+    //int max_value = 8;
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -87,7 +114,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n), buffer5_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -95,10 +122,11 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
+    buffer1_gpu.fill(250);
+    buffer2_gpu.fill(251);
+    buffer3_gpu.fill(252);
+    buffer4_gpu.fill(253);
+    buffer5_gpu.fill(254);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -109,13 +137,19 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+
+            for (size_t i = 0; i < 32; ++i) {
+                auto& next = (i == 0 ? input_gpu : buffer_output_gpu);
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), next, buffer1_gpu, n, i);
+
+                CalcPrefixSum(buffer1_gpu, buffer2_gpu, buffer3_gpu, buffer4_gpu, (n - 1) / GROUP_SIZE + 1);
+
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), next, buffer4_gpu, buffer5_gpu, n, i);
+
+                buffer5_gpu.swap(buffer_output_gpu);
+            }
+
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
