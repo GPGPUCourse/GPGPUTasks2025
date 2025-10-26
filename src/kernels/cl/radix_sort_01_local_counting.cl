@@ -1,18 +1,30 @@
-#ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
-#endif
-
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_01_local_counting(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global const uint* buffer1,
     __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    const unsigned int shift,
+    const unsigned int n)
 {
-    // TODO
+    __local unsigned int local_data[NUM_BOXES];
+    const unsigned int idx = get_global_id(0);
+    const unsigned int local_idx = get_local_id(0);
+    if (local_idx < NUM_BOXES) {
+        local_data[local_idx] = 0u;
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (idx < n) {
+        const unsigned int val = (buffer1[idx] >> shift) & RADIX_MASK; 
+        atomic_inc(&local_data[val]);
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_idx < NUM_BOXES) {
+        buffer2[idx / GROUP_SIZE * NUM_BOXES + local_idx] = local_data[local_idx];
+    }
 }
