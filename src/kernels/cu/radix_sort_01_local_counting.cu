@@ -15,7 +15,38 @@ __global__ void radix_sort_01_local_counting(
     unsigned int a1,
     unsigned int a2)
 {
-    // TODO
+    const unsigned int tid   = threadIdx.x;
+    const unsigned int bid   = blockIdx.x;
+    const unsigned int bins  = (1u << RADIX_BITS);
+    const unsigned int mask  = bins - 1u;
+    const unsigned int chunk = (a1 + gridDim.x - 1u) / gridDim.x;
+    const unsigned int begin = bid * chunk;
+    const unsigned int end   = min(a1, begin + chunk);
+
+    __shared__ unsigned int sh_hist[bins];
+    if (tid < bins) sh_hist[tid] = 0u;
+    __syncthreads();
+
+    unsigned int local_cnt[RADIX_BINS];
+#pragma unroll
+    for (unsigned int b = 0; b < bins; ++b) local_cnt[b] = 0u;
+
+    for (unsigned int i = begin + tid; i < end; i += blockDim.x) {
+        const unsigned int key = buffer1[i];
+        const unsigned int bin = (key >> a2) & mask;
+        ++local_cnt[bin];
+    }
+
+#pragma unroll
+    for (unsigned int b = 0; b < bins; ++b) {
+        const unsigned int v = local_cnt[b];
+        if (v) atomicAdd(&sh_hist[b], v);
+    }
+    __syncthreads();
+
+    if (tid < bins) {
+        buffer2[bid * bins + tid] = sh_hist[tid];
+    }
 }
 
 namespace cuda {

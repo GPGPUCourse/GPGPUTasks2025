@@ -8,14 +8,26 @@
 #include "../defines.h"
 
 __global__ void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    // TODO try char
     const unsigned int* buffer1,
           unsigned int* buffer2,
     unsigned int a1)
 {
-    // TODO
+    const unsigned tid = threadIdx.x;
+
+    if (blockIdx.x != 0)
+        return;
+
+    for (unsigned bin = tid; bin < RADIX_BINS; bin += blockDim.x) {
+        unsigned acc = 0u;
+        unsigned idx = bin;
+
+#pragma unroll 1
+        for (unsigned b = 0; b < a1; ++b, idx += RADIX_BINS) {
+            const unsigned val = buffer1[idx];
+            buffer2[idx] = acc;
+            acc += val;
+        }
+    }
 }
 
 namespace cuda {
@@ -28,4 +40,4 @@ void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize &workS
     ::radix_sort_02_global_prefixes_scan_sum_reduction<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(buffer1.cuptr(), buffer2.cuptr(), a1);
     CUDA_CHECK_KERNEL(stream);
 }
-} // namespace cuda
+} 

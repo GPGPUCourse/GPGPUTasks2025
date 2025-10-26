@@ -8,15 +8,45 @@
 #include "../defines.h"
 
 __global__ void radix_sort_03_global_prefixes_scan_accumulation(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    // TODO try char
-    const unsigned int* buffer1,
-          unsigned int* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    const unsigned int* buffer1,   
+          unsigned int* buffer2,  
+    unsigned int a1,               
+    unsigned int a2)              
 {
-    // TODO
+    (void)a2;
+    const unsigned tid = threadIdx.x;
+
+    if (blockIdx.x != 0) return;
+
+    __shared__ unsigned int totals[RADIX_BINS];
+    __shared__ unsigned int bin_base[RADIX_BINS];
+
+    for (unsigned bin = tid; bin < RADIX_BINS; bin += blockDim.x) {
+        unsigned sum = 0u;
+        for (unsigned b = 0; b < a1; ++b) {
+            sum += buffer1[b * RADIX_BINS + bin];
+        }
+        totals[bin] = sum;
+    }
+    __syncthreads();
+
+    if (tid == 0) {
+        unsigned acc = 0u;
+        for (unsigned bin = 0; bin < RADIX_BINS; ++bin) {
+            const unsigned cur = totals[bin];
+            bin_base[bin] = acc;
+            acc += cur;
+        }
+    }
+    __syncthreads();
+
+    for (unsigned bin = tid; bin < RADIX_BINS; bin += blockDim.x) {
+        const unsigned base = bin_base[bin];
+        for (unsigned b = 0; b < a1; ++b) {
+            const unsigned idx = b * RADIX_BINS + bin;
+            buffer2[idx] += base;
+        }
+    }
 }
 
 namespace cuda {
