@@ -24,15 +24,10 @@ add_block_offsets(
     if (start >= n)
         return;
 
-    // Offset to add: prefix of all previous blocks; broadcast once per WG
-    __local uint shared_offset;
-    if (lid == 0u)
-        shared_offset = (gid == 0u) ? 0u : block_prefix[gid - 1u];
-    barrier(CLK_LOCAL_MEM_FENCE);
-    uint offset = shared_offset;
+    const uint offset = (gid == 0u) ? 0u : block_prefix[gid - 1u];
 
-    uint ai = start + lid;
-    uint bi = ai + lsize;
+    const uint ai = start + lid;
+    const uint bi = ai + lsize;
     if (ai < n)
         out[ai] += offset;
     if (bi < n)
