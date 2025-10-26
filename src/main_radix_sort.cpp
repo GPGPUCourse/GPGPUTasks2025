@@ -114,7 +114,7 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 1; ++iter) {
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
         for (unsigned int bit_start = 0; bit_start < num_active_bit; bit_start += BITS_BATCH) {
 
