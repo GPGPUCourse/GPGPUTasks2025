@@ -11,6 +11,14 @@
 
 #include <fstream>
 
+constexpr uint bit_length(uint n)
+{
+    uint bits = 0;
+    for (; n != 0; ++bits)
+        n >>= 1;
+    return bits;
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -94,20 +102,12 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
-
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        const int len = bit_length(n);
+        for (uint k = 0; k < len; k++) {
+            ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n),
+                k == 0 ? input_gpu : ((k & 1) ? buffer1_gpu : buffer2_gpu),
+                k + 1 >= len ? buffer_output_gpu : ((k & 1) ? buffer2_gpu : buffer1_gpu),
+                k, n);
         }
 
         times.push_back(t.elapsed());
