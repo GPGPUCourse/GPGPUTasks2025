@@ -31,7 +31,7 @@ void run(int argc, char** argv) {
     if (githubActionsEnv != nullptr && std::string(githubActionsEnv) == "true") {
         n = 100*1000*1000;
         iterations = 10;
-        digits = 3;
+        digits = 4;
     } else {
         n = 1*1000*1000;
         iterations = 1;
