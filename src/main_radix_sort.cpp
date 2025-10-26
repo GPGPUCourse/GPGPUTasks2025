@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -50,7 +50,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -109,13 +109,35 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            auto round_up = [](size_t x, size_t y) { return (x + y - 1) / y * y; };
+
+            const size_t gsize = round_up(static_cast<size_t>(n), static_cast<size_t>(GROUP_SIZE));
+            const uint num_groups = static_cast<uint>(gsize / GROUP_SIZE);
+
+            gpu::WorkSize WS_MAIN(GROUP_SIZE, gsize);
+            gpu::WorkSize WS_1WG(GROUP_SIZE, GROUP_SIZE);
+            gpu::gpu_mem_32u ones_per_group_gpu(num_groups);
+            gpu::gpu_mem_32u prefix_groups_gpu(num_groups);
+            gpu::gpu_mem_32u* in_buf = &input_gpu;
+            gpu::gpu_mem_32u* out_buf = &buffer1_gpu;
+
+            for (uint bit = 0; bit < 32; ++bit) {
+                ocl_radixSort01LocalCounting.exec(WS_MAIN, *in_buf, ones_per_group_gpu, static_cast<uint>(n), bit);
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(WS_1WG, ones_per_group_gpu, prefix_groups_gpu, num_groups);
+                ocl_radixSort04Scatter.exec(WS_MAIN, *in_buf, prefix_groups_gpu, *out_buf, static_cast<uint>(n), bit, num_groups);
+
+                if (out_buf == &buffer1_gpu) {
+                    in_buf = &buffer1_gpu;
+                    out_buf = &buffer_output_gpu;
+                } else {
+                    in_buf = &buffer_output_gpu;
+                    out_buf = &buffer1_gpu;
+                }
+            }
+
+            if (in_buf != &buffer_output_gpu)
+                buffer_output_gpu.swap(*in_buf);
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -168,7 +190,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {

@@ -5,14 +5,30 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE,1,1)))
 __kernel void radix_sort_01_local_counting(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* in,
+    __global       uint* ones_per_group,
+    const uint n,
+    const uint bit_pos)
 {
-    // TODO
+    const uint gid  = get_global_id(0);
+    const uint lid  = get_local_id(0);
+    const uint wgid = get_group_id(0);
+
+    __local uint lflag[GROUP_SIZE];
+
+    uint p = 0u;
+    if (gid < n) {
+        const uint v = in[gid];
+        p = (v >> bit_pos) & 1u;
+    }
+    lflag[lid] = p;
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (lid == 0) {
+        uint sum = 0u;
+        for (uint i = 0; i < GROUP_SIZE; ++i) sum += lflag[i];
+        ones_per_group[wgid] = sum;
+    }
 }

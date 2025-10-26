@@ -5,15 +5,51 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE,1,1)))
 __kernel void radix_sort_04_scatter(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global const uint* buffer2,
-                   uint* buffer3,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* in,
+    __global const uint* prefix_ones_per_group,
+    __global       uint* out,
+    const uint n,
+    const uint bit_pos,
+    const uint num_groups)
 {
-    // TODO
+    const uint gid  = get_global_id(0);
+    const uint lid  = get_local_id(0);
+    const uint wgid = get_group_id(0);
+
+    __local uint lpred[GROUP_SIZE];
+    __local uint lscan[GROUP_SIZE];
+
+    uint v = 0u, p = 0u;
+    if (gid < n) {
+        v = in[gid];
+        p = (v >> bit_pos) & 1u;
+    }
+    lpred[lid] = p;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (lid == 0) {
+        uint acc = 0u;
+        for (uint i = 0; i < GROUP_SIZE; ++i) {
+            acc += lpred[i];
+            lscan[i] = acc;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (gid < n) {
+        const uint ones_before_group = (wgid == 0) ? 0u : prefix_ones_per_group[wgid - 1];
+        const uint total_ones = prefix_ones_per_group[num_groups - 1];
+        const uint zeros_total = n - total_ones;
+        const uint P_global = ones_before_group + lscan[lid];
+        uint pos;
+        if (p == 0u)
+            pos = gid - P_global;
+        else
+            pos = zeros_total + (P_global - 1u);
+        out[pos] = v;
+    }
 }
