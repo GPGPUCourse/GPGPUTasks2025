@@ -39,7 +39,7 @@ __kernel void radix_sort_04_scatter(
     const unsigned int index = l_pr[l_idx][b_idx] + prev_sum - 1;
 
     if (idx < n) {
-        // printf("%d %d %d %d\n", index, idx, prev_sum, l_pr[l_idx][b_idx]);
+        //printf("%d %d %d\n", index, idx, array[idx]);
         result[index] = array[idx];
     }
 

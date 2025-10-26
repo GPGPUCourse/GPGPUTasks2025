@@ -51,7 +51,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -98,7 +98,7 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
         
         ocl_copy.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, input_gpu_copy, n);
@@ -135,7 +135,7 @@ void run(int argc, char** argv)
             // }
             //std::cout << std::endl;
             ocl_radixSort04Scatter.exec(workSize, input_gpu_copy, prefix_sum_accum_gpu, buffer_output_gpu, n, start);
-            input_gpu_copy = buffer_output_gpu;
+            std::swap(input_gpu_copy, buffer_output_gpu);
         }
         times.push_back(t.elapsed());
     }
@@ -146,7 +146,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = input_gpu_copy.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
