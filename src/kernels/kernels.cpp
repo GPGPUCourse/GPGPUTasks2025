@@ -1,6 +1,7 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/copy.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/radix_sort_01_local_counting.h"
 #include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
@@ -52,6 +53,11 @@ void radix_sort_04_scatter(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u
 #endif
 
 namespace ocl {
+const ocl::ProgramBinaries& getCopy()
+{
+    return opencl_binaries_copy;
+}
+
 const ocl::ProgramBinaries& getAplusB()
 {
     return opencl_binaries_aplusb;
