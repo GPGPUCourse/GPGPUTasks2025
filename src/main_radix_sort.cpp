@@ -52,6 +52,8 @@ void run(int argc, char** argv)
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+    // int n = 32;
+    // int max_value = 256;
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -85,21 +87,25 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
-    // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u cur_gpu(n);
+    gpu::gpu_mem_32u next_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
+    cur_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    next_gpu.fill(255);
+
+    const uint M = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+    const uint cnt_blocks = (M + GROUP_SIZE - 1) / GROUP_SIZE;
+
+    gpu::gpu_mem_32u cnt_gpu(4 * M);
+    gpu::gpu_mem_32u prefix_gpu(4 * M);
+    gpu::gpu_mem_32u blocks_gpu(4 * cnt_blocks);
+    gpu::gpu_mem_32u blocks_offset_gpu(4 * cnt_blocks);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -110,11 +116,50 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             // ocl_fillBufferWithZeros.exec();
             // ocl_radixSort01LocalCounting.exec();
             // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
             // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
+            for (uint bit = 0; bit < 32; bit += 2) {
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), cur_gpu, cnt_gpu, n, bit);
+            
+                for (uint i = 0; i < 4; ++i) {
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, M), cnt_gpu, prefix_gpu, blocks_gpu, M, i);
+                }
+            
+                std::vector<unsigned int> blocks_copy = blocks_gpu.readVector();
+                std::vector<unsigned int> get_blocks_offset(4 * cnt_blocks, 0);
+                for (uint i = 0; i < 4; ++i) {
+                    unsigned int sum = 0;
+                    for (uint block = 0; block < cnt_blocks; ++block) {
+                        unsigned int cur = blocks_copy[i * cnt_blocks + block];
+                        get_blocks_offset[i * cnt_blocks + block] = sum;
+                        sum += cur;
+                    }
+                }
+                blocks_offset_gpu.writeN(get_blocks_offset.data(), 4 * cnt_blocks);
+            
+                for (uint b = 0; b < 4; ++b) {
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, M), blocks_offset_gpu, prefix_gpu, M, b);
+                }
+            
+                std::vector<unsigned int> pref_copy = prefix_gpu.readVector();
+                std::vector<unsigned int> cnt_copy  = cnt_gpu.readVector();
+                unsigned int bases[4] = {0,0,0,0};
+                if (M > 0) {
+                    for (uint i = 0; i < 4; ++i) {
+                        uint offset = i * M + (M - 1);
+                        bases[i] = pref_copy[offset] + cnt_copy[offset];
+                    }
+                }
+                unsigned int base1 = bases[0];
+                unsigned int base2 = bases[0] + bases[1];
+                unsigned int base3 = bases[0] + bases[1] + bases[2];
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), cur_gpu, next_gpu, prefix_gpu, cnt_gpu, n, bit, base1, base2, base3);
+            
+                std::swap(cur_gpu, next_gpu);
+            }
             // ocl_radixSort04Scatter.exec();
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
@@ -145,7 +190,8 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted =  cur_gpu.readVector();
+
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
