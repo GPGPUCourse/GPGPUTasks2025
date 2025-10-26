@@ -16,15 +16,14 @@ reduce_block_sums(
 {
     const uint gid = get_group_id(0);
     const uint lid = get_local_id(0);
-    const uint lsize = get_local_size(0); // == GROUP_SIZE
 
-    const uint tile = lsize * 2u;
+    const uint tile = GROUP_SIZE * 2u;
     const uint start = gid * tile;
     if (start >= n)
         return;
 
     const uint ai = start + lid;
-    const uint bi = ai + lsize;
+    const uint bi = ai + GROUP_SIZE;
 
     // Load with zero padding
     uint a = (ai < n) ? in[ai] : 0u;
@@ -32,7 +31,7 @@ reduce_block_sums(
 
     __local uint temp[2 * GROUP_SIZE];
     temp[lid] = a;
-    temp[lid + lsize] = b;
+    temp[lid + GROUP_SIZE] = b;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Upsweep reduction to get tile total in temp[tile-1]
@@ -46,4 +45,3 @@ reduce_block_sums(
     if (lid == 0u)
         block_sums[gid] = temp[tile - 1u];
 }
-
