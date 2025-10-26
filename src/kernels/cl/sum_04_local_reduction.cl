@@ -11,11 +11,20 @@ __kernel void sum_04_local_reduction(__global const uint* a,
                                      __global       uint* b,
                                             unsigned int  n)
 {
-    // Подсказки:
-    // const uint index = get_global_id(0);
-    // const uint local_index = get_local_id(0);
-    // __local uint local_data[GROUP_SIZE];
-    // barrier(CLK_LOCAL_MEM_FENCE);
+    __local uint local_data[GROUP_SIZE];
+    
+    const uint index = get_global_id(0);
+    const uint local_index = get_local_id(0);
+    local_data[local_index] = index < n ? a[index] : 0u;
 
-    // TODO
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (index < n && local_index == 0) {
+        unsigned int local_sum = 0;
+        for(uint i = 0; i < GROUP_SIZE; i++) {
+            local_sum += local_data[i];
+        }
+        b[index / GROUP_SIZE] = local_sum;
+    }
+
 }
