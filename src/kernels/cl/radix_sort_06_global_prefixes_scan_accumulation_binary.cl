@@ -6,20 +6,18 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void radix_sort_03_global_prefixes_scan_accumulation(
+__kernel void radix_sort_06_global_prefixes_scan_accumulation_binary(
     __global const uint* origInput,
     __global const uint* reductInput,
     __global       uint* output,
     unsigned int n,
-    unsigned int bitsBlockIdx,
-    unsigned int filterValue,
-    unsigned int isFirstRound)
+    unsigned int bitsBlockIdx)
 {
     unsigned int outIdx = get_global_id(0);
 
     unsigned int sum = 0;
     for (unsigned int i = outIdx / PREFIX_BLOCK_SIZE * PREFIX_BLOCK_SIZE; i <= outIdx; ++i) {
-        sum += ((origInput[i] >> (bitsBlockIdx * BITS_BLOCK_SIZE)) & ((1 << BITS_BLOCK_SIZE) - 1)) == filterValue;
+        sum += ((origInput[i] >> bitsBlockIdx) & 1) == 0;
     }
     unsigned int size = n / PREFIX_BLOCK_SIZE;
     unsigned int multiplier = PREFIX_BLOCK_SIZE;
@@ -37,13 +35,7 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     if (outIdx < n) {
         output[outIdx] = sum;
         if (outIdx == n - 1) {
-            if (isFirstRound) {
-                output[n] = 0;
-                output[n + 1] = sum;
-            } else {
-                output[n] = output[n + 1];
-                output[n + 1] += sum;
-            }
+            output[n] = sum;
         }
     }
 }

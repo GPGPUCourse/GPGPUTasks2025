@@ -6,6 +6,9 @@
 #include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
 #include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
 #include "cl/generated_kernels/radix_sort_04_scatter.h"
+#include "cl/generated_kernels/radix_sort_05_global_prefixes_scan_sum_reduction_binary.h"
+#include "cl/generated_kernels/radix_sort_06_global_prefixes_scan_accumulation_binary.h"
+#include "cl/generated_kernels/radix_sort_07_scatter_binary.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
@@ -80,6 +83,21 @@ const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation()
 const ProgramBinaries& getRadixSort04Scatter()
 {
     return opencl_binaries_radix_sort_04_scatter;
+}
+
+const ProgramBinaries& getRadixSort05GlobalPrefixesScanSumReductionBinary()
+{
+    return opencl_binaries_radix_sort_05_global_prefixes_scan_sum_reduction_binary;
+}
+
+const ProgramBinaries& getRadixSort06GlobalPrefixesScanAccumulationBinary()
+{
+    return opencl_binaries_radix_sort_06_global_prefixes_scan_accumulation_binary;
+}
+
+const ProgramBinaries& getRadixSort07ScatterBinary()
+{
+    return opencl_binaries_radix_sort_07_scatter_binary;
 }
 } // namespace ocl
 

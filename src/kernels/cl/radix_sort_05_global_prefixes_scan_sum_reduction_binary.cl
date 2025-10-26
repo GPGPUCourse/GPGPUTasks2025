@@ -6,14 +6,13 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
+__kernel void radix_sort_05_global_prefixes_scan_sum_reduction_binary(
     __global const uint* input,
     __global       uint* output,
     unsigned int inputOffset,
     unsigned int outputOffset,
     unsigned int n,
     unsigned int bitsBlockIdx,
-    unsigned int filterValue,
     unsigned int isFirstIter)
 {
     unsigned int outIdx = get_global_id(0);
@@ -27,7 +26,7 @@ __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
     unsigned int sum = 0;
     if (isFirstIter) {
         for (unsigned int i = 0; i < PREFIX_BLOCK_SIZE; ++i) {
-            sum += ((input[i] >> (bitsBlockIdx * BITS_BLOCK_SIZE)) & ((1 << BITS_BLOCK_SIZE) - 1)) == filterValue;
+            sum += ((input[i] >> bitsBlockIdx) & 1) == 0;
         }
     } else {
         for (unsigned int i = 0; i < PREFIX_BLOCK_SIZE; ++i) {
