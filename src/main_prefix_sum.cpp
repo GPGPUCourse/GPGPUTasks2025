@@ -121,7 +121,7 @@ void run(int argc, char** argv)
                 const unsigned int curr_n = level_counts[(size_t)li];
                 if (curr_n == 0u)
                     continue;
-                const unsigned int curr_groups = (curr_n + tile - 1u) / tile;
+                const unsigned int curr_groups = curr_n;
                 gpu::WorkSize ws_curr(GROUP_SIZE, (size_t)curr_groups * GROUP_SIZE);
 
                 // Choose output buffer for this level scan

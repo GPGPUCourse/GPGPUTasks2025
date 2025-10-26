@@ -19,15 +19,14 @@ scan_block_inclusive(
 {
     const uint gid = get_group_id(0);
     const uint lid = get_local_id(0);
-    const uint lsize = get_local_size(0); // == GROUP_SIZE
 
-    const uint tile = lsize * 2u;
+    const uint tile = GROUP_SIZE * 2u;
     const uint start = gid * tile;
     if (start >= n)
         return;
 
     const uint ai = start + lid;
-    const uint bi = ai + lsize;
+    const uint bi = ai + GROUP_SIZE;
 
     // Load with zero padding
     uint a = (ai < n) ? in[ai] : 0u;
@@ -35,7 +34,7 @@ scan_block_inclusive(
 
     __local uint temp[2 * GROUP_SIZE];
     temp[lid] = a;
-    temp[lid + lsize] = b;
+    temp[lid + GROUP_SIZE] = b;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Upsweep: after this, temp[tile-1] holds the tile total
@@ -55,7 +54,7 @@ scan_block_inclusive(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Downsweep: produces exclusive scan in temp
-    for (uint offset = lsize; offset > 0u; offset >>= 1u) {
+    for (uint offset = GROUP_SIZE; offset > 0u; offset >>= 1u) {
         uint idx = (lid + 1u) * (offset << 1u) - 1u;
         if (idx < tile) {
             uint t = temp[idx - offset];
@@ -69,7 +68,7 @@ scan_block_inclusive(
     if (ai < n)
         out[ai] = temp[lid] + a;
     if (bi < n)
-        out[bi] = temp[lid + lsize] + b;
+        out[bi] = temp[lid + GROUP_SIZE] + b;
 
     // Write per-block sum (sum of all real elements in the tile)
     if (lid == 0 && block_sums)

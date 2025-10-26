@@ -15,19 +15,19 @@ add_block_offsets(
     __global uint* out, // scanned tiles from pass 1
     unsigned int n)
 {
-    const uint gid = get_group_id(0);
-    const uint lid = get_local_id(0);
-    const uint lsize = get_local_size(0);
+    const uint gid = get_global_id(0);
+    const uint lane = gid % GROUP_SIZE;
+    const uint block = gid / GROUP_SIZE;
 
-    const uint tile = lsize * 2u;
-    const uint start = gid * tile;
+    const uint tile = GROUP_SIZE * 2u;
+    const uint start = block * tile;
     if (start >= n)
         return;
 
-    const uint offset = (gid == 0u) ? 0u : block_prefix[gid - 1u];
+    const uint offset = (block == 0u) ? 0u : block_prefix[block - 1u];
 
-    const uint ai = start + lid;
-    const uint bi = ai + lsize;
+    const uint ai = start + lane;
+    const uint bi = ai + GROUP_SIZE;
     if (ai < n)
         out[ai] += offset;
     if (bi < n)
