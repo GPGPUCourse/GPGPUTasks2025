@@ -7,12 +7,38 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global const uint* buffer1,
-    __global       uint* buffer2,
+    __global  uint* buffer2,
     unsigned int a1,
     unsigned int a2)
 {
-    // TODO
+    uint tid = get_global_id(0); // глобальный id потока
+    if (a2 == 0u)
+    { // случай нет групп
+        if (tid != 0u)
+            return; // остальные потоки ничего не делают
+        uint acc = 0u;
+        for (uint i = 0u; i < a1; ++i)
+        { // идём по бинам
+            uint t = buffer1[i]; // берём значение
+            buffer2[i] = acc; // пишем  префикс
+            acc += t; // обновляем сумму
+        }
+        return;
+    }
+    // a2 != 0 : паралл по бинам — 1 поток == 1 bin
+    uint bin = tid; // номер бина равен id потока
+    if (bin >= a1)
+        return;
+
+    uint acc = 0u;
+    uint base = bin * a2; // смещение начала группы для бина
+    for (uint g = 0u; g < a2; ++g)
+    {
+        uint idx = base + g; // индексм массиве
+        uint val = buffer1[idx]; // текущее значение
+        buffer2[idx] = acc; // префикс для этой группы
+        acc += val;
+    }
 }
+

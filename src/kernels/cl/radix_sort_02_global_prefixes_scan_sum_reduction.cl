@@ -7,11 +7,19 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1)
+    __global const uint* buffer1, // входом будет [бин*a2+group]
+    __global  uint* buffer2, // выход сумма за бин
+    unsigned int a1, // число бинов
+    unsigned int a2) // число групп
 {
-    // TODO
+    uint bin = get_global_id(0); // какой бин обрабатывается
+    if (bin >= a1)
+        return;
+
+    uint sum = 0u;
+    for (uint g = 0u; g < a2; ++g)
+    {
+        sum += buffer1[bin * a2 + g]; // вклад группы добавояю в бин (накоп суммы)
+    }
+    buffer2[bin] = sum; // итоговая сумма
 }
