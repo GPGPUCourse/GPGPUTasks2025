@@ -5,9 +5,6 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-const float THRESHOLD1 = 256.0f;
-const float THRESHOLD2 = 65536.0f;
-
 __attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
 __kernel void mandelbrot(__global float* results,
                      unsigned int width, unsigned int height,
@@ -17,6 +14,8 @@ __kernel void mandelbrot(__global float* results,
 {
     const unsigned int i = get_global_id(0);
     const unsigned int j = get_global_id(1);
+    const float THRESHOLD1 = 256.0f;
+    const float THRESHOLD2 = 65536.0f;
 
     if (i >= width || j >= height) {
         return;
