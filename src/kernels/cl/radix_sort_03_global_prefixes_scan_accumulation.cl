@@ -9,11 +9,17 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     const unsigned int buf1_sz)
 {
     __local unsigned int local_data[GROUP_SIZE];
+    __local unsigned int local_data2[GROUP_SIZE];
     const unsigned int idx = get_global_id(0);
     const unsigned int local_idx = get_local_id(0);
 
     local_data[local_idx] = (idx < buf1_sz ? buffer1[idx] : 0u);
-    if (local_idx & 16u) local_data[local_idx] += local_data[local_idx ^ 16u];
+    local_data2[local_idx] = local_data[local_idx];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_idx & 16u) local_data[local_idx] += local_data2[local_idx ^ 16u];
+
     const unsigned int base = idx >> WARP_LG;
     if (base > 0u) {
         local_data[local_idx] += buffer2[((base - 1u) << (WARP_LG - 1u)) + (local_idx & 15u)];
