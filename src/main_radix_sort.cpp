@@ -19,9 +19,8 @@ void run(int argc, char** argv) {
     gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
 
     ocl::KernelSource ocl_fill(ocl::getFill());
+    ocl::KernelSource ocl_hillisSteele(ocl::getHillisSteele());
     ocl::KernelSource ocl_radixSortOnehot(ocl::getRadixSortOnehot());
-    ocl::KernelSource ocl_radixSortPrefixSumAccumulation(ocl::getRadixSortPrefixSumAccumulation());
-    ocl::KernelSource ocl_radixSortPrefixSumReduction(ocl::getRadixSortPrefixSumReduction());
     ocl::KernelSource ocl_radixSortScatter(ocl::getRadixSortScatter());
 
     FastRandom r;
@@ -71,10 +70,10 @@ void run(int argc, char** argv) {
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
-    unsigned int N = std::pow(2, digits) * n;
+    unsigned int N = (1 << digits) * n;
 
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffers1_gpu(N), buffers2_gpu(N), prefix_sum_gpu(N);
+    gpu::gpu_mem_32u buffers1_gpu(N), buffers2_gpu(N);
     gpu::gpu_mem_32u output1_gpu(n), output2_gpu(n);
     
     input_gpu.writeN(as.data(), n);
@@ -82,30 +81,28 @@ void run(int argc, char** argv) {
     gpu::WorkSize work_size_small(GROUP_SIZE, (n + GROUP_SIZE - 1) / GROUP_SIZE * GROUP_SIZE);
     gpu::WorkSize work_size_big(GROUP_SIZE, (N + GROUP_SIZE - 1) / GROUP_SIZE * GROUP_SIZE);
     std::vector<double> times;
-    unsigned int mask = std::pow(2, digits) - 1;
+    unsigned int mask = (1 << digits) - 1;
     for (int i = 0; i < iterations; ++i) {
         timer t;
         input_gpu.copyToN(output1_gpu, n);
-
         gpu::gpu_mem_32u* output1 = &output1_gpu;
         gpu::gpu_mem_32u* output2 = &output2_gpu;
 
         for (unsigned int offset = 0; offset < 8 * sizeof(unsigned int); offset += digits) {
             ocl_fill.exec(work_size_big, buffers1_gpu, N, 0);
-            ocl_fill.exec(work_size_big, prefix_sum_gpu, N, 0);
             ocl_radixSortOnehot.exec(work_size_small, *output1, buffers1_gpu, n, offset, mask);
-            ocl_radixSortPrefixSumAccumulation.exec(work_size_big, buffers1_gpu, prefix_sum_gpu, N, 0);
 
             gpu::gpu_mem_32u* buffer1 = &buffers1_gpu;
             gpu::gpu_mem_32u* buffer2 = &buffers2_gpu;
 
-            for (unsigned int j = 0; (N >> j) > 1; ++j) {
-                ocl_radixSortPrefixSumReduction.exec(work_size_big, *buffer1, *buffer2, N >> j);
+            buffer1->copyToN(*buffer2, N);
+
+            for (unsigned int stride = 1; stride < N; stride *= 2) {
+                ocl_hillisSteele.exec(work_size_big, *buffer1, *buffer2, N, stride);
                 std::swap(buffer1, buffer2);
-                ocl_radixSortPrefixSumAccumulation.exec(work_size_big, *buffer1, prefix_sum_gpu, N, j + 1);
             }
             
-            ocl_radixSortScatter.exec(work_size_small, *output1, prefix_sum_gpu, *output2, n, offset, mask);
+            ocl_radixSortScatter.exec(work_size_small, *output1, *buffer1, *output2, n, offset, mask);
             std::swap(output1, output2);
         }
         output1_gpu = *output1;

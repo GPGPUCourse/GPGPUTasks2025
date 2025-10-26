@@ -59,9 +59,10 @@ set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/fill.cl
         src/kernels/cl/radix_sort_onehot.cl
-        src/kernels/cl/radix_sort_prefix_sum_reduction.cl
-        src/kernels/cl/radix_sort_prefix_sum_accumulation.cl
-        src/kernels/cl/radix_sort_scatter.cl)
+        src/kernels/cl/prefix_sum_reduction.cl
+        src/kernels/cl/prefix_sum_accumulation.cl
+        src/kernels/cl/radix_sort_scatter.cl
+        src/kernels/cl/hillis_steele.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)

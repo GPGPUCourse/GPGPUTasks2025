@@ -7,7 +7,8 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getFill();
 const ProgramBinaries& getRadixSortOnehot();
-const ProgramBinaries& getRadixSortPrefixSumAccumulation();
-const ProgramBinaries& getRadixSortPrefixSumReduction();
+const ProgramBinaries& getPrefixSumAccumulation();
+const ProgramBinaries& getPrefixSumReduction();
+const ProgramBinaries& getHillisSteele();
 const ProgramBinaries& getRadixSortScatter();
 }
