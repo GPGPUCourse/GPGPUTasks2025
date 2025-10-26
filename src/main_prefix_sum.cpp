@@ -36,6 +36,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_reduce_block_sums(ocl::getReduceBlockSums());
     ocl::KernelSource ocl_scan_block_inclusive(ocl::getScanBlockInclusive());
     ocl::KernelSource ocl_add_block_offsets(ocl::getAddBlockOffsets());
+    ocl::KernelSource ocl_fill_buffer_with_zeros(ocl::getFillBufferWithZeros());
 
     // avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     // avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
@@ -69,9 +70,13 @@ void run(int argc, char** argv)
     // Per-level block-sum buffers (levels[i] stores sums of level i-1 tiles; level 0 is base per-tile sums)
     std::vector<std::unique_ptr<gpu::gpu_mem_32u>> level_sums;
     level_sums.reserve(level_counts.size());
-    for (unsigned int cnt : level_counts)
+    for (unsigned int cnt : level_counts) {
         level_sums.emplace_back(cnt ? std::make_unique<gpu::gpu_mem_32u>(cnt) : nullptr);
-
+        if (cnt > 0u) {
+            gpu::WorkSize ws_zero(GROUP_SIZE, cnt);
+            ocl_fill_buffer_with_zeros.exec(ws_zero, *level_sums.back(), cnt);
+        }
+    }
     // Scratch buffers reused across iterations and levels
     // - scan_tmp: used as dummy per-element output in up-sweep, and as scan output in down-sweep
     // - scan_parent/scan_curr: ping-pong for down-sweep parent offsets

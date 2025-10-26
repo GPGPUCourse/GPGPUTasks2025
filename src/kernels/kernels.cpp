@@ -2,6 +2,7 @@
 
 #include "cl/generated_kernels/add_block_offsets.h"
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/reduce_block_sums.h"
 #include "cl/generated_kernels/scan_block_inclusive.h"
 
@@ -58,6 +59,11 @@ const ProgramBinaries& getScanBlockInclusive()
 const ProgramBinaries& getAddBlockOffsets()
 {
     return opencl_binaries_add_block_offsets;
+}
+
+const ProgramBinaries& getFillBufferWithZeros()
+{
+    return opencl_binaries_fill_buffer_with_zeros;
 }
 } // namespace ocl
 

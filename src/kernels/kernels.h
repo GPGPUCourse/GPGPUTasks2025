@@ -15,6 +15,7 @@ const ProgramBinaries& getAplusB();
 const ProgramBinaries& getReduceBlockSums();
 const ProgramBinaries& getScanBlockInclusive();
 const ProgramBinaries& getAddBlockOffsets();
+const ProgramBinaries& getFillBufferWithZeros();
 }
 
 namespace avk2 {

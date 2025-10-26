@@ -62,7 +62,8 @@ set(OPENCL_SOURCES
     src/kernels/cl/aplusb.cl
     src/kernels/cl/reduce_block_sums.cl
     src/kernels/cl/scan_block_inclusive.cl
-    src/kernels/cl/add_block_offsets.cl)
+    src/kernels/cl/add_block_offsets.cl
+    src/kernels/cl/fill_buffer_with_zeros.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)
