@@ -61,6 +61,7 @@ set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/fill_buffer_with_zeros.cl
         src/kernels/cl/copy_array.cl
+        src/kernels/cl/subtract_arrays.cl
         src/kernels/cl/radix_sort_01_local_counting.cl
         src/kernels/cl/radix_sort_02_global_prefixes_scan_sum_reduction.cl
         src/kernels/cl/radix_sort_03_global_prefixes_scan_accumulation.cl
