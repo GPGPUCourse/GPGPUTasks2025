@@ -8,7 +8,6 @@
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
 prefix_sum_03_accumulate(
-    __global const uint* in,
     __global const uint* sparse,
     __global uint* out,
     unsigned int n)

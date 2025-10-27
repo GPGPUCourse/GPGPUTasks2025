@@ -29,7 +29,7 @@ prefix_sum_02_inplace_sparse(
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
-    if (initial_idx < n) {
+    if (initial_idx < n && (local_idx & 1)) {
         in[initial_idx] = data[local_idx];
     }
 }

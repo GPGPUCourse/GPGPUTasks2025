@@ -85,7 +85,7 @@ void run(int argc, char** argv)
             }
             {
                 timer tt;
-                ocl_accumulate.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, pow_buffer, prefix_sum_accum_gpu, n);
+                ocl_accumulate.exec(gpu::WorkSize(GROUP_SIZE, n), pow_buffer, prefix_sum_accum_gpu, n);
                 third_stage.push_back(tt.elapsed());
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
