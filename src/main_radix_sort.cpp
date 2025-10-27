@@ -110,12 +110,51 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            const unsigned int WORKGROUP_SIZE = 256;
+            const unsigned int num_workgroups = (n + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+            
+            gpu::gpu_mem_32u local_counts_gpu(num_workgroups * 16);
+            gpu::gpu_mem_32u global_sums_gpu(16);
+            gpu::gpu_mem_32u global_prefixes_gpu(16);
+            
+            input_gpu.copyToN(buffer1_gpu, n);
+            
+            gpu::gpu_mem_32u* src = &buffer1_gpu;
+            gpu::gpu_mem_32u* dst = &buffer2_gpu;
+            
+            for (unsigned int pass = 0; pass < 8; pass++) {
+                unsigned int digit_shift = pass * 4;
+                
+                {
+                    gpu::WorkSize workSize(WORKGROUP_SIZE, num_workgroups * WORKGROUP_SIZE);
+                    ocl_radixSort01LocalCounting.exec(workSize, *src, local_counts_gpu, n, digit_shift);
+                }
+                
+                {
+                    gpu::WorkSize workSize(WORKGROUP_SIZE, WORKGROUP_SIZE);
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(workSize, local_counts_gpu, global_sums_gpu, num_workgroups);
+                }
+                
+                {
+                    gpu::WorkSize workSize(WORKGROUP_SIZE, WORKGROUP_SIZE);
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize, global_sums_gpu, global_prefixes_gpu);
+                }
+                
+                {
+                    gpu::WorkSize workSize(WORKGROUP_SIZE, num_workgroups * WORKGROUP_SIZE);
+                    ocl_radixSort04Scatter.exec(workSize, *src, local_counts_gpu, global_prefixes_gpu, *dst, n, digit_shift, num_workgroups);
+                }
+                
+                gpu::gpu_mem_32u* temp = src;
+                src = dst;
+                dst = temp;
+            }
+            
+            if (src == &buffer1_gpu) {
+                buffer1_gpu.copyToN(buffer_output_gpu, n);
+            } else {
+                buffer2_gpu.copyToN(buffer_output_gpu, n);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
