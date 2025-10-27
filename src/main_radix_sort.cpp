@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -12,6 +12,42 @@
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
 
 #include <fstream>
+
+void calc_prefsums(
+    ocl::KernelSource& ocl_radixSort02GlobalPrefixesScanSumReduction,
+    ocl::KernelSource& ocl_radixSort03GlobalPrefixesScanAccumulation,
+    ocl::KernelSource& ocl_fillBufferWithZeros,
+    gpu::gpu_mem_32u& input_buffer,
+    gpu::gpu_mem_32u& buffer1_pow2_sum_gpu,
+    gpu::gpu_mem_32u& buffer2_pow2_sum_gpu,
+    gpu::gpu_mem_32u& output_buffer,
+    int n)
+{
+    gpu::WorkSize workSize(GROUP_SIZE, n);
+    ocl_fillBufferWithZeros.exec(workSize, output_buffer, n);
+
+    gpu::WorkSize workSizeAccum(GROUP_SIZE, n / 2);
+
+    unsigned int k = (n + 1) / 2;
+    unsigned int prev_k = n;
+    gpu::gpu_mem_32u* curr_buffer_1 = &input_buffer;
+    gpu::gpu_mem_32u* curr_buffer_2 = &buffer1_pow2_sum_gpu;
+    for (int pow2 = 0; (1 << pow2) < n; pow2++) {
+        gpu::WorkSize workSizeReduction(GROUP_SIZE, k);
+        ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSizeAccum, *curr_buffer_1, output_buffer, n, pow2);
+
+        ocl_radixSort02GlobalPrefixesScanSumReduction.exec(workSizeReduction, *curr_buffer_1, *curr_buffer_2, prev_k);
+        if (pow2 == 0) {
+            // first launch; set input buffer to output buffer, set
+            curr_buffer_1 = curr_buffer_2;
+            curr_buffer_2 = &buffer2_pow2_sum_gpu;
+        } else {
+            std::swap(curr_buffer_1, curr_buffer_2);
+        }
+        prev_k = k;
+        k = (k + 1) / 2;
+    }
+}
 
 void run(int argc, char** argv)
 {
@@ -45,7 +81,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 1000 * 100; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -81,19 +117,19 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
+    const unsigned int bits_per_iter = 2;
+    const unsigned int buf_size = n * bits_per_iter;
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u zero_positions(n), one_positions(n), zero_prefsums(n), one_prefsums(n);
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u bit_flags(buf_size), bit_flags_prefsums(buf_size), buffer1_pow2_sum_gpu(buf_size), buffer2_pow2_sum_gpu(buf_size);
+    gpu::gpu_mem_32u buffer_output_gpu(n), swap_buffer(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    zero_positions.fill(255);
-    one_positions.fill(255);
-    zero_prefsums.fill(255);
-    one_prefsums.fill(255);
+    bit_flags.fill(255);
+    bit_flags_prefsums.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -104,25 +140,44 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            for (int bit = 0; bit < 3; bit++) {
-                gpu::WorkSize workSize(GROUP_SIZE, n);
+            gpu::gpu_mem_32u* curr_input_buffer = &input_gpu;
+            gpu::gpu_mem_32u* curr_output_buffer = &buffer_output_gpu;
+            for (int bit = 0; bit < 32; bit++) {
+                std::vector<unsigned int> cpu_curr_input = curr_input_buffer->readVector();
 
-                ocl_fillBufferWithZeros.exec(workSize, zero_positions, n);
-                ocl_fillBufferWithZeros.exec(workSize, one_positions, n);
+                gpu::WorkSize workSize_n(GROUP_SIZE, n);
+                gpu::WorkSize workSize_buf_size(GROUP_SIZE, buf_size);
 
-                ocl_radixSort01LocalCounting.exec(workSize, input_gpu, zero_positions, one_positions, bit, n);
+                ocl_fillBufferWithZeros.exec(workSize_buf_size, bit_flags, buf_size);
 
-                cl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
-                buffer1_pow2_sum_gpu.writeN(as.data(), n);
-                for (int pow2 = 0; (1 << pow2) <= n; pow2++) {
-                    ocl_prefix_accumulation.exec(workSizeAccum, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
-                    ocl_sum_reduction.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, n);
-                    buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+                ocl_radixSort01LocalCounting.exec(workSize_n, *curr_input_buffer, bit_flags, bit, n, bits_per_iter);
+
+                std::vector<unsigned int> cpu_bit_flags = bit_flags.readVector();
+
+                calc_prefsums(
+                    ocl_radixSort02GlobalPrefixesScanSumReduction,
+                    ocl_radixSort03GlobalPrefixesScanAccumulation,
+                    ocl_fillBufferWithZeros,
+                    bit_flags,
+                    buffer1_pow2_sum_gpu,
+                    buffer2_pow2_sum_gpu,
+                    bit_flags_prefsums,
+                    buf_size);
+
+                cpu_bit_flags = bit_flags.readVector();
+
+                std::vector<unsigned int> cpu_bit_flags_prefsums = bit_flags_prefsums.readVector();
+
+                ocl_radixSort04Scatter.exec(workSize_buf_size, bit_flags, bit_flags_prefsums, *curr_input_buffer, *curr_output_buffer, n, bits_per_iter);
+
+                if (bit == 0) {
+                    // first launch; set input buffer to output buffer, output buffer to swap buffer
+                    curr_input_buffer = curr_output_buffer;
+                    curr_output_buffer = &swap_buffer;
+                } else {
+                    // other launches; swap buffers
+                    std::swap(curr_input_buffer, curr_output_buffer);
                 }
-
-                // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-                // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-                // ocl_radixSort04Scatter.exec();
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
@@ -176,7 +231,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
