@@ -23,7 +23,7 @@ namespace debug {
     std::vector<std::string> toBits(const std::vector<T> &values) {
         static_assert(std::is_integral<T>::value, "toBits<T> requires integral T");
         using U = typename std::make_unsigned<T>::type;
-        constexpr size_t N = 4;
+        constexpr size_t N = sizeof(T) * CHAR_BIT;
 
         std::vector<std::string> res(values.size());
         for (size_t i = 0; i < values.size(); ++i) {
