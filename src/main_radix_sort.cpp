@@ -52,8 +52,7 @@ void cuda_scan(unsigned int n, unsigned int bit, gpu::gpu_mem_32u& input_gpu, gp
 
 void cuda_scatter(unsigned int n, unsigned int bit, const gpu::gpu_mem_32u& input_gpu, const gpu::gpu_mem_32u& scan_gpu, gpu::gpu_mem_32u& output_gpu)
 {
-    cuda::radix_sort_03_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit, 0);
-    cuda::radix_sort_03_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit, 1);
+    cuda::radix_sort_03_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit);
 }
 
 void run(int argc, char** argv)
