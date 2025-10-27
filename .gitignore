@@ -4,3 +4,6 @@
 build*
 cmake-build*
 .vs
+*cache*
+.devcontainer
+.vscode
