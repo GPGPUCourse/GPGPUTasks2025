@@ -2,53 +2,26 @@
 #include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
 #endif
 
-#include "helpers/rassert.cl"
 #include "../defines.h"
+#include "helpers/rassert.cl"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void prefix_sum_03_accumulate(
+__kernel void
+prefix_sum_03_accumulate(
     __global const uint* in,
     __global const uint* sparse,
     __global uint* out,
     unsigned int n)
 {
-    __local uint buf[GROUP_SIZE];
-    __local uint buf2[32];
     size_t global_idx = get_global_id(0);
     size_t local_idx = get_local_id(0);
-
-    buf[local_idx] = in[global_idx];
-    __local uint pref_sum;
-    if (local_idx == 0) {
-        pref_sum = 0;
-        // global_idx should % GROUP_SIZE
-        size_t trunc_global_idx = global_idx >> GROUP_SIZE_LOG;
-        size_t offset = 0;
-        for (int i = 0; i < 32; ++i) {
-            buf2[i] = 0;
+    if (global_idx < n) {
+        uint pref_sum = 0;
+        uint cur_idx = global_idx + 1;
+        while (cur_idx > 0) {
+            pref_sum += sparse[cur_idx - 1];
+            cur_idx -= cur_idx & -cur_idx;
         }
-        for (int i = 31 - GROUP_SIZE_LOG; i >= 0; --i) {
-            if ((trunc_global_idx & (1 << i)) != 0) {
-                offset += (trunc_global_idx & (1 << i));
-                buf2[i] = offset;
-            }
-        }
+        out[global_idx] = pref_sum;
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (local_idx < 32) {
-        if (buf2[local_idx] != 0) {
-            atomic_add(&pref_sum, sparse[buf2[local_idx] - 1]);
-        } else {
-            buf2[local_idx] = 0;
-        }
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (local_idx == 0) {
-        buf[0] += pref_sum;
-        for (int i = 1; i < GROUP_SIZE; ++i) {
-            buf[i] += buf[i - 1];
-        }
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-    out[global_idx] = buf[local_idx];
 }

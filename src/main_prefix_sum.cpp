@@ -41,7 +41,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -51,7 +51,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), prefix_sum_accum_gpu(n), pow_buffer(n / GROUP_SIZE + 1);
+    gpu::gpu_mem_32u input_gpu(n), prefix_sum_accum_gpu(n), pow_buffer(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -71,16 +71,15 @@ void run(int argc, char** argv)
         if (context.type() == gpu::Context::TypeOpenCL) {
             {
                 timer tt;
-                ocl_reduce.exec(gpu::WorkSize(GROUP_SIZE,n), input_gpu, pow_buffer, n);
+                ocl_reduce.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, pow_buffer, n);
                 first_stage.push_back(tt.elapsed());
             }
             {
                 timer tt;
-                unsigned int reduced_n = n / GROUP_SIZE + 1;
                 // level=1: [0, 1] -> 1,    [2, 3] -> 3,    [4, 5] -> 5
                 // level=2: [1, 3] -> 3,    [5, 7] -> 7,    [9, 11] -> 11
-                for (unsigned int level = 1; level < reduced_n; level *= 2) {
-                    ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, reduced_n / (2 * level) + 1), pow_buffer, reduced_n, level);
+                for (size_t level = 1; level < n; level *= GROUP_SIZE) {
+                    ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, n / level + 1), pow_buffer, n, (uint)level);
                 }
                 second_stage.push_back(tt.elapsed());
             }
@@ -142,7 +141,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {

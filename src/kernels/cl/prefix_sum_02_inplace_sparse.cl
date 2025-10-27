@@ -13,10 +13,23 @@ prefix_sum_02_inplace_sparse(
     unsigned int level)
 {
     // no barriers because work items do not intersect
+    __local uint data[GROUP_SIZE];
     size_t i = get_global_id(0);
-    size_t work_idx = (i + 1) * 2 * level - 1;
-    if (work_idx < n) {
-        size_t prev = (2 * i + 1) * level - 1;
-        in[work_idx] += in[prev];
+    size_t local_idx = get_local_id(0);
+    size_t initial_idx = (i + 1) * level - 1;
+    if (initial_idx < n) {
+        data[local_idx] = in[initial_idx];
+    } else {
+        data[local_idx] = 0;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    for (int iter = 1; iter <= GROUP_SIZE_LOG; ++iter) {
+        if (((local_idx + 1) & ((1 << iter) - 1)) == 0) {
+            data[local_idx] += data[local_idx - (1 << (iter - 1))];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    if (initial_idx < n) {
+        in[initial_idx] = data[local_idx];
     }
 }
