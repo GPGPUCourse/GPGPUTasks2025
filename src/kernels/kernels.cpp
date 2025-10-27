@@ -28,6 +28,12 @@ void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
+void copy_buffer(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& from, gpu::gpu_mem_32u& to, unsigned int n)
+
+{
+    // dummy implementation if CUDA_SUPPORT is disabled
+    rassert(false, 54623523412413);
+}
 void radix_sort_01_local_counting(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &values, gpu::gpu_mem_32u &buffer1, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
