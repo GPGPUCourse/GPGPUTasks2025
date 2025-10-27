@@ -10,6 +10,14 @@
 
 #include <fstream>
 
+void debug_out_memory(const gpu::gpu_mem_32u& mem) {
+    auto v = mem.readVector();
+    for(auto i : v) {
+        std::cerr << i << " ";
+    }
+    std::cerr << "\n";
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -42,6 +50,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
     unsigned int n = 100*1000*1000;
+    // uint n = 10;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -51,10 +60,11 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), sum_buffer(4 * n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
+    sum_buffer.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -63,27 +73,18 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        uint cur_n = n;
+        uint offset = 0;
+        uint p = 0;
+        while((1 << p) <= n) {
+            ++p;
+            uint out_n = cur_n / 2 + cur_n % 2;
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, out_n), sum_buffer, offset, offset + cur_n, cur_n);
+            offset += cur_n;
+            cur_n = out_n;
         }
+        
+        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), sum_buffer, prefix_sum_accum_gpu, n);
 
         times.push_back(t.elapsed());
     }
