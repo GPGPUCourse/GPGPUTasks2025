@@ -93,13 +93,33 @@ void run(int argc, char** argv)
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+        input_gpu.copyTo(buffer_output_gpu, 4 * n);
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            unsigned int sorted_block_size = 1;
+            while (sorted_block_size < n) {
+                std::swap(buffer1_gpu, buffer_output_gpu);
+
+                // std::cout << "A : ";
+                // std::vector<unsigned int> gpu_sorted = buffer1_gpu.readVector();
+                // for (auto a : gpu_sorted)
+                //     std::cout << a << " ";
+                // std::cout << std::endl;
+                
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer_output_gpu, sorted_block_size, n);
+                
+                // std::cout << "S : ";
+                // gpu_sorted = buffer_output_gpu.readVector();
+                // for (auto a : gpu_sorted)
+                //     std::cout << a << " ";
+                // std::cout << std::endl;
+
+                sorted_block_size <<= 1;
+                // break;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
