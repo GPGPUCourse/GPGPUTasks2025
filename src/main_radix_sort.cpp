@@ -9,9 +9,52 @@
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
 
-#include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
+#include "debug.h"
+
+#ifdef _MSC_VER
+    #include <intrin.h>
+#endif
 
 #include <fstream>
+
+unsigned int find_msb_position(unsigned int value) {
+    if (value == 0) {
+        return 1;
+    }
+
+#ifdef _MSC_VER
+    unsigned long index;
+    _BitScanReverse(&index, static_cast<unsigned long>(value));
+    return static_cast<unsigned int>(index);
+#elif defined(__GNUC__) || defined(__clang__)
+    return 31 - __builtin_clz(value);
+#else
+    unsigned int position = 0;
+    unsigned int temp = value;
+    while (temp >>= 1) {
+        ++position;
+    }
+    return position;
+#endif
+}
+
+void cuda_scan(unsigned int n, unsigned int bit, gpu::gpu_mem_32u& input_gpu, gpu::gpu_mem_32u& buffer_gpu, gpu::gpu_mem_32u& output_gpu)
+{
+    unsigned int d = 0;
+    while ((1ull << (d * 8)) < n) {
+        unsigned int sparse_rate = (1ull << (d * 8));
+        auto& in_gpu = d == 0 ? input_gpu : buffer_gpu;
+        cuda::radix_sort_01_scan_build_fenwick(gpu::WorkSize(GROUP_SIZE, (n + sparse_rate - 1) / sparse_rate), in_gpu, buffer_gpu, n, d, bit);
+        ++d;
+    }
+    cuda::radix_sort_02_scan_accumulation(gpu::WorkSize(GROUP_SIZE, n), buffer_gpu, output_gpu, n);
+}
+
+void cuda_scatter(unsigned int n, unsigned int bit, const gpu::gpu_mem_32u& input_gpu, const gpu::gpu_mem_32u& scan_gpu, gpu::gpu_mem_32u& output_gpu)
+{
+    cuda::radix_sort_03_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit, 0);
+    cuda::radix_sort_03_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit, 1);
+}
 
 void run(int argc, char** argv)
 {
@@ -23,12 +66,7 @@ void run(int argc, char** argv)
     //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
-    // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -50,8 +88,19 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+#ifdef LOCAL_RUN
+    int n = 100'000'000;
+    int max_value = std::numeric_limits<int>::max();
+    int iter_count = 10;
+    // int n = 1'000;
+    // int max_value = std::numeric_limits<int>::max();
+    // int iter_count = 10;
+#else
+    int n = 100'000'000;
+    int max_value = std::numeric_limits<int>::max();
+    int iter_count = 10;
+#endif
+
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -87,57 +136,47 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), scan_gpu(n);
+    gpu::gpu_mem_32u* output_gpu_ptr = nullptr;
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    // output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < iter_count; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        rassert(context.type() == gpu::Context::TypeCUDA, 4531412341);
+
+        unsigned int max_bit = 1;
+        for (auto a : as) {
+            max_bit = std::max(max_bit, find_msb_position(a));
         }
+
+        bool save_to_buffer1 = true;
+        for (int bit = 0; bit <= max_bit; ++bit) {
+            save_to_buffer1 = bit % 2 == 0;
+
+            gpu::gpu_mem_32u& prev_buffer = save_to_buffer1 ? buffer2_gpu : buffer1_gpu;
+            gpu::gpu_mem_32u& new_buffer = save_to_buffer1 ? buffer1_gpu : buffer2_gpu;
+            gpu::gpu_mem_32u& input = bit == 0 ? input_gpu : prev_buffer;
+
+            cuda_scan(n, bit, input, new_buffer, scan_gpu);
+            cuda_scatter(n, bit, input, scan_gpu, new_buffer);
+        }
+        output_gpu_ptr = save_to_buffer1 ? &buffer1_gpu : &buffer2_gpu;
 
         times.push_back(t.elapsed());
     }
+    gpu::gpu_mem_32u& buffer_output_gpu = *output_gpu_ptr;
+
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
