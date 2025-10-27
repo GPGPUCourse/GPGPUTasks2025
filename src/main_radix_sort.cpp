@@ -125,7 +125,7 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    const unsigned int bits_per_iter = 1;
+    const unsigned int bits_per_iter = 2;
     const unsigned int buckets_count = (1 << bits_per_iter);
     const unsigned int mask = buckets_count - 1;
     const unsigned int buf_size = n * buckets_count;
