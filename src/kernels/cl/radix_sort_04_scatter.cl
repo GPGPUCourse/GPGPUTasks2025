@@ -15,10 +15,10 @@ radix_sort_04_scatter(
     __global const uint* input_buffer,
     __global uint* output_buffer,
     unsigned int n,
-    unsigned int bits_per_iter)
+    unsigned int workSize)
 {
     int i = get_global_id(0);
-    if (i >= n * bits_per_iter) {
+    if (i >= workSize) {
         return;
     }
     if (flag_buffer[i]) {

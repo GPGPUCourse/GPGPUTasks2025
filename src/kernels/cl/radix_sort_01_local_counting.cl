@@ -10,14 +10,14 @@ __kernel void
 radix_sort_01_local_counting(
     __global const uint* arr,
     __global uint* bit_flags,
-    unsigned int bit,
-    unsigned int n,
-    unsigned int bits_per_launch)
+    unsigned int bit_shift,
+    unsigned int bit_mask,
+    unsigned int n)
 {
     int i = get_global_id(0);
     if (i >= n) {
         return;
     }
-    int val = (arr[i] >> bit) & 1;
+    int val = (arr[i] >> bit_shift) & bit_mask;
     bit_flags[i + val * n] = 1;
 }
