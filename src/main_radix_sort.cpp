@@ -112,6 +112,14 @@ void run(int argc, char** argv)
 
                 ocl_radixSort01LocalCounting.exec(workSize, input_gpu, zero_positions, one_positions, bit, n);
 
+                cl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+                buffer1_pow2_sum_gpu.writeN(as.data(), n);
+                for (int pow2 = 0; (1 << pow2) <= n; pow2++) {
+                    ocl_prefix_accumulation.exec(workSizeAccum, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+                    ocl_sum_reduction.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, n);
+                    buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+                }
+
                 // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
                 // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
                 // ocl_radixSort04Scatter.exec();
