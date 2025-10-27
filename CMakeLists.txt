@@ -1,11 +1,20 @@
 cmake_minimum_required(VERSION 3.20)
 
+if(POLICY CMP0146)
+    cmake_policy(SET CMP0146 OLD)
+endif()
+
 project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
-option(GPU_CUDA_SUPPORT "CUDA support." OFF)
+option(GPU_CUDA_SUPPORT "CUDA support." ON)
+
+if (MSVC AND GPU_CUDA_SUPPORT)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /FORCE:MULTIPLE")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /FORCE:MULTIPLE")
+endif()
 
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
 if (NOT DEFINED GLSLC_BIN)
