@@ -118,7 +118,7 @@ void run(int argc, char** argv)
                 auto* prev_reduction_buf = &map_gpu_buffer;
                 for (uint32_t k = 0; (1ull << k) < n; k++) {
                     ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), *prev_reduction_buf, prefix_sum_accum, n, k);
-                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), *prev_reduction_buf, buffer2_pow_gpu, n, (n + 1) / (1ull << k));
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), *prev_reduction_buf, buffer2_pow_gpu, n, (unsigned int)(n + 1) / (1ull << k));
                     buffer2_pow_gpu.swap(buffer1_pow_gpu);
                     prev_reduction_buf = &buffer1_pow_gpu;
                 }
