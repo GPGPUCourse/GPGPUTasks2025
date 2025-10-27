@@ -11,7 +11,6 @@
 
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
 
-#include <fstream>
 
 void run(int argc, char** argv)
 {
@@ -80,9 +79,9 @@ void run(int argc, char** argv)
         timer t;
         std::sort(sorted.begin(), sorted.end());
         // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
-        double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
+        double memory_size_gb = sizeof(unsigned int) * 2 * static_cast<double>(n) / 1024.0 / 1024.0 / 1024.0;
         std::cout << "CPU std::sort finished in " << t.elapsed() << " sec" << std::endl;
-        std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
+        std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << static_cast<double>(n) / 1000.0 / 1000.0 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
     // Аллоцируем буферы в VRAM
@@ -103,19 +102,39 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            const unsigned int groups = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+
+
+            gpu::gpu_mem_32u* src = &input_gpu;
+            gpu::gpu_mem_32u* dstA = &buffer1_gpu;
+            gpu::gpu_mem_32u* dstB = &buffer_output_gpu;
+
+            for (unsigned int bit = 0; bit < 32; ++bit) {
+                gpu::WorkSize ws_values(GROUP_SIZE, groups * GROUP_SIZE);
+                gpu::WorkSize ws_scalar(1, 1);
+
+                ocl_radixSort01LocalCounting.exec(ws_values, *src, buffer2_gpu, (unsigned int)n, bit);
+
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(ws_scalar, buffer2_gpu, buffer3_gpu, groups);
+
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(ws_scalar, buffer2_gpu, buffer3_gpu, groups, 0u);
+
+                gpu::gpu_mem_32u* dst = (bit % 2 == 0) ? dstA : dstB;
+                ocl_radixSort04Scatter.exec(ws_values, *src, buffer3_gpu, *dst, (unsigned int)n, bit);
+
+                src = dst;
+            }
+
+            if (src != &buffer_output_gpu) {
+                std::vector<unsigned int> tmp = src->readVector();
+                buffer_output_gpu.writeN(tmp.data(), tmp.size());
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -141,8 +160,8 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
-    double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
-    std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
+    double memory_size_gb = sizeof(unsigned int) * 2 * static_cast<double>(n) / 1024.0 / 1024.0 / 1024.0;
+    std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << static_cast<double>(n) / 1000.0 / 1000.0 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
