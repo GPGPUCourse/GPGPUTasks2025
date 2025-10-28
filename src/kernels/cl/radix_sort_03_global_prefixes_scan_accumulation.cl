@@ -35,13 +35,11 @@ radix_sort_03_global_prefixes_scan_accumulation(
         pref += reduced_pref_sums[BIT_GRANULARITY_EXP * (block_idx - 1) + buffer[local_id]];
         block_idx -= block_idx & -block_idx;
     }
-    uint save_global_pref = pref;
 
     // get total count of lower subnumbers
-    for (uint i = 0; i < buffer[local_id]; ++i) {
-        pref += total_sums[i];
+    if (buffer[local_id] > 0) {
+        pref += total_sums[buffer[local_id] - 1]; // total sums are already prefixed
     }
-    uint save_total_sums_pref = pref;
 
     barrier(CLK_LOCAL_MEM_FENCE);
     for (uint i = 0; i < local_id; ++i) {

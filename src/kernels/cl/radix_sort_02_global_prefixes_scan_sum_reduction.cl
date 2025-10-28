@@ -11,6 +11,7 @@ radix_sort_02_global_prefixes_scan_sum_reduction(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global uint* in,
+    __global uint* total_sums,
     uint n,
     unsigned int level)
 {
@@ -38,5 +39,27 @@ radix_sort_02_global_prefixes_scan_sum_reduction(
     // no need for barrier
     if (initial_block_idx < n) {
         in[initial_block_idx * BIT_GRANULARITY_EXP + pos_in_block] = data[local_idx];
+    }
+
+    // if first iteration also build total sum fenwick
+    if (global_id < BIT_GRANULARITY_EXP && level == 1) {
+        rassert(local_idx < BIT_GRANULARITY_EXP, 123123);
+        data[local_idx] = total_sums[local_idx];
+#pragma unroll
+        for (int iter = 1; iter <= BIT_GRANULARITY; ++iter) {
+            barrier(CLK_LOCAL_MEM_FENCE);
+            if (((local_idx + 1) & ((1 << iter) - 1)) == 0) {
+                data[local_idx] += data[local_idx - (1 << (iter - 1))];
+            }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        // fenwick build now count pref_sums
+        uint idx = local_idx + 1;
+        uint pref_sum = 0;
+        while (idx > 0) {
+            pref_sum += data[idx - 1];
+            idx -= idx & -idx;
+        }
+        total_sums[local_idx] = pref_sum;
     }
 }

@@ -171,7 +171,7 @@ void run(int argc, char** argv)
                     assert(GROUP_SIZE % BIT_GRANULARITY_EXP == 0);
                     assert(GROUP_SIZE > BIT_GRANULARITY_EXP);
                     for (size_t level = 1; level < reduced_n; level *= (GROUP_SIZE / BIT_GRANULARITY_EXP)) {
-                        ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, (reduced_n / level + 1) * BIT_GRANULARITY_EXP), pref_sums, reduced_n, (uint)level);
+                        ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, (reduced_n / level + 1) * BIT_GRANULARITY_EXP), pref_sums, total_sums, reduced_n, (uint)level);
                     }
                     second_stage.push_back(tt.elapsed());
                 }
