@@ -9,6 +9,18 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <utility>
+#include <vector>
+
+void print_vec(const std::vector<unsigned int>& v)
+{
+    std::cout << "[";
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::cout << std::setw(3) << v[i] << " ";
+    }
+    std::cout << "]";
+    std::cout << std::endl;
+}
 
 void run(int argc, char** argv)
 {
@@ -41,13 +53,15 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
+    std::vector<unsigned int> r(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         as[i] = (3 * (i + 5) + 7) % 17;
         total_sum += as[i];
         rassert(total_sum < std::numeric_limits<unsigned int>::max(), 5462345234231, total_sum, as[i], i); // ensure no overflow
+        r[i] = total_sum;
     }
 
     // Аллоцируем буферы в VRAM
@@ -56,19 +70,65 @@ void run(int argc, char** argv)
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
 
+    // std::cout << "inp: ";
+    // print_vec(input_gpu.readVector());
+    // std::cout << "res: ";
+    // print_vec(r);
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
+    gpu::WorkSize workSize(GROUP_SIZE, n);
+    ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+
+    std::vector<unsigned int> r2(n, 0);
+
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            unsigned int k = 1;
+            unsigned int p = 0;
+            gpu::gpu_mem_32u* from = &input_gpu;
+            gpu::gpu_mem_32u* to = &buffer1_pow2_sum_gpu;
+
+            while (k <= n) {
+                // std::cout << "p = " << p << ", k = " << k << ", n = " << n << std::endl;
+                ocl_fill_with_zeros.exec(workSize, *to, n);
+                // reduce
+                ocl_sum_reduction.exec(workSize, *from, *to, n, p);
+                // std::cout << "pow: ";
+                // print_vec(to->readVector());
+                
+                // sum
+                ocl_prefix_accumulation.exec(workSize, *to, prefix_sum_accum_gpu, n, p);
+                
+                // auto red = to->readVector();
+                // for (unsigned int i = 0; i < n; ++i) {
+                //     unsigned int pow2 = (1u << p);
+                //     bool bit_is_set = ((i + 1) & pow2) != 0;
+
+                //     if (bit_is_set) {
+                //         unsigned int idx = (i + 1) - ((i + 1) % pow2) - 1;
+                //         r2[i] += red[idx];
+                //     }
+                // }
+                
+                // std::cout << "acc: ";
+                // print_vec(r2);
+                // print_vec(prefix_sum_accum_gpu.readVector());
+
+                if (p == 0) {
+                    from = &buffer1_pow2_sum_gpu;
+                    to = &buffer2_pow2_sum_gpu;
+                } else {
+                    std::swap(from, to);
+                }
+                k *= 2;
+                p++;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -119,7 +179,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
