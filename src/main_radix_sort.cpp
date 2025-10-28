@@ -87,7 +87,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u a_gpu(n), is_zeros(n), pref_zeros(n), pow2_sums(n), larger_pow2_sums(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -95,10 +95,11 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
+    a_gpu.fill(255);
+    is_zeros.fill(255);
+    pref_zeros.fill(255);
+    pow2_sums.fill(255);
+    larger_pow2_sums.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -109,29 +110,41 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
+            input_gpu.copyToN(a_gpu, n);
+            for (int bit = 0; bit < 32; ++bit) { // bit to sort values by
+
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), is_zeros, n);
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), a_gpu, is_zeros, n, bit);
+
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), pref_zeros, n);
+                is_zeros.copyToN(pow2_sums, n);
+                // ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), larger_pow2_sums, n);
+
+                auto cur_n = n;
+                for (int i = 0; (n >> i) > 0; ++i) { // bit of fenwick styled prefix sum/cur power of 2
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), pow2_sums, pref_zeros, n, i);
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, cur_n), pow2_sums, larger_pow2_sums, cur_n);
+                    cur_n = (cur_n + 1) / 2;
+                    pow2_sums.swap(larger_pow2_sums);
+                }
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), a_gpu, pref_zeros, buffer_output_gpu, n, bit);
+
+                // auto sorted = buffer_output_gpu.readVector();
+                // std::cerr << "sorted by bit " << bit << ": ";
+                // for (const auto& value : sorted) {
+                //     int x = value;
+                //     for (int b = 3; b >= 0; --b) {
+                //         if (b == bit) std::cerr << "[";
+                //         std::cerr << ((x >> b) & 1);
+                //         if (b == bit) std::cerr << "]";
+                //     }
+                //     std::cerr << ", ";
+                // }
+                // std::cerr << std::endl;
+
+                buffer_output_gpu.swap(a_gpu);
+            }
+            a_gpu.copyToN(buffer_output_gpu, n);
         } else {
             rassert(false, 4531412341, context.type());
         }
