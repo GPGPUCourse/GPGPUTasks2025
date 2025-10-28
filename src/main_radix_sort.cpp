@@ -28,7 +28,7 @@ std::string to_binary_string(uint32_t value, unsigned int bits) {
 void print_vec(const std::vector<unsigned int>& v, bool make_binary = false, unsigned int bits = 3) {
     std::cout << "[";
     for (size_t i = 0; i < v.size(); ++i) {
-        std::cout << std::setw(4);
+        // std::cout << std::setw(4);
         std::cout << (make_binary ? to_binary_string(v[i], bits) : std::to_string(v[i]));
         std::cout << " ";
     }
