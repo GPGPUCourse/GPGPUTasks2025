@@ -117,13 +117,13 @@ void run(int argc, char** argv)
         gpu::gpu_mem_32u* buffer_sort2_ptr = &buffer_sort2;
 
         input_gpu.copyToN(buffer_sort1, n);
-        for (size_t bit_i = 0; bit_i < 32; ++bit_i) {
+        for (unsigned int bit_i = 0; bit_i < 32; ++bit_i) {
             gpu::WorkSize workSize(GROUP_SIZE, n);
             ocl_radixSort01LocalCounting.exec(workSize, *buffer_sort1_ptr, buffer2_pow2_sum_gpu, bit_i, n);
             ocl_fillBufferWithZeros.exec(workSize, prefix_sum_accum_gpu, n);
 
             unsigned int buffer_size = n;
-            for (int pow = 0; pow < 32; ++pow) {
+            for (unsigned int pow = 0; pow < 32; ++pow) {
                 if (n < (1 << pow)) {
                     break;
                 }
