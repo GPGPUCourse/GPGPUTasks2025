@@ -11,6 +11,15 @@
 
 #include <fstream>
 
+
+void printValues(const gpu::gpu_mem_32u& nums, unsigned int n) {
+    std::vector<unsigned int> vnums = nums.readVector(n);
+    for (const auto& i : vnums) {
+        std::cout << i << " ";
+    }
+    std::cout << '\n';
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -35,8 +44,6 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
-
-    avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
     FastRandom r;
 
@@ -78,11 +85,12 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
+
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
@@ -92,26 +100,27 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        auto* buffer1 = &buffer1_gpu;
+        auto* buffer2 = &buffer2_gpu;
+
+        input_gpu.copyToN(*buffer1, n);
+        gpu::WorkSize workSize(GROUP_SIZE, n);
+
+        int sorted_size = 1;
+        while (sorted_size < n) {
+            ocl_mergeSort.exec(workSize, *buffer1, *buffer2, sorted_size, n);
+            sorted_size *= 2;
+
+            std::swap(buffer1, buffer2);
         }
 
+        (*buffer1).copyToN(buffer_output_gpu, n);
         times.push_back(t.elapsed());
     }
+
     std::cout << "GPU merge-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
@@ -121,7 +130,6 @@ void run(int argc, char** argv)
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
 
-    // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
         rassert(sorted[i] == gpu_sorted[i], 566324523452323, sorted[i], gpu_sorted[i], i);
     }
