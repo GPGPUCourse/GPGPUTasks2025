@@ -77,12 +77,11 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     gpu::WorkSize workSize(GROUP_SIZE, n);
-    ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
-
     std::vector<unsigned int> r2(n, 0);
-
+    
     std::vector<double> times;
-    for (int iter = 0; iter < 1; ++iter) {
+    for (int iter = 0; iter < 10; ++iter) {
+        ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
