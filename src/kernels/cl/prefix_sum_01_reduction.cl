@@ -12,8 +12,5 @@ prefix_sum_01_reduction(
     __global uint* reduced,
     unsigned int n)
 {
-    size_t global_idx = get_global_id(0);
-    if (global_idx < n) {
-        reduced[global_idx] = in[global_idx];
-    }
+    // nothing: is fused with second stage
 }

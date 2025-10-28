@@ -74,10 +74,10 @@ void run(int argc, char** argv)
                 timer tt;
                 // level=1: [0, 1] -> 1,    [2, 3] -> 3,    [4, 5] -> 5
                 // level=2: [1, 3] -> 3,    [5, 7] -> 7,    [9, 11] -> 11
-                for (size_t level = 1, iter = 0; level < n; level *= BUILD_GROUP_SIZE, ++iter) {
+                for (size_t level = 1, iter = 0; level < n; level *= GROUP_SIZE, ++iter) {
                     timer ttt;
                     auto in = (level == 1) ? input_gpu : pow_buffer;
-                    ocl_inplace_sparse.exec(gpu::WorkSize(BUILD_GROUP_SIZE, n / level + 1), in, pow_buffer, n, (uint)level);
+                    ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, n / level + 1), in, pow_buffer, n, (uint)level);
                     if (second_stage_iters.size() <= iter) {
                         second_stage_iters.resize(iter + 1);
                     }
@@ -87,7 +87,7 @@ void run(int argc, char** argv)
             }
             {
                 timer tt;
-                ocl_accumulate.exec(gpu::WorkSize(FIND_GROUP_SIZE, n), pow_buffer, prefix_sum_accum_gpu, n);
+                ocl_accumulate.exec(gpu::WorkSize(GROUP_SIZE, n), pow_buffer, prefix_sum_accum_gpu, n);
                 third_stage.push_back(tt.elapsed());
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {

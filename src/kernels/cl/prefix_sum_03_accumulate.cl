@@ -5,7 +5,7 @@
 #include "../defines.h"
 #include "helpers/rassert.cl"
 
-__attribute__((reqd_work_group_size(FIND_GROUP_SIZE, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
 prefix_sum_03_accumulate(
     __global const uint* sparse,

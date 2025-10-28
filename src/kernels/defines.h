@@ -1,12 +1,8 @@
 #ifndef my_defines_vk // pragma once
 #define my_defines_vk
 
-#define BUILD_GROUP_SIZE_LOG 8
-#define BUILD_GROUP_SIZE   256
-
-#define FIND_GROUP_SIZE 32
-
-#define GROUP_SIZE 1 // unused
+#define GROUP_SIZE_LOG 8
+#define GROUP_SIZE 256
 
 #define RASSERT_ENABLED 0 // disabled by default, enable for debug by changing 0 to 1, disable before performance evaluation/profiling/commiting
 
