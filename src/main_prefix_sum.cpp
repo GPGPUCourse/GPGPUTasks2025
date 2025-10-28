@@ -11,13 +11,12 @@
 #include <fstream>
 #include <utility>
 #include <vector>
-#include <iomanip>
 
 void print_vec(const std::vector<unsigned int>& v)
 {
     std::cout << "[";
     for (size_t i = 0; i < v.size(); ++i) {
-        std::cout << std::setw(3) << v[i] << " ";
+        std::cout << v[i] << " ";
     }
     std::cout << "]";
     std::cout << std::endl;
