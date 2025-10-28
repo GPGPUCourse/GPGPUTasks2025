@@ -3,16 +3,25 @@
 #endif
 
 #include "helpers/rassert.cl"
-#include "../defines.h"
+#include "../defines.h" 
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE_X, BUCKETS_COUNT, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* reduced_histograms,  // num_groups/2 * BUCKETS_COUNT
+    __global       uint* prefix_sum_accum,    // num_groups * BUCKETS_COUNT
+    unsigned int num_groups,
+    unsigned int pow2)
 {
-    // TODO
+    const unsigned int i = get_global_id(0);
+    const unsigned int bucket = get_global_id(1);
+
+    if (i >= num_groups) {
+        return;
+    }
+
+    const unsigned int idx = i * BUCKETS_COUNT + bucket;
+    if (((i + 1) & (1 << pow2)) != 0) {
+        uint offset = ((i + 1) >> pow2) - 1;
+        prefix_sum_accum[i * BUCKETS_COUNT + bucket] += reduced_histograms[offset * BUCKETS_COUNT + bucket];
+    }
 }

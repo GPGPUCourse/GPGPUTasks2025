@@ -5,13 +5,25 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+
+__attribute__((reqd_work_group_size(GROUP_SIZE_X, BUCKETS_COUNT, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1)
+    __global const uint* local_histograms,  // contains num_groups * BUCKETS_COUNT values
+    __global       uint* reduced_histograms, //  will contain (num_groups/2) * BUCKETS_COUNT values
+    unsigned int num_groups)
 {
-    // TODO
+    const unsigned int bucket = get_global_id(1);
+    const unsigned int i = get_global_id(0);
+    const unsigned int local_id = get_local_id (0);
+    if (i >= (num_groups + 1)/2) {
+        return;
+    }
+    unsigned int idx0 = (i * 2) * BUCKETS_COUNT + bucket;
+    unsigned int idx1 = (i * 2 + 1) * BUCKETS_COUNT + bucket;
+
+    uint sum = local_histograms[idx0];
+    if (i * 2 + 1 < num_groups) {
+        sum += local_histograms[idx1];
+    }
+    reduced_histograms[i * BUCKETS_COUNT + bucket] = sum;
 }

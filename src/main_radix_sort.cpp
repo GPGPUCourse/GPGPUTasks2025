@@ -13,6 +13,19 @@
 
 #include <fstream>
 
+void printValues(const gpu::gpu_mem_32u& nums, unsigned int n) {
+    // std::cout << "print: \n";
+    std::vector<unsigned int> vnums = nums.readVector(n);
+    for (auto i = 0; i < n; ++i) {
+        std::cout << i << " ";
+    }
+    std::cout << '\n';
+    for (const auto& i : vnums) {
+        std::cout << i << " ";
+    }
+    std::cout << '\n';
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -51,7 +64,9 @@ void run(int argc, char** argv)
     FastRandom r;
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // int n = 10;
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+    // int max_value = 65;
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -95,7 +110,7 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
+    buffer1_gpu.writeN(as.data(), n);
     buffer2_gpu.fill(255);
     buffer3_gpu.fill(255);
     buffer4_gpu.fill(255);
@@ -109,8 +124,49 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            // std::cout << "input_gpu: \n";
+            // printValues(input_gpu, n);
+            unsigned int num_groups = (n + GROUP_SIZE_X - 1) / GROUP_SIZE_X;
+            gpu::gpu_mem_32u local_histograms(num_groups * BUCKETS_COUNT);
+            gpu::gpu_mem_32u local_histograms_reduction_buffer(num_groups * BUCKETS_COUNT);
+            gpu::gpu_mem_32u local_histograms_prefix_sum_accum(num_groups * BUCKETS_COUNT);
+            for (unsigned sorted_bit_offset = 0; sorted_bit_offset <= 32; sorted_bit_offset += 4) {
+                // std::cout << "buffer1_gpu: \n";
+                // printValues(buffer1_gpu, n);
+                gpu::WorkSize work_size(GROUP_SIZE_X, BUCKETS_COUNT, num_groups, BUCKETS_COUNT);
+                gpu::WorkSize work_size_for_zero(GROUP_SIZE, num_groups * BUCKETS_COUNT);
+                ocl_fillBufferWithZeros.exec(work_size_for_zero, local_histograms, num_groups * BUCKETS_COUNT);
+                ocl_fillBufferWithZeros.exec(work_size_for_zero, local_histograms_prefix_sum_accum,  num_groups * BUCKETS_COUNT);
+                gpu::WorkSize work_size_for_local_counting(GROUP_SIZE_X, n);
+                ocl_radixSort01LocalCounting.exec(work_size_for_local_counting, buffer1_gpu, local_histograms, n, sorted_bit_offset);
+                // std::cout << "local_histograms: \n";
+                // printValues(local_histograms, num_groups * BUCKETS_COUNT);
+                unsigned int pow2 = 0;
+                unsigned int prefix_sum_iterations = num_groups;
+                // std::cout << num_groups << "\n";
+                while (prefix_sum_iterations > 1) {
+                    // std::cout << "local_histograms: \n";
+                    // printValues(local_histograms, num_groups * BUCKETS_COUNT);
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(work_size, local_histograms, local_histograms_prefix_sum_accum, num_groups, pow2);
+                    // std::cout << "local_histograms_prefix_sum_accum: \n";
+                    // printValues(local_histograms_prefix_sum_accum, num_groups * BUCKETS_COUNT);
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(work_size, local_histograms, local_histograms_reduction_buffer, prefix_sum_iterations);
+                    // std::cout << "local_histograms_reduction_buffer: \n";
+                    // printValues(local_histograms_reduction_buffer, num_groups * BUCKETS_COUNT);
+                    std::swap(local_histograms, local_histograms_reduction_buffer);
+                    // std::cout << "local_histograms: \n";
+                    // printValues(local_histograms, num_groups * BUCKETS_COUNT);
+                    pow2++;
+                    prefix_sum_iterations = (prefix_sum_iterations + 1)/2;
+                }
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(work_size, local_histograms, local_histograms_prefix_sum_accum, num_groups, pow2);
+                // std::cout << "local_histograms_prefix_sum_accum: \n";
+                // printValues(local_histograms_prefix_sum_accum, num_groups * BUCKETS_COUNT);
+                
+                gpu::WorkSize work_size_for_scatter(GROUP_SIZE_X, n);
+                ocl_radixSort04Scatter.exec(work_size_for_scatter, buffer1_gpu, local_histograms_prefix_sum_accum, buffer_output_gpu, n, sorted_bit_offset);
+                std::swap(buffer1_gpu, buffer_output_gpu);
+            }
             // ocl_fillBufferWithZeros.exec();
             // ocl_radixSort01LocalCounting.exec();
             // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
