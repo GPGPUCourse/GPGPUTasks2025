@@ -21,19 +21,23 @@ void debug_out_memory(const gpu::gpu_mem_32u& mem, uint size) {
     std::cerr << "\n";
 }
 
-void calc_prefix(ocl::KernelSource& reduction, ocl::KernelSource& accum, gpu::gpu_mem_32u& buffer, gpu::gpu_mem_32u& out, uint n) {
+inline size_t round_up(size_t x, size_t y) {
+     return ((x + y - 1) / y) * y; 
+}
+
+void calc_prefix(ocl::KernelSource& reduction, ocl::KernelSource& accum, gpu::gpu_mem_32u& in, gpu::gpu_mem_32u& out, uint n) {
     uint cur_n = n;
     uint offset = 0;
     uint p = 0;
     while((1 << p) <= n) {
         ++p;
         uint out_n = cur_n / 2 + cur_n % 2;
-        reduction.exec(gpu::WorkSize(GROUP_SIZE, out_n), buffer, offset, offset + cur_n, cur_n);
+        reduction.exec(gpu::WorkSize(GROUP_SIZE, round_up(out_n, GROUP_SIZE)), in, offset, offset + cur_n, cur_n);
         offset += cur_n;
         cur_n = out_n;
     }
     
-    accum.exec(gpu::WorkSize(GROUP_SIZE, n), buffer, out, n);
+    accum.exec(gpu::WorkSize(GROUP_SIZE, n), in, out, n);
 }
 
 void run(int argc, char** argv)
@@ -73,8 +77,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 10;
-    // int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -111,7 +114,10 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    std::vector<gpu::gpu_mem_32u> prefix_sums_buffer(2, gpu::gpu_mem_32u(4 * n)), prefix_sums(2, gpu::gpu_mem_32u(n)), res(2, gpu::gpu_mem_32u(n));
+    std::vector<gpu::gpu_mem_32u> prefix_sums;
+    prefix_sums.push_back(gpu::gpu_mem_32u(n));
+    prefix_sums.push_back(gpu::gpu_mem_32u(n));
+    gpu::gpu_mem_32u buffer(3 * n);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -119,46 +125,32 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    // buffer1_gpu.fill(255);
-    // buffer2_gpu.fill(255);
-    // buffer3_gpu.fill(255);
-    // buffer4_gpu.fill(255);
     buffer_output_gpu.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        
-        // ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, prefix_sums_buffer.size()), prefix_sums_buffer, prefix_sums_buffer.size());
-        // ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, prefix_sums_buffer.size()), prefix_sums_buffer, prefix_sums_buffer.size());
-
         for(uint p=0; p<32; ++p) {
-            for(int i=0; i<2; ++i) {
-                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, prefix_sums_buffer[i], n, i, p);
-                calc_prefix(ocl_radixSort02GlobalPrefixesScanSumReduction, ocl_radixSort03GlobalPrefixesScanAccumulation, prefix_sums_buffer[i], prefix_sums[i], n);
-                uint offset;
-                prefix_sums[i].readN(&offset, 1, n - 1);
-                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sums[i], input_gpu, res[i], n, offset);
-            }
-            std::cerr << p << " - p, " << offset << " - offset\n";
-            // if(p == 31) {
-            //     ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sums, input_gpu, buffer_output_gpu, n, offset);
-            // } else {
-                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sums, input_gpu, prefix_sums_buffer, n, offset);
-            // }
-            debug_out_memory(prefix_sums_buffer, n);
+            ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer, n, 0, p);
+            calc_prefix(ocl_radixSort02GlobalPrefixesScanSumReduction, ocl_radixSort03GlobalPrefixesScanAccumulation, buffer, prefix_sums[0], n);
+            
+            uint offset;
+            prefix_sums[0].readN(&offset, 1, n - 1);
+            ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer, n, 1, p);
+            calc_prefix(ocl_radixSort02GlobalPrefixesScanSumReduction, ocl_radixSort03GlobalPrefixesScanAccumulation, buffer, prefix_sums[1], n);
+
+            // ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer, n);
+            buffer_output_gpu.copyTo(buffer, n);
+            ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sums[0], prefix_sums[1], buffer, buffer_output_gpu, n, offset, p);
         }
 
         times.push_back(t.elapsed());
     }
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
-
-    prefix_sums_buffer.copyTo(buffer_output_gpu, n);
-    // prefix_sums_buffer.writeN(buffer_output_gpu, n);
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;

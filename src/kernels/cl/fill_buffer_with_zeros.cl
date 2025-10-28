@@ -7,10 +7,10 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void fill_buffer_with_zeros(
-    __global uint* buffer,
+    __global uint* data,
     unsigned int n)
 {
     const unsigned int i = get_global_id(0);
     if (i < n)
-        buffer[i] = 0;
+        data[i] = 0;
 }
