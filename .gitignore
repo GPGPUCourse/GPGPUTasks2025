@@ -3,3 +3,6 @@
 build*
 cmake-build*
 .vs
+runcmds
+.clang-tidy
+.clang-format
