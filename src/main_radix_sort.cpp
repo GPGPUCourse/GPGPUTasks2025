@@ -154,10 +154,7 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         rassert(context.type() == gpu::Context::TypeCUDA, 4531412341);
 
-        unsigned int max_bit = 1;
-        for (auto a : as) {
-            max_bit = std::max(max_bit, find_msb_position(a));
-        }
+        unsigned int max_bit = find_msb_position(max_value);
 
         bool save_to_buffer1 = true;
         for (int bit = 0; bit <= max_bit; ++bit) {
