@@ -21,6 +21,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
     if (i < n && bit_is_set) {
         // add to pos i the current pow2
         unsigned int idx = (i + 1) - ((i + 1) % pow2) - 1;
-        prefix_sum_accum[i] += pow2_sum[idx];
+        unsigned int add = (idx >= 0 && idx < n) ? pow2_sum[idx] : 0u;
+        prefix_sum_accum[i] += add;
     }
 }
