@@ -85,37 +85,49 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
-    // Аллоцируем буферы в VRAM
+    size_t local_size  = GROUP_SIZE;
+    size_t global_size = ((n + local_size - 1)/local_size) * local_size;
+    size_t num_groups  = global_size / local_size;
+
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u data_in(n);
+    gpu::gpu_mem_32u data_out(n);
+    gpu::gpu_mem_32u counts_local(num_groups * RADIX);
+    gpu::gpu_mem_32u counts_reduced(RADIX);
+    gpu::gpu_mem_32u prefix(RADIX);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(as.data(), n);
-    // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
-    // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
-    // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    data_in.writeN(as.data(), n);
+    input_gpu.writeN(as.data(), n); // сохраняем исходный массив отдельно для проверки неизменности
+
+    gpu::WorkSize ws_count_scatter{local_size, global_size}; // для 01 и 04 (по элементам)
+    gpu::WorkSize ws_small{RADIX, RADIX};                    // для 02 и 03 (RADIX потоков)
+    // Для нулёвок используем локальный размер = GROUP_SIZE, как в самом кернеле
+    gpu::WorkSize ws_zero_counts_local{GROUP_SIZE, ((num_groups * RADIX + GROUP_SIZE - 1) / GROUP_SIZE) * GROUP_SIZE};
+    gpu::WorkSize ws_zero_small{GROUP_SIZE, GROUP_SIZE};
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            unsigned passes = (32 + BITS_PER_PASS - 1) / BITS_PER_PASS;
+            for (unsigned p = 0; p < passes; ++p) {
+                unsigned pass_shift = p * BITS_PER_PASS;
+                ocl_fillBufferWithZeros.exec(ws_zero_counts_local, counts_local, static_cast<unsigned int>(num_groups * RADIX));
+                ocl_fillBufferWithZeros.exec(ws_zero_small, counts_reduced, static_cast<unsigned int>(RADIX));
+                ocl_fillBufferWithZeros.exec(ws_zero_small, prefix, static_cast<unsigned int>(RADIX));
+
+                ocl_radixSort01LocalCounting.exec(ws_count_scatter, data_in, counts_local, static_cast<unsigned int>(pass_shift), static_cast<unsigned int>(n));
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(ws_small, counts_local, counts_reduced, static_cast<unsigned int>(num_groups));
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(ws_small, counts_reduced, prefix);
+                ocl_radixSort04Scatter.exec(ws_count_scatter, data_in, prefix, counts_local, data_out, static_cast<unsigned int>(pass_shift), static_cast<unsigned int>(n));
+
+                std::swap(data_in, data_out);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -145,7 +157,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = data_in.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
