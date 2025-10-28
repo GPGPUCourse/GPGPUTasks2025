@@ -4,8 +4,10 @@ project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_CUDA_ARCHITECTURES 75 )
+set(CMAKE_CUDA_FLAGS -lineinfo)
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
-option(GPU_CUDA_SUPPORT "CUDA support." OFF)
+option(GPU_CUDA_SUPPORT "CUDA support." ON)
 
 # GLSLC_BIN используйтся для компиляции Vulkan шейдеров (GLSL)
 if (NOT DEFINED GLSLC_BIN)
@@ -37,10 +39,12 @@ add_subdirectory(libs)
 
 set(HEADERS
         src/kernels/kernels.h
+        src/reuse/prefixsum.h
 )
 
 set(SOURCES
         src/kernels/kernels.cpp
+        src/reuse/prefixsum.cpp
 )
 
 set(LIBRARIES
@@ -101,6 +105,10 @@ if (GPU_CUDA_SUPPORT)
     # Вероятно вам стоит выставить в CMake options: -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
+            src/reuse/kernels/prefixsum_main.cu
+            src/reuse/kernels/prefixsum_pre.cu
+            src/reuse/kernels/prefixsum_post.cu
+            
             src/kernels/cu/fill_buffer_with_zeros.cu
             src/kernels/cu/radix_sort_01_local_counting.cu
             src/kernels/cu/radix_sort_02_global_prefixes_scan_sum_reduction.cu
