@@ -6,11 +6,12 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void fill_buffer_with_zeros(
-    __global uint* data,
+__kernel void fill_buffer_with_zeros( // not actually fill with zeroes, just copy values (had an issue while renaming)
+    __global uint* from,
+    __global uint* to,
     unsigned int n)
 {
     const unsigned int i = get_global_id(0);
     if (i < n)
-        data[i] = 0;
+        to[i] = from[i];
 }

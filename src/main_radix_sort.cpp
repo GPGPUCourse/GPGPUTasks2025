@@ -77,6 +77,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
+    // int n = 100;
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
@@ -143,8 +144,7 @@ void run(int argc, char** argv)
             ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer, n, 1, p);
             calc_prefix(ocl_radixSort02GlobalPrefixesScanSumReduction, ocl_radixSort03GlobalPrefixesScanAccumulation, buffer, prefix_sums[1], n);
 
-            // ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer, n);
-            buffer_output_gpu.copyTo(buffer, n);
+            ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer, n);
             ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sums[0], prefix_sums[1], buffer, buffer_output_gpu, n, offset, p);
         }
 
