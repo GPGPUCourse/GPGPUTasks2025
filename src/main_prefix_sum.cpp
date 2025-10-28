@@ -60,6 +60,7 @@ void run(int argc, char** argv)
     std::vector<double> times;
     std::vector<double> first_stage;
     std::vector<double> second_stage;
+    std::vector<std::vector<double>> second_stage_iters;
     std::vector<double> third_stage;
     for (int iter = 0; iter < 10; ++iter) {
         prefix_sum_accum_gpu.fill(0);
@@ -71,15 +72,16 @@ void run(int argc, char** argv)
         if (context.type() == gpu::Context::TypeOpenCL) {
             {
                 timer tt;
-                ocl_reduce.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, pow_buffer, n);
-                first_stage.push_back(tt.elapsed());
-            }
-            {
-                timer tt;
                 // level=1: [0, 1] -> 1,    [2, 3] -> 3,    [4, 5] -> 5
                 // level=2: [1, 3] -> 3,    [5, 7] -> 7,    [9, 11] -> 11
-                for (size_t level = 1; level < n; level *= GROUP_SIZE) {
-                    ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, n / level + 1), pow_buffer, n, (uint)level);
+                for (size_t level = 1, iter = 0; level < n; level *= GROUP_SIZE, ++iter) {
+                    timer ttt;
+                    auto in = (level == 1) ? input_gpu : pow_buffer;
+                    ocl_inplace_sparse.exec(gpu::WorkSize(GROUP_SIZE, n / level + 1), in, pow_buffer, n, (uint)level);
+                    if (second_stage_iters.size() <= iter) {
+                        second_stage_iters.resize(iter + 1);
+                    }
+                    second_stage_iters.at(iter).push_back(ttt.elapsed());
                 }
                 second_stage.push_back(tt.elapsed());
             }
@@ -109,6 +111,9 @@ void run(int argc, char** argv)
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
     std::cout << "first_stage times (in seconds) - " << stats::valuesStatsLine(first_stage) << std::endl;
     std::cout << "second_stage times (in seconds) - " << stats::valuesStatsLine(second_stage) << std::endl;
+    for (int i = 0; i < second_stage_iters.size(); ++i) {
+        std::cout << "second_stage " << "#" << i << " times (in seconds) - " << stats::valuesStatsLine(second_stage_iters[i]) << std::endl;
+    }
     std::cout << "third_stage times (in seconds) - " << stats::valuesStatsLine(third_stage) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
