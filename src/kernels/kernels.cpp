@@ -1,6 +1,7 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/copy_with_offset.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/radix_sort_01_local_counting.h"
 #include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
@@ -55,6 +56,11 @@ namespace ocl {
 const ocl::ProgramBinaries& getAplusB()
 {
     return opencl_binaries_aplusb;
+}
+
+const ProgramBinaries& getCopyWithOffset()
+{
+    return opencl_binaries_copy_with_offset;
 }
 
 const ProgramBinaries& getFillBufferWithZeros()

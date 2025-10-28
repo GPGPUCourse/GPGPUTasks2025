@@ -36,6 +36,7 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
+    ocl::KernelSource ocl_copy_with_offset(ocl::getCopyWithOffset());
     ocl::KernelSource ocl_fillBufferWithZeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_radixSort01LocalCounting(ocl::getRadixSort01LocalCounting());
     ocl::KernelSource ocl_radixSort02GlobalPrefixesScanSumReduction(ocl::getRadixSort02GlobalPrefixesScanSumReduction());
@@ -87,7 +88,10 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+
+    const unsigned int pow2_size = 1 << (32 - __builtin_clz(n));
+    gpu::gpu_mem_32u buffer1_gpu(pow2_size * 2), buffer2_gpu(pow2_size * 2);
+    gpu::gpu_mem_32u buffer3_gpu(n);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -98,7 +102,6 @@ void run(int argc, char** argv)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
     buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -109,13 +112,18 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            ocl_copy_with_offset.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer_output_gpu, n, 0, 0, 0, 0xFFFFFFFF, 0);
+            for(uint bit = 0; bit < 32; ++bit) {
+                ocl_copy_with_offset.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer1_gpu, n, 0, pow2_size, bit, 1, 1);
+                for(uint m = pow2_size >> 1; m > 1; m >>= 1) {
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, m), buffer1_gpu, m, m);
+                }
+                for(uint m = 2; m <= pow2_size; m <<= 1) {
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, m), buffer1_gpu, buffer2_gpu, m, m);
+                }
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer2_gpu, buffer3_gpu, n, pow2_size + 1, bit);
+                std::swap(buffer_output_gpu, buffer3_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);

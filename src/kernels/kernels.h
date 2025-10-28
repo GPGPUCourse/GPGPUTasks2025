@@ -14,6 +14,7 @@ void radix_sort_04_scatter(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u
 namespace ocl {
 const ProgramBinaries& getAplusB();
 
+const ProgramBinaries& getCopyWithOffset();
 const ProgramBinaries& getFillBufferWithZeros();
 const ProgramBinaries& getRadixSort01LocalCounting();
 const ProgramBinaries& getRadixSort02GlobalPrefixesScanSumReduction();
