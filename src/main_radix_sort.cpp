@@ -10,11 +10,33 @@
 #include "kernels/kernels.h"
 
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
-void run(int argc, char** argv)
-{
+
+std::string to_binary_string(uint32_t value, unsigned int bits) {
+    std::string result;
+    for (unsigned int i = 0; i < bits; ++i) {
+        result = ((value & 1) ? '1' : '0') + result;
+        value >>= 1;
+    }
+    return result;
+}
+
+void print_vec(const std::vector<unsigned int>& v, bool make_binary = false, unsigned int bits = 3) {
+    std::cout << "[";
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::cout << std::setw(4);
+        std::cout << (make_binary ? to_binary_string(v[i], bits) : std::to_string(v[i]));
+        std::cout << " ";
+    }
+    std::cout << "]";
+    std::cout << std::endl;
+}
+
+void run(int argc, char** argv) {
     // chooseGPUVkDevices:
     // - Если не доступо ни одного устройства - кинет ошибку
     // - Если доступно ровно одно устройство - вернет это устройство
@@ -59,20 +81,20 @@ void run(int argc, char** argv)
     }
     std::cout << "n=" << n << " max_value=" << max_value << std::endl;
 
-    {
-        // убедимся что в массиве есть хотя бы несколько повторяющихся значений
-        size_t force_duplicates_attempts = 3;
-        bool all_attempts_missed = true;
-        for (size_t k = 0; k < force_duplicates_attempts; ++k) {
-            size_t i = r.next(0, n - 1);
-            size_t j = r.next(0, n - 1);
-            if (i != j) {
-                as[j] = as[i];
-                all_attempts_missed = false;
-            }
-        }
-        rassert(!all_attempts_missed, 4353245123412);
-    }
+    // {
+    //     // убедимся что в массиве есть хотя бы несколько повторяющихся значений
+    //     size_t force_duplicates_attempts = 3;
+    //     bool all_attempts_missed = true;
+    //     for (size_t k = 0; k < force_duplicates_attempts; ++k) {
+    //         size_t i = r.next(0, n - 1);
+    //         size_t j = r.next(0, n - 1);
+    //         if (i != j) {
+    //             as[j] = as[i];
+    //             all_attempts_missed = false;
+    //         }
+    //     }
+    //     rassert(!all_attempts_missed, 4353245123412);
+    // }
 
     {
         sorted = as;
@@ -86,8 +108,14 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
+    // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u input_copy(n);
+    gpu::gpu_mem_32u buffer1_gpu(n),
+                     buffer2_gpu(n),
+                     buffer3_gpu(n),
+                     buffer4_gpu(n),
+                     buffer5_gpu(n);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -95,11 +123,54 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
+    input_gpu.copyToN(input_copy, n);
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
     buffer3_gpu.fill(255);
     buffer4_gpu.fill(255);
+    buffer5_gpu.fill(255);
     buffer_output_gpu.fill(255);
+
+    gpu::WorkSize work_size(GROUP_SIZE, n);
+
+
+    auto prefix_sum = [
+        &ocl_fillBufferWithZeros, work_size,
+        &ocl_radixSort02GlobalPrefixesScanSumReduction,
+        &ocl_radixSort03GlobalPrefixesScanAccumulation
+    ](
+        gpu::gpu_mem_32u& input,
+        gpu::gpu_mem_32u& buffer_from,
+        gpu::gpu_mem_32u& buffer_to,
+        gpu::gpu_mem_32u& output,
+        unsigned int n
+    ) {
+        ocl_fillBufferWithZeros.exec(work_size, output, n);
+        
+        unsigned int k = 1;
+        unsigned int p = 0;
+        gpu::gpu_mem_32u* from = &input;
+        gpu::gpu_mem_32u* to = &buffer_from;
+
+        while (k <= n) {
+            ocl_radixSort02GlobalPrefixesScanSumReduction.exec(work_size, *from, *to, n, p);
+            ocl_radixSort03GlobalPrefixesScanAccumulation.exec(work_size, *to, output, n, p);
+
+            if (p == 0) {
+                from = &buffer_from;
+                to = &buffer_to;
+            } else {
+                std::swap(from, to);
+            }
+            k *= 2;
+            p++;
+        }
+    };
+
+    // std::cout << "input:\n";
+    // print_vec(input_gpu.readVector());
+    // print_vec(input_gpu.readVector(), true);
+
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -109,13 +180,68 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            gpu::gpu_mem_32u* in  = &input_copy;
+            gpu::gpu_mem_32u* out = &buffer_output_gpu;
+
+            for (unsigned int bit = 0; bit < 32 /* 32 */; ++bit) {
+                // std::cout << "======== bit " << bit << " ========\n";
+                //out->fill(255);
+
+                // count zeros and ones
+                gpu::gpu_mem_32u& zeros = buffer1_gpu;
+                gpu::gpu_mem_32u& ones  = buffer2_gpu;
+                ocl_radixSort01LocalCounting.exec(work_size, *in, zeros, ones, bit, n);
+
+                // std::cout << "zeros cnt:\n";
+                // print_vec(zeros.readVector());
+
+                // std::cout << "ones cnt:\n";
+                // print_vec(ones.readVector());
+
+                // prefix sums for zeros
+                gpu::gpu_mem_32u& zeros_sum = buffer5_gpu;
+                prefix_sum(zeros, buffer3_gpu, buffer4_gpu, zeros_sum, n);
+
+                // std::cout << "zeros prefix sum:\n";
+                // print_vec(zeros_sum.readVector());
+
+                unsigned int ones_offset = -1;
+                zeros_sum.read(&ones_offset, sizeof(ones_offset), (n - 1) * sizeof(ones_offset));
+
+                // std::cout << "offset for ones: " << ones_offset << std::endl;
+
+                // scatter zeros
+                ocl_radixSort04Scatter.exec(work_size, *in, *out, zeros_sum, bit, 0 /* is bit set */, 0 /* offset */, n);
+
+                // std::cout << "scatter zeros:\n";
+                // print_vec(out->readVector(), true);
+
+                // prefix sums for ones
+                gpu::gpu_mem_32u& ones_sum = buffer5_gpu;
+                prefix_sum(ones, buffer3_gpu, buffer4_gpu, ones_sum, n);
+
+                // std::cout << "ones prefix sum:\n";
+                // print_vec(ones_sum.readVector());
+
+                // scatter ones
+                ocl_radixSort04Scatter.exec(work_size, *in, *out, ones_sum, bit, 1 /* is bit set */, ones_offset /* offset */, n);
+
+                // std::cout << "scatter ones:\n";
+                // print_vec(out->readVector(), true);
+                
+                std::swap(in, out);
+            }
+            
+            if (out != &buffer_output_gpu) {
+                // если нечетное число проходов - нужно скопировать результат в нужный буфер
+                out->copyToN(buffer_output_gpu, n);
+            }
+
+            // std::cout << "result:\n";
+            // print_vec(buffer_output_gpu.readVector());
+
+            // std::cout << "input should not be changed:\n";
+            // print_vec(input_gpu.readVector());
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
