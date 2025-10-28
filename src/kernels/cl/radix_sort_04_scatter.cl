@@ -13,7 +13,6 @@ __kernel void radix_sort_04_scatter(
     __global uint* out,
     __global const uint* sum,
     uint bit,
-    uint consider_bit_set,
     uint offset,
     uint n)
 {
@@ -23,8 +22,16 @@ __kernel void radix_sort_04_scatter(
     uint val = in[i];
     uint is_bit_set = (val & (1 << bit)) != 0;
 
-    if (is_bit_set == consider_bit_set) {
-        uint pos = sum[i] + offset - 1;
-        out[pos] = val;
+    uint pos;
+    if (!is_bit_set) {
+        pos = sum[i] - 1;
+    } else {
+        pos = (offset - 1) + (i + 1) - sum[i];
     }
+    out[pos] = val;
+
+    // if (is_bit_set == consider_bit_set) {
+    //     uint pos = sum[i] + offset - 1;
+    //     out[pos] = val;
+    // }
 }

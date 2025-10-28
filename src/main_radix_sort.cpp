@@ -211,20 +211,20 @@ void run(int argc, char** argv) {
                 // std::cout << "offset for ones: " << ones_offset << std::endl;
 
                 // scatter zeros
-                ocl_radixSort04Scatter.exec(work_size, *in, *out, zeros_sum, bit, 0 /* is bit set */, 0 /* offset */, n);
+                ocl_radixSort04Scatter.exec(work_size, *in, *out, zeros_sum, bit, ones_offset /* offset */, n);
 
                 // std::cout << "scatter zeros:\n";
                 // print_vec(out->readVector(), true);
 
                 // prefix sums for ones
-                gpu::gpu_mem_32u& ones_sum = buffer5_gpu;
-                prefix_sum(ones, buffer3_gpu, buffer4_gpu, ones_sum, n);
+                // gpu::gpu_mem_32u& ones_sum = buffer5_gpu;
+                // prefix_sum(ones, buffer3_gpu, buffer4_gpu, ones_sum, n);
 
                 // std::cout << "ones prefix sum:\n";
                 // print_vec(ones_sum.readVector());
 
                 // scatter ones
-                ocl_radixSort04Scatter.exec(work_size, *in, *out, ones_sum, bit, 1 /* is bit set */, ones_offset /* offset */, n);
+                // ocl_radixSort04Scatter.exec(work_size, *in, *out, ones_sum, bit, 1 /* is bit set */, ones_offset /* offset */, n);
 
                 // std::cout << "scatter ones:\n";
                 // print_vec(out->readVector(), true);
