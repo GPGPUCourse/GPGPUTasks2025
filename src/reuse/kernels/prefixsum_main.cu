@@ -15,40 +15,15 @@ __global__ void prefixsum_main(
 {
     int i = threadIdx.x;
     int glob_i = blockIdx.x * blockDim.x + i;
-    __shared__ unsigned int locin[GROUP_SIZE];
-    __shared__ unsigned int locout[GROUP_SIZE];
-
-    if (glob_i < n) {
-        locin[i] = a[glob_i];
-    } else {
-        locin[i] = 0;
+    if (glob_i != 0) {
+        return;
     }
-    locout[i] = 0;
-    __syncthreads();
 
-    // count prefix sum for WorkGroup
-    int sz = 1;
-    int mask = i + 1; //mask = [1; GROUP_SZ]
-    while (sz <= GROUP_SIZE) { //maybe just <
-        if (mask & sz) {
-            mask -= sz;
-            locout[i] += locin[mask];
-            // printf("out[%d] += in[%d;%d) (=%u)\n", i, mask, mask + sz, locin[mask]);
-        }
-        __syncthreads();
-        int l = i * sz;
-        int r = (i + 1) * sz;
-        if (r < GROUP_SIZE) { // +- ok for code divergence 
-            locin[l] = locin[l] + locin[r]; // sum two blocks of size `sz`
-        }
-        __syncthreads();
-        sz *= 2;
+    unsigned int acc = 0;
+    for (int j = 0; j < n; ++j) {
+        acc += a[j];
+        c[j] = acc;
     }
-    
-    //load from local
-    if (glob_i < n) {
-        c[glob_i] = locout[i];;
-    } 
 }
 
 namespace cuda {

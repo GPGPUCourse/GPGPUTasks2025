@@ -45,6 +45,7 @@ set(HEADERS
 set(SOURCES
         src/kernels/kernels.cpp
         src/reuse/prefixsum.cpp
+        src/reuse/radixsort.cpp
 )
 
 set(LIBRARIES
@@ -108,6 +109,9 @@ if (GPU_CUDA_SUPPORT)
             src/reuse/kernels/prefixsum_main.cu
             src/reuse/kernels/prefixsum_pre.cu
             src/reuse/kernels/prefixsum_post.cu
+            src/reuse/kernels/copy.cu
+            src/reuse/kernels/radix_pre.cu
+            src/reuse/kernels/radix_post.cu
             
             src/kernels/cu/fill_buffer_with_zeros.cu
             src/kernels/cu/radix_sort_01_local_counting.cu

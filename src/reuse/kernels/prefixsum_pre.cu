@@ -21,31 +21,21 @@ __global__ void prefixsum_pre(
     __shared__ unsigned int locin[GROUP_SIZE];
     __shared__ unsigned int locout[GROUP_SIZE];
 
+    __syncthreads();
     if (glob_i < n) {
         locin[i] = a[glob_i];
     } else {
         locin[i] = 0;
     }
-    locout[i] = 0;
     __syncthreads();
 
     // count prefix sum for WorkGroup
-    int sz = 1;
-    int mask = i + 1; //mask = [1; GROUP_SZ]
-    while (sz <= GROUP_SIZE) { //maybe just <
-        if (mask & sz) {
-            mask -= sz;
-            locout[i] += locin[mask];
-            // printf("out[%d] += in[%d;%d) (=%u)\n", i, mask, mask + sz, locin[mask]);
+    if (i == 0) {
+        unsigned int acc = 0;
+        for (int j = 0; j < GROUP_SIZE; ++j) {
+            acc += locin[j];
+            locout[j] = acc;
         }
-        __syncthreads();
-        int l = i * sz;
-        int r = (i + 1) * sz;
-        if (r < GROUP_SIZE) { // +- ok for code divergence 
-            locin[l] = locin[l] + locin[r]; // sum two blocks of size `sz`
-        }
-        __syncthreads();
-        sz *= 2;
     }
 
     //load group sum to b
@@ -54,7 +44,9 @@ __global__ void prefixsum_pre(
         b[bi] = locout[GROUP_SIZE - 1];
     }
 
+    __syncthreads();
     //load from local
+
     if (glob_i < n) {
         c[glob_i] = locout[i];;
     } 
