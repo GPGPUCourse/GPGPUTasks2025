@@ -12,13 +12,16 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     __global const uint* pow2_sum,
     __global       uint* prefix_sum_accum,
     unsigned int n,
-    unsigned int pow2)
+    unsigned int pow2,
+    unsigned int bitseq_len)
 {
-    uint i = get_global_id(0);
+    uint id = get_global_id(0);
+    uint i = id >> bitseq_len;
+    uint seq = id & ((1u << bitseq_len) - 1);
     if (i >= n) {
         return;
     }
     if (((i+1) >> pow2) & 1) {
-        prefix_sum_accum[i] += pow2_sum[((i+1) >> pow2) - 1];
+        prefix_sum_accum[id] += pow2_sum[((((i+1) >> pow2) - 1) << bitseq_len) + seq];
     }
 }

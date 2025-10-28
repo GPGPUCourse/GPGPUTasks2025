@@ -11,13 +11,16 @@ __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global const uint* pow2_sum,
     __global       uint* next_pow2_sum,
-    unsigned int n)
+    unsigned int n,
+    unsigned int bitseq_len)
 {
-    uint i = get_global_id(0);
+    uint id = get_global_id(0);
+    uint i = id >> bitseq_len;
+    uint seq = id & ((1u << bitseq_len) - 1);
     if (i * 2 < n) {
-        next_pow2_sum[i] = pow2_sum[i * 2];
+        next_pow2_sum[id] = pow2_sum[((i * 2) << bitseq_len) + seq];
     }
     if (i * 2 + 1 < n) {
-        next_pow2_sum[i] += pow2_sum[i * 2 + 1];
+        next_pow2_sum[id] += pow2_sum[((i * 2 + 1) << bitseq_len) + seq];
     }
 }

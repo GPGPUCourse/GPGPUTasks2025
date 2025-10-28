@@ -85,9 +85,14 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
+    const uint bitseq_len = 2;
+
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u a_gpu(n), is_zeros(n), pref_zeros(n), pow2_sums(n), larger_pow2_sums(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u a_gpu(n);
+    // formula of index is (i << bitseq_len) + seq;
+    gpu::gpu_mem_32u bitseq_counts(n << bitseq_len), bitseq_prefs(n << bitseq_len), pow2_sums(n << bitseq_len), larger_pow2_sums(n << bitseq_len);
+    gpu::gpu_mem_32u bitseq_totals(1 << bitseq_len);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -96,10 +101,10 @@ void run(int argc, char** argv)
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
     a_gpu.fill(255);
-    is_zeros.fill(255);
-    pref_zeros.fill(255);
-    pow2_sums.fill(255);
-    larger_pow2_sums.fill(255);
+    bitseq_counts.fill(255);
+    bitseq_prefs.fill(255);
+    pow2_sums.fill(12121);
+    larger_pow2_sums.fill(3333);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -111,23 +116,49 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             input_gpu.copyToN(a_gpu, n);
-            for (int bit = 0; bit < 32; ++bit) { // bit to sort values by
+            for (int bit = 0; bit < 32; bit += bitseq_len) { // bit to sort values by
 
-                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), is_zeros, n);
-                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), a_gpu, is_zeros, n, bit);
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n << bitseq_len), bitseq_counts, n << bitseq_len);
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), a_gpu, bitseq_counts, n, bit, bitseq_len);
 
-                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), pref_zeros, n);
-                is_zeros.copyToN(pow2_sums, n);
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n << bitseq_len), bitseq_prefs, n << bitseq_len);
+
+                // auto bitseq_counts_vec = bitseq_counts.readVector();
+                // for (int s = 0; s < (1 << bitseq_len); ++s) {
+                //     std::cerr << "s=" << s << ": ";
+                //     for (int i = 0; i < n; ++i) {
+                //         std::cerr << bitseq_counts_vec[(i << bitseq_len) + s] << " ";
+                //     }
+                //     std::cerr << std::endl;
+                // }
+                bitseq_counts.copyToN(pow2_sums, n << bitseq_len);
                 // ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), larger_pow2_sums, n);
 
                 auto cur_n = n;
                 for (int i = 0; (n >> i) > 0; ++i) { // bit of fenwick styled prefix sum/cur power of 2
-                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), pow2_sums, pref_zeros, n, i);
-                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, cur_n), pow2_sums, larger_pow2_sums, cur_n);
+                    // in one work group different processors sum elements with neighboring seqs and maybe same index.
+                    // the loop is through the `i` dimensity only though, we just make WS larger
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n << bitseq_len), pow2_sums, bitseq_prefs, n, i, bitseq_len);
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, cur_n << bitseq_len), pow2_sums, larger_pow2_sums, cur_n, bitseq_len);
                     cur_n = (cur_n + 1) / 2;
                     pow2_sums.swap(larger_pow2_sums);
                 }
-                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), a_gpu, pref_zeros, buffer_output_gpu, n, bit);
+                // auto bitseq_prefs_vec = bitseq_prefs.readVector();
+                // for (int s = 0; s < (1 << bitseq_len); ++s) {
+                //     std::cerr << "s=" << s << ": ";
+                //     for (int i = 0; i < n; ++i) {
+                //         std::cerr << bitseq_prefs_vec[(i << bitseq_len) + s] << " ";
+                //     }
+                //     std::cerr << std::endl;
+                // }
+                std::vector<uint> bs_totals_vec(1 << bitseq_len);
+                bitseq_prefs.readN(bs_totals_vec.data(), 1 << bitseq_len, (n-1) << bitseq_len);
+                std::vector<uint> bs_totals_prefs_vec(1 << bitseq_len);
+                for (int s = 1; s < (1 << bitseq_len); ++s) {
+                    bs_totals_prefs_vec[s] = bs_totals_vec[s - 1] + bs_totals_prefs_vec[s - 1];
+                }
+                bitseq_totals.writeN(bs_totals_prefs_vec.data(), 1 << bitseq_len);
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), a_gpu, bitseq_prefs, buffer_output_gpu, n, bit, bitseq_len, bitseq_totals);
 
                 // auto sorted = buffer_output_gpu.readVector();
                 // std::cerr << "sorted by bit " << bit << ": ";

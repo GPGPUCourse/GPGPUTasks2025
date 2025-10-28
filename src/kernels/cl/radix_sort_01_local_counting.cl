@@ -10,13 +10,17 @@ __kernel void radix_sort_01_local_counting(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global const uint* a,
-    __global       uint* is_zero,
+    __global       uint* bitseq_counts,
     unsigned int n,
-    unsigned int bit)
+    unsigned int bit_offset, 
+    unsigned int bitseq_len)
 {
     uint i = get_global_id(0);
     if (i >= n) {
         return;
     }
-    is_zero[i] = (((a[i] >> bit) & 1) == 0);
+    uint seq = a[i];
+    seq >>= bit_offset;
+    seq &= ((1u << bitseq_len) - 1);
+    bitseq_counts[(i << bitseq_len) + seq]++;
 }

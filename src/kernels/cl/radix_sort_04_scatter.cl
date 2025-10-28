@@ -10,19 +10,23 @@ __kernel void radix_sort_04_scatter(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global const uint* a,
-    __global const uint* pref_zeros,
+    __global const uint* pref_bitseqs,
     __global uint* scattered,
     unsigned int n,
-    unsigned int bit)
+    unsigned int bit_offset,
+    unsigned int bitseq_len,
+    __global const uint* bitseq_totals)
 {
     uint i = get_global_id(0);
     if (i >= n) {
         return;
     }
-    int pos = (a[i] >> bit & 1) == 0 ? pref_zeros[i] - 1 : pref_zeros[n-1] + i - pref_zeros[i];
-    if ((a[i] >> bit & 1) == 0) {
-        scattered[pref_zeros[i] - 1] = a[i];
-    } else {
-        scattered[pref_zeros[n-1] + i - pref_zeros[i]] = a[i];
-    }
+    uint seq = a[i];
+    seq >>= bit_offset;
+    seq &= ((1u << bitseq_len) - 1);
+    uint pos = 0;
+    
+    pos += bitseq_totals[seq] + pref_bitseqs[(i << bitseq_len) + seq] - 1;
+    // printf("i=%d a[i]=%d pos=%d\n", i, a[i],  pos);
+    scattered[pos] = a[i];
 }
