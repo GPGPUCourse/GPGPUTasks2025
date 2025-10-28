@@ -19,7 +19,8 @@ __kernel void prefix_sum_01_reduction(
 
     if (i < n && (i + 1) % pow2 == 0) {
         unsigned int prev_pow2 = (1u << (pow - 1));
-        unsigned int add = (i - prev_pow2 >= 0) ? pow2_sum[i - prev_pow2] : 0u;
+        unsigned int idx = i - prev_pow2;
+        unsigned int add = (idx >= 0 && idx < n) ? pow2_sum[idx] : 0u;
         next_pow2_sum[i] = pow2_sum[i] + add;
     }
 }

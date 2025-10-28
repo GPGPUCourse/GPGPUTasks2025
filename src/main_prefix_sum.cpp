@@ -81,13 +81,13 @@ void run(int argc, char** argv)
     
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
-        ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
         timer t;
-
+        
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
+            ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
             unsigned int k = 1;
             unsigned int p = 0;
             gpu::gpu_mem_32u* from = &input_gpu;
@@ -95,7 +95,7 @@ void run(int argc, char** argv)
 
             while (k <= n) {
                 // std::cout << "p = " << p << ", k = " << k << ", n = " << n << std::endl;
-                ocl_fill_with_zeros.exec(workSize, *to, n);
+                // ocl_fill_with_zeros.exec(workSize, *to, n);
                 // reduce
                 ocl_sum_reduction.exec(workSize, *from, *to, n, p);
                 // std::cout << "pow: ";
@@ -123,7 +123,10 @@ void run(int argc, char** argv)
                     from = &buffer1_pow2_sum_gpu;
                     to = &buffer2_pow2_sum_gpu;
                 } else {
-                    std::swap(from, to);
+                    gpu::gpu_mem_32u* tmp = from;
+                    from = to;
+                    to = tmp;
+                    //std::swap(from, to);
                 }
                 k *= 2;
                 p++;
