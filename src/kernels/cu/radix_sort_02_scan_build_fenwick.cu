@@ -9,12 +9,11 @@
 
 #define uint unsigned int
 
-__global__ void radix_sort_01_scan_build_fenwick(
+__global__ void radix_sort_02_scan_build_fenwick(
     const uint* input,
           uint* output,
     uint n,
-    uint d,
-    uint bit)
+    uint d)
 {
     __shared__ uint part[GROUP_SIZE];
 
@@ -24,11 +23,7 @@ __global__ void radix_sort_01_scan_build_fenwick(
     const uint l_size = min(GROUP_SIZE, n - bl_offset);
 
     if (g_idx < n) {
-        if (d == 0) {
-            part[idx] = (input[g_idx] >> bit) & 1;
-        } else {
-            part[idx] = input[g_idx];
-        }
+        part[idx] = input[g_idx];
 
         __syncthreads();
 
@@ -50,13 +45,13 @@ __global__ void radix_sort_01_scan_build_fenwick(
 }
 
 namespace cuda {
-void radix_sort_01_scan_build_fenwick(const gpu::WorkSize &workSize,
-            const gpu::gpu_mem_32u &input, gpu::gpu_mem_32u &output, uint n, uint d, uint bit)
+void radix_sort_02_scan_build_fenwick(const gpu::WorkSize &workSize,
+            const gpu::gpu_mem_32u &input, gpu::gpu_mem_32u &output, uint n, uint d)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::radix_sort_01_scan_build_fenwick<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(input.cuptr(), output.cuptr(), n, d, bit);
+    ::radix_sort_02_scan_build_fenwick<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(input.cuptr(), output.cuptr(), n, d);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda

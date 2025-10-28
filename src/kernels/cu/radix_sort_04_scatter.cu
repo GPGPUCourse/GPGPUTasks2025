@@ -9,7 +9,7 @@
 
 #define uint unsigned int
 
-__global__ void radix_sort_03_scatter(
+__global__ void radix_sort_04_scatter(
     const uint* input,
     const uint* scan,
           uint* output,
@@ -31,13 +31,13 @@ __global__ void radix_sort_03_scatter(
 }
 
 namespace cuda {
-void radix_sort_03_scatter(const gpu::WorkSize &workSize,
+void radix_sort_04_scatter(const gpu::WorkSize &workSize,
     const gpu::gpu_mem_32u &input, const gpu::gpu_mem_32u &scan, gpu::gpu_mem_32u &output, uint n, uint bit)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::radix_sort_03_scatter<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(input.cuptr(), scan.cuptr(), output.cuptr(), n, bit);
+    ::radix_sort_04_scatter<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(input.cuptr(), scan.cuptr(), output.cuptr(), n, bit);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda

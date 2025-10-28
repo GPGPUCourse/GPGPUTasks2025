@@ -1,7 +1,7 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
+#include <libxorbit/contexted_timer.h>
 #include <libbase/fast_random.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
@@ -38,21 +38,53 @@ unsigned int find_msb_position(unsigned int value) {
 #endif
 }
 
-void cuda_scan(unsigned int n, unsigned int bit, gpu::gpu_mem_32u& input_gpu, gpu::gpu_mem_32u& buffer_gpu, gpu::gpu_mem_32u& output_gpu)
+template <typename T>
+void print_vec(const std::vector<T> vec)
 {
+    for (const auto& t :vec) {
+        std::cout << t << " ";
+    }
+    std::cout << std::endl;
+}
+
+void print_gpu_mem(const gpu::gpu_mem_32u& gpu_mem, std::optional<int> bit = std::nullopt)
+{
+    std::vector<unsigned int> mem = gpu_mem.readVector();
+    if (bit.has_value()) {
+        auto bits = debug::highlightBits(debug::toBits(mem), *bit, 1);
+        print_vec(bits);
+    } else {
+        print_vec(mem);
+    }
+}
+
+void cuda_scan(unsigned int n, unsigned int bit, gpu::gpu_mem_32u& input_gpu, gpu::gpu_mem_32u& buffer_gpu, gpu::gpu_mem_32u& output_gpu, ContextedTimer& t)
+{
+    {
+        auto ctx = t.context("01_scan_sparse");
+        cuda::radix_sort_01_scan_sparse(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer_gpu, output_gpu, n, bit);
+    }
+    unsigned int buffer_size = n / GROUP_SIZE + 1;
+
     unsigned int d = 0;
     while ((1ull << (d * 8)) < n) {
         unsigned int sparse_rate = (1ull << (d * 8));
-        auto& in_gpu = d == 0 ? input_gpu : buffer_gpu;
-        cuda::radix_sort_01_scan_build_fenwick(gpu::WorkSize(GROUP_SIZE, (n + sparse_rate - 1) / sparse_rate), in_gpu, buffer_gpu, n, d, bit);
+        {
+            auto ctx = t.context("02_scan_build_fenwick");
+            cuda::radix_sort_02_scan_build_fenwick(gpu::WorkSize(GROUP_SIZE, (buffer_size + sparse_rate - 1) / sparse_rate), buffer_gpu, buffer_gpu, n, d);
+        }
         ++d;
     }
-    cuda::radix_sort_02_scan_accumulation(gpu::WorkSize(GROUP_SIZE, n), buffer_gpu, output_gpu, n);
+    {
+        auto ctx = t.context("03_scan_accumulation");
+        cuda::radix_sort_03_scan_accumulation(gpu::WorkSize(GROUP_SIZE, n), buffer_gpu, output_gpu, n);
+    }
 }
 
-void cuda_scatter(unsigned int n, unsigned int bit, const gpu::gpu_mem_32u& input_gpu, const gpu::gpu_mem_32u& scan_gpu, gpu::gpu_mem_32u& output_gpu)
+void cuda_scatter(unsigned int n, unsigned int bit, const gpu::gpu_mem_32u& input_gpu, const gpu::gpu_mem_32u& scan_gpu, gpu::gpu_mem_32u& output_gpu, ContextedTimer& t)
 {
-    cuda::radix_sort_03_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit);
+    auto ctx = t.context("04_scatter");
+    cuda::radix_sort_04_scatter(gpu::WorkSize(GROUP_SIZE, n), input_gpu, scan_gpu, output_gpu, n, bit);
 }
 
 void run(int argc, char** argv)
@@ -91,7 +123,7 @@ void run(int argc, char** argv)
     int n = 100'000'000;
     int max_value = std::numeric_limits<int>::max();
     int iter_count = 10;
-    // int n = 1'000;
+    // int n = 10'000'000;
     // int max_value = std::numeric_limits<int>::max();
     // int iter_count = 10;
 #else
@@ -146,31 +178,39 @@ void run(int argc, char** argv)
     // output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
-    std::vector<double> times;
+    ContextedTimer t;
     for (int iter = 0; iter < iter_count; ++iter) {
-        timer t;
-
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         rassert(context.type() == gpu::Context::TypeCUDA, 4531412341);
 
         unsigned int max_bit = find_msb_position(max_value);
 
-        bool save_to_buffer1 = true;
-        for (int bit = 0; bit <= max_bit; ++bit) {
-            save_to_buffer1 = bit % 2 == 0;
+        {
+            auto ctx = t.context("algos");
+            bool save_to_buffer1 = true;
+            for (int bit = 0; bit <= max_bit; ++bit) {
+                save_to_buffer1 = bit % 2 == 0;
 
-            gpu::gpu_mem_32u& prev_buffer = save_to_buffer1 ? buffer2_gpu : buffer1_gpu;
-            gpu::gpu_mem_32u& new_buffer = save_to_buffer1 ? buffer1_gpu : buffer2_gpu;
-            gpu::gpu_mem_32u& input = bit == 0 ? input_gpu : prev_buffer;
+                gpu::gpu_mem_32u& prev_buffer = save_to_buffer1 ? buffer2_gpu : buffer1_gpu;
+                gpu::gpu_mem_32u& new_buffer = save_to_buffer1 ? buffer1_gpu : buffer2_gpu;
+                gpu::gpu_mem_32u& input = bit == 0 ? input_gpu : prev_buffer;
 
-            cuda_scan(n, bit, input, new_buffer, scan_gpu);
-            cuda_scatter(n, bit, input, scan_gpu, new_buffer);
+                cuda_scan(n, bit, input, new_buffer, scan_gpu, t);
+                cuda_scatter(n, bit, input, scan_gpu, new_buffer, t);
+            }
+            output_gpu_ptr = save_to_buffer1 ? &buffer1_gpu : &buffer2_gpu;
         }
-        output_gpu_ptr = save_to_buffer1 ? &buffer1_gpu : &buffer2_gpu;
 
-        times.push_back(t.elapsed());
+        t.nextLap();
     }
+
+#ifdef LOCAL_RUN
+    std::cout << t.output() << std::endl;
+#endif
+
+    const auto& times = t.totalTimes();
+
     gpu::gpu_mem_32u& buffer_output_gpu = *output_gpu_ptr;
 
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;

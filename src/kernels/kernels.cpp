@@ -22,17 +22,22 @@ void aplusb(const gpu::WorkSize& workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_01_scan_build_fenwick(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &input, gpu::gpu_mem_32u &output, unsigned int n, unsigned int d, unsigned int bit)
+void radix_sort_01_scan_sparse(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& input, gpu::gpu_mem_32u& buffer, gpu::gpu_mem_32u& output, unsigned int n, unsigned int d, unsigned int bit);
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_02_scan_accumulation(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &buffer_fenwick_gpu, gpu::gpu_mem_32u &prefix_sum_accum_gpu, unsigned int n)
+void radix_sort_02_scan_build_fenwick(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &input, gpu::gpu_mem_32u &output, unsigned int n, unsigned int d, unsigned int bit)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_03_scatter(const gpu::gpu_mem_32u &input, const gpu::gpu_mem_32u &scan, gpu::gpu_mem_32u &output, unsigned int n, unsigned int bit)
+void radix_sort_03_scan_accumulation(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &buffer_fenwick_gpu, gpu::gpu_mem_32u &prefix_sum_accum_gpu, unsigned int n)
+{
+    // dummy implementation if CUDA_SUPPORT is disabled
+    rassert(false, 54623523412413);
+}
+void radix_sort_04_scatter(const gpu::gpu_mem_32u &input, const gpu::gpu_mem_32u &scan, gpu::gpu_mem_32u &output, unsigned int n, unsigned int bit)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);

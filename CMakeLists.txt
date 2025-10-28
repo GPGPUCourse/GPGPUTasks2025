@@ -49,6 +49,7 @@ set(LIBRARIES
         libimages
         libutils
         libjson
+        libxorbit
 )
 
 # compile_opencl CMake-функция объявлена в libs/gpu/libgpu/CMakeLists.txt:157
@@ -105,9 +106,10 @@ if (GPU_CUDA_SUPPORT)
     # Вероятно вам стоит выставить в CMake options: -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
-            src/kernels/cu/radix_sort_01_scan_build_fenwick.cu
-            src/kernels/cu/radix_sort_02_scan_accumulation.cu
-            src/kernels/cu/radix_sort_03_scatter.cu)
+            src/kernels/cu/radix_sort_01_scan_sparse.cu
+            src/kernels/cu/radix_sort_02_scan_build_fenwick.cu
+            src/kernels/cu/radix_sort_03_scan_accumulation.cu
+            src/kernels/cu/radix_sort_04_scatter.cu)
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})
