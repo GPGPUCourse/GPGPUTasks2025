@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -10,8 +10,23 @@
 #include "kernels/kernels.h"
 
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
+
+std::string uint_to_reverse_binary_string(uint x, uint padding = 0)
+{
+    std::string s;
+    while (x > 0) {
+        s += std::to_string(x & 1);
+        x >>= 1;
+    }
+    while (s.size() < padding) {
+        s += '0';
+    }
+    return s;
+}
 
 void run(int argc, char** argv)
 {
@@ -50,7 +65,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -73,6 +88,9 @@ void run(int argc, char** argv)
         }
         rassert(!all_attempts_missed, 4353245123412);
     }
+    for (size_t i = 0; i < n; ++i) {
+        // std::cout << as[i] << "\t->\t" << uint_to_reverse_binary_string(as[i], BIT_GRANULARITY) << '\n';
+    }
 
     {
         sorted = as;
@@ -87,7 +105,10 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u buffer(n);
+    gpu::gpu_mem_32u buffer2(n);
+    gpu::gpu_mem_32u pref_sums((n / GROUP_SIZE + 1) * BIT_GRANULARITY_EXP);
+    gpu::gpu_mem_32u total_sums(BIT_GRANULARITY_EXP);
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -95,27 +116,71 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    pref_sums.fill(228);
+    total_sums.fill(228);
+    buffer.fill(228);
+    buffer2.fill(228);
+    buffer_output_gpu.fill(228);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
+    std::vector<double> first_stage;
+    std::vector<double> second_stage;
+    std::vector<double> third_stage;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            auto max_offset = 8 * sizeof(uint);
+            for (uint bit_offset = 0; bit_offset < max_offset; bit_offset += BIT_GRANULARITY) {
+                auto& input = *[bit_offset, &input_gpu, &buffer, &buffer2]() {
+                    if (bit_offset == 0) {
+                        return &input_gpu;
+                    }
+                    if ((bit_offset / BIT_GRANULARITY) & 1) {
+                        return &buffer;
+                    } else {
+                        return &buffer2;
+                    }
+                }();
+                auto output = *[bit_offset, &buffer_output_gpu, &buffer, &buffer2, max_offset]() {
+                    // last iteration
+                    if (bit_offset + BIT_GRANULARITY >= max_offset) {
+                        return &buffer_output_gpu;
+                    }
+                    if ((bit_offset / BIT_GRANULARITY) & 1) {
+                        return &buffer2;
+                    } else {
+                        return &buffer;
+                    }
+                }();
+
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, BIT_GRANULARITY_EXP), total_sums, BIT_GRANULARITY_EXP);
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, (n / GROUP_SIZE + 1) * BIT_GRANULARITY_EXP), pref_sums, (n / GROUP_SIZE + 1) * BIT_GRANULARITY_EXP);
+                {
+                    timer tt;
+                    ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, std::max((n / GROUP_SIZE + 1) * BIT_GRANULARITY_EXP, n)), input, pref_sums, total_sums, n, bit_offset);
+                    first_stage.push_back(tt.elapsed());
+                }
+                {
+                    timer tt;
+                    // всего n / GROUP_SIZE + 1 блоков, в каждом по BIT_GRANULARITY_EXP элементов
+                    uint reduced_n = n / GROUP_SIZE + 1;
+                    assert(GROUP_SIZE % BIT_GRANULARITY_EXP == 0);
+                    assert(GROUP_SIZE > BIT_GRANULARITY_EXP);
+                    for (size_t level = 1; level < reduced_n; level *= (GROUP_SIZE / BIT_GRANULARITY_EXP)) {
+                        ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, (reduced_n / level + 1) * BIT_GRANULARITY_EXP), pref_sums, reduced_n, (uint)level);
+                    }
+                    second_stage.push_back(tt.elapsed());
+                }
+                {
+                    timer tt;
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input, pref_sums, total_sums, output, n, bit_offset);
+                    third_stage.push_back(tt.elapsed());
+                }
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -139,6 +204,9 @@ void run(int argc, char** argv)
         times.push_back(t.elapsed());
     }
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
+    std::cout << "GPU radix-sort first_stage times (in seconds) - " << stats::valuesStatsLine(first_stage) << std::endl;
+    std::cout << "GPU radix-sort second_stage times (in seconds) - " << stats::valuesStatsLine(second_stage) << std::endl;
+    std::cout << "GPU radix-sort third_stage times (in seconds) - " << stats::valuesStatsLine(third_stage) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
@@ -168,7 +236,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {

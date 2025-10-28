@@ -1,7 +1,13 @@
 #ifndef my_defines_vk // pragma once
 #define my_defines_vk
 
-#define GROUP_SIZE   256
+#define GROUP_SIZE_LOG 8
+#define GROUP_SIZE 256
+
+#define BIT_GRANULARITY 4 // amount of bits processed at a time
+#define BIT_GRANULARITY_EXP (1 << BIT_GRANULARITY)
+#define GRANULARITY_MASK (BIT_GRANULARITY_EXP - 1)
+
 #define GROUP_SIZE_X 16
 #define GROUP_SIZE_Y 16
 
