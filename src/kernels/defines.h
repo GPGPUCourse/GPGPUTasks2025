@@ -4,7 +4,7 @@
 #define GROUP_SIZE_LOG 8
 #define GROUP_SIZE 256
 
-#define BIT_GRANULARITY 6 // amount of bits processed at a time
+#define BIT_GRANULARITY 7 // amount of bits processed at a time
 #define BIT_GRANULARITY_EXP (1 << BIT_GRANULARITY)
 #define GRANULARITY_MASK (BIT_GRANULARITY_EXP - 1)
 
