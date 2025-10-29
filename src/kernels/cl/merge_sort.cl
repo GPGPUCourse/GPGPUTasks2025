@@ -20,7 +20,7 @@ __kernel void merge_sort(
     const unsigned int num_in_block = index % sorted_k;
     const unsigned int k = (block_num >> 1) * (sorted_k << 1);
 
-    if (sorted_k <= (GROUP_SIZE >> 1)) {
+    if (sorted_k <= 16) {
 
         if (index < n) {
             buffer[local_index] = input_data[index];
@@ -50,7 +50,7 @@ __kernel void merge_sort(
             if (index - num_in_block + sorted_k >= n) {
                 output_data[k + num_in_block] = value;
                 return;
-            } else if (index - num_in_block + 2 * sorted_k > n) {
+            } else if (index - num_in_block + (sorted_k << 1) > n) {
                 end = begin + (n - (index - num_in_block + sorted_k));
             }
 
