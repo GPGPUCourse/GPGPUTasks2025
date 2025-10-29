@@ -7,8 +7,8 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
-
 #include <fstream>
+//#define USE_STEP1 = 1
 
 void run(int argc, char** argv)
 {
@@ -57,58 +57,65 @@ void run(int argc, char** argv)
     input_gpu.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
+    // #define USE_STEP1   // раскомментируй, чтобы ВКЛЮЧИТЬ шаг 1; закомментируй, чтобы ОТКЛЮЧИТЬ
+
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            const size_t work  = ((size_t)n + GROUP_SIZE - 1) / GROUP_SIZE * GROUP_SIZE;
+        const size_t work = ((size_t)n + GROUP_SIZE - 1) / GROUP_SIZE * GROUP_SIZE;
+        auto WS = gpu::WorkSize(GROUP_SIZE, work);
 
-            cuda::fill_buffer_with_zeros(gpu::WorkSize(GROUP_SIZE, work), buffer2_pow2_sum_gpu, n);
-            cuda::fill_buffer_with_zeros(gpu::WorkSize(GROUP_SIZE, work), prefix_sum_accum_gpu, n);
+        cuda::fill_buffer_with_zeros(WS, buffer2_pow2_sum_gpu, n);
+        cuda::fill_buffer_with_zeros(WS, prefix_sum_accum_gpu, n);
 
-            unsigned int passes = 0;
-            while ((1u << passes) < n) ++passes;
+        unsigned int passes = 0;
+        while ((1u << passes) < n) ++passes;
 
-            gpu::gpu_mem_32u* src = &input_gpu;
-            gpu::gpu_mem_32u* dst = (passes % 2 == 1) ? &prefix_sum_accum_gpu : &buffer2_pow2_sum_gpu;
+    #ifdef USE_STEP1
+        cuda::prefix_sum_01_sum_reduction(WS, input_gpu, buffer2_pow2_sum_gpu, n);
+        gpu::gpu_mem_32u* src = &buffer2_pow2_sum_gpu;   
+        unsigned int start = 1;
+        gpu::gpu_mem_32u* dst = ((passes % 2) == 0) ? &prefix_sum_accum_gpu : &buffer2_pow2_sum_gpu;
+    #else
+        gpu::gpu_mem_32u* src = &input_gpu;             
+        unsigned int start = 0;
+        gpu::gpu_mem_32u* dst = ((passes % 2) == 1) ? &prefix_sum_accum_gpu : &buffer2_pow2_sum_gpu;
+    #endif
 
-            for (unsigned int k = 0; k < passes; ++k) {
-                cuda::prefix_sum_02_prefix_accumulation(gpu::WorkSize(GROUP_SIZE, work), *src, *dst, n, k);
+        const unsigned n_print = std::min<unsigned>(20, n);
+        std::vector<unsigned> in_to_loop(n_print);
+        src->readN(in_to_loop.data(), n_print);
+        std::cout << "input[0:" << n_print << "): ";
+        for (unsigned i = 0; i < n_print; ++i) std::cout << in_to_loop[i] << " ";
+        std::cout << "\n";
 
-                gpu::gpu_mem_32u* next_src = dst;
-                dst = (dst == &prefix_sum_accum_gpu) ? &buffer2_pow2_sum_gpu : &prefix_sum_accum_gpu;
-                src = next_src;
-            }
-     
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        // сам цикл
+        for (unsigned int k = start; k < passes; ++k) {
+            cuda::prefix_sum_02_prefix_accumulation(WS, *src, *dst, n, k);
+            gpu::gpu_mem_32u* next_src = dst;
+            dst = (dst == &prefix_sum_accum_gpu) ? &buffer2_pow2_sum_gpu : &prefix_sum_accum_gpu;
+            src = next_src;
         }
+
+        std::vector<unsigned> h_out(n_print);
+        src->readN(h_out.data(), n_print);
+        std::cout << "src[0:" << n_print << "): ";
+        for (unsigned i = 0; i < n_print; ++i) std::cout << h_out[i] << " ";
+        std::cout << "\n";
 
         times.push_back(t.elapsed());
     }
+
     std::cout << "prefix sum times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-    // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
-    double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
-    std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
 
-    // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
+        // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили префиксные суммы)
+        double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
+        std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+
+        // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
+        std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
 
     // Сверяем результат
     size_t cpu_sum = 0;
