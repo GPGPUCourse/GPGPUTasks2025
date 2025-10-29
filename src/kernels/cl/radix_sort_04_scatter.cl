@@ -1,19 +1,28 @@
-#ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
-#endif
-
-#include "helpers/rassert.cl"
 #include "../defines.h"
+#include "helpers/rassert.cl"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void radix_sort_04_scatter(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global const uint* buffer2,
-                   uint* buffer3,
-    unsigned int a1,
-    unsigned int a2)
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__kernel void
+radix_sort_04_scatter(
+    __global const uint* input,
+    __global uint* output,
+    __global const uint* num_prefix,
+    __global const uint* bucket_base,
+    __global const uint* local_prefix,
+    unsigned int n,
+    unsigned int offset)
 {
-    // TODO
+    const uint global_index = get_global_id(0);
+
+    if (global_index >= n) {
+        return;
+    }
+
+    const uint group_index = get_group_id(0);
+    uint value = input[global_index];
+    uint bucket = (value >> offset) & RAD_SIZE_MASK;
+    uint local_shift = local_prefix[global_index];
+
+    uint pos = bucket_base[bucket] + num_prefix[group_index * RAD_SIZE + bucket] + local_shift;
+    output[pos] = value;
 }
