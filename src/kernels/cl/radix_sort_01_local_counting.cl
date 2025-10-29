@@ -29,9 +29,13 @@ radix_sort_01_local_counting(
         const uint rank = atomic_inc(&local_count[bucket]);
 
         local_prefix[global_index] = 0;
+        uint base = global_group_index * GROUP_SIZE;
         for (uint i = 0; i < local_index; ++i) {
-            if (((data[global_group_index * GROUP_SIZE + i] >> offset) & RAD_SIZE_MASK) == bucket) {
-                local_prefix[global_index]++;
+            uint idx = base + i;
+            if (idx < n) {
+                if (((data[idx] >> offset) & RAD_SIZE_MASK) == bucket) {
+                    local_prefix[global_index]++;
+                }
             }
         }
     }

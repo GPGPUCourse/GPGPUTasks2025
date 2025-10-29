@@ -17,6 +17,7 @@ radix_sort_02_global_prefixes_scan_sum_reduction(
     }
 
     __local uint s[GROUP_SIZE];
+    __local uint tile_sum;
     uint global_sum = 0;
 
     for (uint offset = 0; offset < num_groups; offset += GROUP_SIZE) {
@@ -38,9 +39,8 @@ radix_sort_02_global_prefixes_scan_sum_reduction(
             barrier(CLK_LOCAL_MEM_FENCE);
         }
 
-        uint tile_sum = s[GROUP_SIZE - 1];
-
         if (local_index == 0) {
+            tile_sum = s[GROUP_SIZE - 1];
             s[GROUP_SIZE - 1] = 0;
         }
 

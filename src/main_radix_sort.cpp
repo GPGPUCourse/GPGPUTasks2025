@@ -31,17 +31,17 @@ void radix_sort(int n,
 
     gpu::gpu_mem_32u buffer(n);
     input.copyToN(buffer, n);
-    gpu::gpu_mem_32u in = buffer;
-    gpu::gpu_mem_32u out = output;
 
-    for (int offset = 0; offset < 32; offset += 4) {
+    bool first = true;
+
+    for (int offset = 0; offset < 32; offset += 4, first = !first) {
+        gpu::gpu_mem_32u in = first ? buffer : output;
+        gpu::gpu_mem_32u out = first ? output : buffer;
+
         local_counting.exec(gpu::WorkSize(GROUP_SIZE, n), in, num_count, local_prefix, n, offset);
         prefix_tiled.exec(gpu::WorkSize(GROUP_SIZE, RAD_SIZE * GROUP_SIZE), num_count, num_prefix, bucket_size, groups);
         bucket_prefix.exec(gpu::WorkSize(GROUP_SIZE, GROUP_SIZE), bucket_size, bucket_base);
         scatter.exec(gpu::WorkSize(GROUP_SIZE, n), in, out, num_prefix, bucket_base, local_prefix, n, offset);
-        if (offset + 4 < 32) {
-            std::swap(in, out);
-        }
     }
 
     buffer.copyToN(output, n);
