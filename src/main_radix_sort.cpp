@@ -50,7 +50,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    unsigned int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -112,7 +112,7 @@ void run(int argc, char** argv)
         if (context.type() == gpu::Context::TypeOpenCL) {
 
             input_gpu.copyToN(input_copy_gpu, n);
-            for (size_t bit = 0; bit < 32; bit++) {
+            for (unsigned int bit = 0; bit < 32; bit++) {
 
                 ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), bit_is_zero_gpu, n);
                 ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_zeros_gpu, n);
