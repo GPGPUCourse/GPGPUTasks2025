@@ -9,7 +9,7 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_01_local_counting(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global uint* input,
+    __global const uint* input,
     __global uint* count_zeros,
     unsigned int n,
     unsigned int bit)
@@ -21,6 +21,8 @@ __kernel void radix_sort_01_local_counting(
     }
 
     if (((input[ind] >> bit) & 1) == 0) {
-            count_zeros[ind] = 1;
-    } 
+        count_zeros[ind] = 1;
+    } else {
+        count_zeros[ind] = 0;
+    }
 }
