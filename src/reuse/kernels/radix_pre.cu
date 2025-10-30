@@ -13,7 +13,6 @@ __global__ void radix_pre(const unsigned int* a, unsigned int* b, unsigned int o
     int i = blockIdx.x * blockDim.x + x;
     if (i < n) {
         int res = ((a[i] >> offset) & 1) ^ 1;
-        // printf("%d %d %d\n", i, a[i], res);
         b[i] = res;
     }
 }

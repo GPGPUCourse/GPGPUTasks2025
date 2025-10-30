@@ -110,6 +110,7 @@ if (GPU_CUDA_SUPPORT)
             src/reuse/kernels/prefixsum_pre.cu
             src/reuse/kernels/prefixsum_post.cu
             src/reuse/kernels/copy.cu
+            src/reuse/kernels/fill.cu
             src/reuse/kernels/radix_pre.cu
             src/reuse/kernels/radix_post.cu
             
