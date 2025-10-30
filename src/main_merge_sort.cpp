@@ -11,6 +11,17 @@
 
 #include <fstream>
 
+bool isAscending(const std::vector<unsigned int>& v, int i, int j) {
+    if (i < 0 || j >= (int)v.size() || i > j) 
+        return false;
+
+    for (int k = i; k < j; ++k) {
+        if (v[k] > v[k + 1])
+            return false;
+    }
+    return true;
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -35,7 +46,8 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
-
+    ocl::KernelSource ocl_bitonicSort256(ocl::getBitonicSort256());
+    
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
     FastRandom r;
@@ -99,7 +111,24 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            unsigned int sorted_block_size = 1;
+            
+            // std::cout << "A : ";
+            // std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+            // for (auto a : gpu_sorted)
+            //     std::cout << a << " ";
+            // std::cout << std::endl;
+
+            ocl_bitonicSort256.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, n);
+
+            // std::cout << "S : ";
+            // gpu_sorted = buffer_output_gpu.readVector();
+            // for (auto a : gpu_sorted)
+            //     std::cout << a << " ";
+            // std::cout << std::endl;
+            
+            // continue;
+
+            unsigned int sorted_block_size = 256;
             while (sorted_block_size < n) {
                 std::swap(buffer1_gpu, buffer_output_gpu);
 
@@ -140,6 +169,10 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+
+    // for (int i = 0; i + 255 < n; i += 256) {
+    //     rassert(isAscending(gpu_sorted, i, i + 255), 4569084598);
+    // }
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
