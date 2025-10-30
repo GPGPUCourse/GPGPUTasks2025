@@ -36,6 +36,9 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
+    ocl::KernelSource ocl_add_input(ocl::getPrefixSum03AddInput());
+    ocl::KernelSource ocl_block_local(ocl::getPrefixSumBlockLocal());
+    ocl::KernelSource ocl_add_base(ocl::getPrefixSumAddBase());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
@@ -53,6 +56,17 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
 
+    const unsigned int BLOCK_SIZE = 512;
+    std::vector<gpu::gpu_mem_32u*> level_buffers;
+    std::vector<unsigned int> level_sizes;
+    unsigned int current_size = n;
+    while (current_size > 1) {
+        unsigned int num_blocks = (current_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        level_sizes.push_back(num_blocks);
+        level_buffers.push_back(new gpu::gpu_mem_32u(num_blocks));
+        current_size = num_blocks;
+    }
+
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
 
@@ -64,11 +78,42 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+
+            unsigned int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            // WorkSize: local_size=BLOCK_SIZE, global_size=num_blocks*BLOCK_SIZE
+            ocl_block_local.exec(gpu::WorkSize(BLOCK_SIZE, num_blocks * BLOCK_SIZE),
+                                 input_gpu, prefix_sum_accum_gpu, *level_buffers[0], n);
+
+            for (size_t level = 0; level < level_buffers.size() - 1; ++level) {
+                unsigned int curr_size = level_sizes[level];
+                unsigned int curr_blocks = level_sizes[level + 1];
+
+                ocl_block_local.exec(gpu::WorkSize(BLOCK_SIZE, curr_blocks * BLOCK_SIZE),
+                                     *level_buffers[level], *level_buffers[level],
+                                     *level_buffers[level + 1], curr_size);
+            }
+
+            if (!level_buffers.empty()) {
+                size_t last_level = level_buffers.size() - 1;
+                unsigned int last_size = level_sizes[last_level];
+                ocl_block_local.exec(gpu::WorkSize(BLOCK_SIZE, BLOCK_SIZE),
+                                     *level_buffers[last_level], *level_buffers[last_level],
+                                     buffer1_pow2_sum_gpu, last_size);  // dummy output for block_sums
+            }
+
+            for (int level = (int)level_buffers.size() - 2; level >= 0; --level) {
+                unsigned int curr_size = level_sizes[level];
+                unsigned int curr_blocks = (curr_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+                ocl_add_base.exec(gpu::WorkSize(BLOCK_SIZE, curr_blocks * BLOCK_SIZE),
+                                  *level_buffers[level], *level_buffers[level + 1], curr_size);
+            }
+
+            if (!level_buffers.empty()) {
+                unsigned int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                ocl_add_base.exec(gpu::WorkSize(BLOCK_SIZE, num_blocks * BLOCK_SIZE),
+                                  prefix_sum_accum_gpu, *level_buffers[0], n);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -107,6 +152,10 @@ void run(int argc, char** argv)
     std::vector<unsigned int> input_values = input_gpu.readVector();
     for (size_t i = 0; i < n; ++i) {
         rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);
+    }
+
+    for (auto* buf : level_buffers) {
+        delete buf;
     }
 }
 
