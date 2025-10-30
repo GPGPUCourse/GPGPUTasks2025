@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -40,7 +40,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
@@ -98,8 +98,25 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            auto ceil_div = [](int x, int y) { return (x + y - 1) / y; };
+            auto round_up = [](int x, int y) { return ((x + y - 1) / y) * y; };
+
+            gpu::gpu_mem_32u* src = &input_gpu;
+
+            int sorted_k = 1;
+            int phase = 0;
+            while (sorted_k < n) {
+                bool is_last_pass = (sorted_k * 2 >= n);
+                gpu::gpu_mem_32u* dst = is_last_pass ? &buffer_output_gpu : (phase % 2 == 0 ? &buffer1_gpu : &buffer2_gpu);
+
+                int num_pairs = ceil_div(n, 2 * sorted_k);
+                size_t GS = round_up(num_pairs, GROUP_SIZE);
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, GS), *src, *dst, sorted_k, n);
+
+                src = dst;
+                sorted_k <<= 1;
+                ++phase;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
