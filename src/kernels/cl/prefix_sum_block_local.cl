@@ -5,7 +5,7 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 256
 
 __kernel void prefix_sum_block_local(
     __global const uint* input,

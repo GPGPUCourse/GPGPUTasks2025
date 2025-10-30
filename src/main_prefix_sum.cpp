@@ -56,7 +56,7 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
 
-    const unsigned int BLOCK_SIZE = 512;
+    const unsigned int BLOCK_SIZE = 256;
     std::vector<gpu::gpu_mem_32u*> level_buffers;
     std::vector<unsigned int> level_sizes;
     unsigned int current_size = n;
