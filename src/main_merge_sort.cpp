@@ -96,7 +96,7 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            unsigned int small_index = 16;
+            unsigned int small_index = 8;
             for (unsigned int k = 1; k < small_index; k <<= 1) {
                 ocl_mergeSortSmall.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu1, buffer_output_gpu, k, n);
                 buffer_output_gpu.swap(input_gpu1);
