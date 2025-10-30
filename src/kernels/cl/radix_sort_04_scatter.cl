@@ -8,35 +8,34 @@
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_04_scatter(
     __global const uint* in,
-    __global uint* positions,
+    __global const uint* prefix,
     __global const uint* group_offsets,
     __global uint* out,
     const uint pass_shift,
-    const uint N
-)
+    const uint N)
 {
     const uint i = get_global_id(0);
     if (i >= N) return;
 
+    const uint gix = get_group_id(0);
+    const uint lid = get_local_id(0);
+    const uint lsz = get_local_size(0);
+
     const uint v = in[i];
     const uint d = (v >> pass_shift) & MASK;
 
-    const uint lid = get_local_id(0);
-    const uint lsz = get_local_size(0);
-    __local uint local_hist[RADIX];
-    for (uint x = lid; x < RADIX; x += lsz) local_hist[x] = 0u;
+    __local uint digits[GROUP_SIZE];
+    digits[lid] = d;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     uint local_rank = 0u;
-    for (uint j = 0; j < lsz; ++j) {
-        uint idx = get_group_id(0) * lsz + j;
-        if (idx >= N) break;
-        uint vv = in[idx];
-        uint dd = (vv >> pass_shift) & MASK;
-        if (j < lid) local_rank += (dd == d);
+    for (uint j = 0; j < lid; ++j) {
+        uint idx = gix * lsz + j;
+        if (idx < N && digits[j] == d) ++local_rank;
     }
 
-    const uint gix = get_group_id(0);
-    const uint pos = positions[d] + group_offsets[gix * RADIX + d] + local_rank;
+    uint base = prefix[d] + group_offsets[gix * RADIX + d];
+    uint pos  = base + local_rank;
+
     out[pos] = v;
 }

@@ -21,7 +21,7 @@ __kernel void radix_sort_01_local_counting(
     __local uint hist[RADIX];
 
     for (uint d = lid; d < RADIX; d += lsz) {
-        hist[d] = 0u;
+        hist[d] = 0;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 

@@ -93,6 +93,7 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u data_in(n);
     gpu::gpu_mem_32u data_out(n);
     gpu::gpu_mem_32u counts_local(num_groups * RADIX);
+    gpu::gpu_mem_32u group_offsets_exc_sum(num_groups * RADIX);
     gpu::gpu_mem_32u counts_reduced(RADIX);
     gpu::gpu_mem_32u prefix(RADIX);
 
@@ -122,9 +123,9 @@ void run(int argc, char** argv)
                 ocl_fillBufferWithZeros.exec(ws_zero_small, prefix, static_cast<unsigned int>(RADIX));
 
                 ocl_radixSort01LocalCounting.exec(ws_count_scatter, data_in, counts_local, static_cast<unsigned int>(pass_shift), static_cast<unsigned int>(n));
-                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(ws_small, counts_local, counts_reduced, static_cast<unsigned int>(num_groups));
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(ws_small, counts_local, group_offsets_exc_sum, counts_reduced, static_cast<unsigned int>(num_groups));
                 ocl_radixSort03GlobalPrefixesScanAccumulation.exec(ws_small, counts_reduced, prefix);
-                ocl_radixSort04Scatter.exec(ws_count_scatter, data_in, prefix, counts_local, data_out, static_cast<unsigned int>(pass_shift), static_cast<unsigned int>(n));
+                ocl_radixSort04Scatter.exec(ws_count_scatter, data_in, prefix, group_offsets_exc_sum, data_out, static_cast<unsigned int>(pass_shift), static_cast<unsigned int>(n));
 
                 std::swap(data_in, data_out);
             }

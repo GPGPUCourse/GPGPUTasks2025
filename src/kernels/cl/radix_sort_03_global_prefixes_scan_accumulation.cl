@@ -8,11 +8,9 @@
 __attribute__((reqd_work_group_size(RADIX, 1, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     __global const uint* counts_reduced,
-    __global uint* prefix
-)
+    __global uint* prefix)
 {
     const uint lid = get_local_id(0);
-
     __local uint s[RADIX];
 
     uint x = counts_reduced[lid];
@@ -20,11 +18,9 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     for (uint off = 1; off < RADIX; off <<= 1) {
-        uint t = s[lid];
+        uint add = (lid >= off) ? s[lid - off] : 0u;
         barrier(CLK_LOCAL_MEM_FENCE);
-        if (lid >= off) t += s[lid - off];
-        barrier(CLK_LOCAL_MEM_FENCE);
-        s[lid] = t;
+        s[lid] += add;
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
