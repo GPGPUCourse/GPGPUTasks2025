@@ -1,2 +1,4 @@
 # .clang-format
-BasedOnStyle: WebKit
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 200
