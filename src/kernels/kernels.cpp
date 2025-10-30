@@ -4,6 +4,9 @@
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/prefix_sum_01_reduction.h"
 #include "cl/generated_kernels/prefix_sum_02_prefix_accumulation.h"
+#include "cl/generated_kernels/prefix_sum_03_add_input.h"
+#include "cl/generated_kernels/prefix_sum_block_local.h"
+#include "cl/generated_kernels/prefix_sum_add_base.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
@@ -58,6 +61,21 @@ const ProgramBinaries& getPrefixSum01Reduction()
 const ProgramBinaries& getPrefixSum02PrefixAccumulation()
 {
     return opencl_binaries_prefix_sum_02_prefix_accumulation;
+}
+
+const ProgramBinaries& getPrefixSum03AddInput()
+{
+    return opencl_binaries_prefix_sum_03_add_input;
+}
+
+const ProgramBinaries& getPrefixSumBlockLocal()
+{
+    return opencl_binaries_prefix_sum_block_local;
+}
+
+const ProgramBinaries& getPrefixSumAddBase()
+{
+    return opencl_binaries_prefix_sum_add_base;
 }
 } // namespace ocl
 
