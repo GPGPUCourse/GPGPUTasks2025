@@ -35,9 +35,9 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
-
-    avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
+    ocl::KernelSource ocl_mergeSortBig(ocl::getMergeSortBig());
+    ocl::KernelSource ocl_mergeSortMedium(ocl::getMergeSortMedium());
+    ocl::KernelSource ocl_mergeSortSmall(ocl::getMergeSortSmall());
 
     FastRandom r;
 
@@ -96,8 +96,19 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            for (unsigned int k = 1; k < n; k <<= 1) {
-                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu1, buffer_output_gpu, k, n);
+            unsigned int small_index = 16;
+            for (unsigned int k = 1; k < small_index; k <<= 1) {
+                ocl_mergeSortSmall.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu1, buffer_output_gpu, k, n);
+                buffer_output_gpu.swap(input_gpu1);
+            }
+
+            for (unsigned int k = small_index; k < GROUP_SIZE; k <<= 1) {
+                ocl_mergeSortMedium.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu1, buffer_output_gpu, k, n);
+                buffer_output_gpu.swap(input_gpu1);
+            }
+
+            for (unsigned int k = GROUP_SIZE; k < n; k <<= 1) {
+                ocl_mergeSortBig.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu1, buffer_output_gpu, k, n);
                 buffer_output_gpu.swap(input_gpu1);
             }
 
