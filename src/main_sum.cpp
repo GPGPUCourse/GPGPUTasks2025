@@ -76,7 +76,7 @@ void run(int argc, char** argv)
     std::cout << "PCI-E bandwidth: " << size_gb / stats::median(times_pci) << " GB/s" << std::endl;
 
     gpu::gpu_mem_32u a_gpu(n), b_gpu(n);
-    a_gpu.writeN(values.data(), n);
+    // a_gpu.writeN(values.data(), n);
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -95,7 +95,7 @@ void run(int argc, char** argv)
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         unsigned int gpu_sum = 0;
-        for (int iter = 0; iter < 1; ++iter) {
+        for (int iter = 0; iter < 10; ++iter) {
             timer t;
 
             if (algorithm == "CPU") {
@@ -126,7 +126,10 @@ void run(int argc, char** argv)
 
                             gpu::WorkSize ws(local, global);
 
-                            if (cnt % 2 == 0) {
+                            if (cnt == 0) {
+                                ocl_sum04LocalReduction.exec(ws, input_gpu, b_gpu, (uint)sz);
+                            }
+                            else if (cnt % 2 == 0) {
                                 ocl_sum04LocalReduction.exec(ws, a_gpu, b_gpu, (uint)sz);
                             } else {
                                 ocl_sum04LocalReduction.exec(ws, b_gpu, a_gpu, (uint)sz);

@@ -96,7 +96,7 @@ void run(int argc, char** argv)
 
     std::vector<std::string> algorithm_names = {
         "CPU",
-        // "CPU with OpenMP",
+        "CPU with OpenMP",
         "GPU",
     };
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
@@ -107,7 +107,7 @@ void run(int argc, char** argv)
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         image32f current_results(width, height, 1);
-        int iters_count = (algorithm == "CPU" || algorithm == "CPU with OpenMP") ? 1 : 10; // single-threaded CPU is too slow
+        int iters_count = (algorithm == "CPU") ? 1 : 10; // single-threaded CPU is too slow
         for (int iter = 0; iter < iters_count; ++iter) {
             timer t;
 
