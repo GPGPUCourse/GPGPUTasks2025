@@ -103,15 +103,11 @@ void run(int argc, char** argv)
         while (sorted_k < n) {
             if ((sorted_k << 1) >= n)
                 out = &buffer_output_gpu;
-            cuda::merge_sort(gpu::WorkSize(GROUP_SIZE, n), *in, *out, sorted_k, n);
+            cuda::merge_sort(*in, *out, sorted_k, n);
             sorted_k <<= 1;
             in = out;
-            if (sorted_k < n) {
-                if (out == &buffer1_gpu)
-                    out = &buffer2_gpu;
-                else
-                    out = &buffer1_gpu;
-            }
+            if (sorted_k < n)
+                out = ((out == &buffer1_gpu) ? &buffer2_gpu : &buffer1_gpu);
         }
 
         times.push_back(t.elapsed());
