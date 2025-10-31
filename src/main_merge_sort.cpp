@@ -92,25 +92,32 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        int bs = 1;
+        gpu::WorkSize workSize(GROUP_SIZE, n);
+        ocl_mergeSort.exec(workSize, input_gpu, buffer1_gpu, bs, n);
+        bs *= 2;
+        // for (auto i :buffer1_gpu.readVector()) {
+        //     std::cout << i << " ";
+        // }
+        //    std::cout << std::endl;
+        gpu::gpu_mem_32u* buffers[2] = {&buffer1_gpu, &buffer2_gpu};
+        int idx = 0;
+        while (bs < n) {
+            ocl_mergeSort.exec(workSize, *buffers[idx], *buffers[1 - idx], bs, n);
+            // for (auto i : buffers[1-idx]->readVector()) {
+            //     std::cout << i << " ";
+            // }
+            // std::cout << std::endl;
+            idx = 1 - idx;
+            bs *= 2;
         }
-
         times.push_back(t.elapsed());
+        ocl_mergeSort.exec(workSize, *buffers[idx], buffer_output_gpu, bs, n); //copy
     }
     std::cout << "GPU merge-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
