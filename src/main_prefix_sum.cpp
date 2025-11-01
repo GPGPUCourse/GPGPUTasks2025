@@ -65,10 +65,26 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, n);
+
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, n, 0);
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1_pow2_sum_gpu, n);
+
+            unsigned int p = 1;
+            unsigned int len = (n + 1) >> 1;
+            while (len >= 1)
+            {
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, p);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, len);
+
+                p++; len = len >> 1;
+
+                std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
