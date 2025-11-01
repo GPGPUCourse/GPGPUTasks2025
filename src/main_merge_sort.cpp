@@ -72,7 +72,7 @@ void run(int argc, char** argv)
     while (m < n) m <<= 1;
     m <<= 1;
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1; ++iter) {
         timer t;
         for (int step_k = 2; step_k < m; step_k <<= 1) {
             for (int i = 0; i < n; i += step_k) {
