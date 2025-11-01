@@ -89,6 +89,7 @@ void run(int argc, char** argv)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
+    static constexpr unsigned int MERGE_TILE_SIZE = 1024;
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -97,13 +98,14 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        gpu::gpu_mem_32u* in = &input_gpu;
-        gpu::gpu_mem_32u* out = &buffer1_gpu;
-        int sorted_k = 1;
+        cuda::merge_sort_elementwise(input_gpu, (n <= MERGE_TILE_SIZE ? buffer_output_gpu : buffer1_gpu), n);
+        gpu::gpu_mem_32u* in = &buffer1_gpu;
+        gpu::gpu_mem_32u* out = &buffer2_gpu;
+        int sorted_k = MERGE_TILE_SIZE;
         while (sorted_k < n) {
             if ((sorted_k << 1) >= n)
                 out = &buffer_output_gpu;
-            cuda::merge_sort(*in, *out, sorted_k, n);
+            cuda::merge_sort_tiled(*in, *out, sorted_k, n);
             sorted_k <<= 1;
             in = out;
             if (sorted_k < n)
