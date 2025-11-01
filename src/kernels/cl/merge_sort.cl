@@ -7,17 +7,17 @@
 
 #define ll long long
 
-inline ll get_value_of_a(__global const uint* a, int ind, int offset, uint sorted_block_len, uint n)
+inline int get_value_of_a(__global const uint* a, int ind, int offset, uint sorted_block_len, uint n)
 {
     if (ind == 0)
         return -1;
     if (ind > sorted_block_len)
-        return UINT_MAX;
+        return INT_MAX;
 
     ind -= 1;
 
     if (ind + offset >= n)
-        return UINT_MAX;
+        return INT_MAX;
 
     return (ll)(a[offset + ind]);
 }
@@ -41,10 +41,7 @@ __kernel void merge_sort(
 
     // printf("i = %u k = %u pair_id = %u offset_x = %u offset_y = %u\n", i, k, pair_num_to_merge, offset_x, offset_y);
 
-    ll x_prev;
-    ll x;
-    ll y_prev;
-    ll y;
+    int x_prev, x, y_prev, y;
     int l = max(0, (ll)k - (ll)sorted_block_len);
     int r = min(k, sorted_block_len) + 1;
     // printf("l = %d r = %d\n", l, r);
