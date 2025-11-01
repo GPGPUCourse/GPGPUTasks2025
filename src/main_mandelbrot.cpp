@@ -99,7 +99,6 @@ void run(int argc, char** argv)
         "CPU with OpenMP",
         "GPU",
     };
-
     for (size_t algorithm_index = 0; algorithm_index < algorithm_names.size(); ++algorithm_index) {
         const std::string& algorithm = algorithm_names[algorithm_index];
         std::cout << "______________________________________________________" << std::endl;
@@ -121,8 +120,10 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    gpu::WorkSize workSize(16, 16, width, height);
+                    ocl_mandelbrot.exec(workSize, gpu_results, width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing);
+
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -160,7 +161,7 @@ void run(int argc, char** argv)
         std::cout << "Mandelbrot effective algorithm GFlops: " << maxApproximateFlops / gflops / stats::median(times) << " GFlops" << std::endl;
 
         // Сохраняем картинку
-        image8u image = renderToColor(cpu_results.ptr(), width, height);
+        image8u image = renderToColor(current_results.ptr(), width, height);
         std::string filename = "mandelbrot " + algorithm + ".bmp";
         std::cout << "saving image to '" << filename << "'..." << std::endl;
         image.saveBMP(filename);
