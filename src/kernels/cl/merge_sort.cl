@@ -2,44 +2,83 @@
 #include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
 #endif
 
-#include "helpers/rassert.cl"
 #include "../defines.h"
+#include "helpers/rassert.cl"
+
+#define ll long long
+
+inline ll get_value_of_a(__global const uint* a, int ind, int offset, uint sorted_block_len, uint n)
+{
+    if (ind == 0)
+        return -1;
+    if (ind > sorted_block_len)
+        return UINT_MAX;
+
+    ind -= 1;
+
+    if (ind + offset >= n)
+        return UINT_MAX;
+
+    return (ll)(a[offset + ind]);
+}
 
 __kernel void merge_sort(
     __global const uint* a,
-    __global       uint* sorted_segments,
-                   int  sorted_block_len,
-                   int  n)
+    __global uint* sorted_segments,
+    uint sorted_block_len,
+    int n)
 {
     unsigned int i = get_global_id(0);
+    unsigned int k = i % (2 * sorted_block_len);
+    unsigned int pair_num_to_merge = i / (2 * sorted_block_len);
     unsigned int thr = get_local_id(0);
-    unsigned int block_id = i / sorted_block_len;
 
-    if (i < n) {
-        unsigned int key = a[i];
-        unsigned int block_offset = (block_id + ((block_id & 1) ? -1 : 0)) * sorted_block_len;
-        unsigned int corresp_block_id = block_id + ((block_id & 1) ? -1 : +1);
-        int l = -1 + corresp_block_id * sorted_block_len;
-        int r = sorted_block_len + corresp_block_id * sorted_block_len;
-        // printf("i = %ld, l = %ld, r = %ld\n", i, l, r);
-        // inv a[r] is the leftmost bigger than a[i] for left segmenmt
-        //     a[r] is the leftmost bigger or equal
-        while (l < r - 1) {
-            unsigned int m = (l + r) / 2;
-            if (m >= n || a[m] + ((block_id & 1) ? +1 : 0) > key)
-                r = m;
-            else
-                l = m; 
-        }
-        // printf("r = %ld\n", r);
+    int offset_x = pair_num_to_merge * 2 * sorted_block_len;
+    int offset_y = offset_x + sorted_block_len;
 
-        unsigned int rel_pos_of_r = r - corresp_block_id * sorted_block_len;
-        unsigned int rel_pos_of_i = i % sorted_block_len;
-        unsigned int to = rel_pos_of_i + rel_pos_of_r + block_offset;
-        // printf("%ld -> %ld, r = %ld, rel_pos - %ld, block_offset = %ld\n", i, to, r, rel_pos_of_i, block_offset);
-            
-        if (to < n) {
-            sorted_segments[to] = a[i];
+    // if (k != 1)
+    //     return;
+
+    // printf("i = %u k = %u pair_id = %u offset_x = %u offset_y = %u\n", i, k, pair_num_to_merge, offset_x, offset_y);
+
+    ll x_prev;
+    ll x;
+    ll y_prev;
+    ll y;
+    int l = max(0, (ll)k - (ll)sorted_block_len);
+    int r = min(k, sorted_block_len) + 1;
+    // printf("l = %d r = %d\n", l, r);
+    while (true) {
+        int m_x = (l + r) / 2;
+        int m_y = k - m_x;
+
+        x_prev = get_value_of_a(a, m_x, offset_x, sorted_block_len, n);
+        x = get_value_of_a(a, m_x + 1, offset_x, sorted_block_len, n);
+        y_prev = get_value_of_a(a, m_y, offset_y, sorted_block_len, n);
+        y = get_value_of_a(a, m_y + 1, offset_y, sorted_block_len, n);
+        // printf("a[%lld] = %lld\n", m_x, x);
+        // printf("b[%lld] = %lld\n", m_y, y);
+
+        // printf("m_x = %ld m_y = %ld\n", m_x, m_y);
+        // printf("x = %ld y_prev = %ld y = %ld x_prev = %ld\n", x, y_prev, y, x_prev);
+        if (y < x_prev) {
+            r = m_x;
+        } else if (x < y_prev) {
+            l = m_x;
+        } else {
+            l = m_x;
+            break;
         }
+    }
+
+    // printf("anw: %ld %ld\n", l, k - l);
+
+    // k -= 1;
+
+    if (offset_x + k < n) {
+        uint x = get_value_of_a(a, l + 1, offset_x, sorted_block_len, n);
+        uint y = get_value_of_a(a, k - l + 1, offset_y, sorted_block_len, n);
+        sorted_segments[offset_x + k] = min(x, y);
+        // printf("min{%u = a[%u] %u = a[%u]} -> %u\n", x, offset_x + l, y, offset_y + k - l, offset_x + k);
     }
 }

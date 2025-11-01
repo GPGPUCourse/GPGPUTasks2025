@@ -138,7 +138,8 @@ void run(int argc, char** argv)
                 //     std::cout << a << " ";
                 // std::cout << std::endl;
                 
-                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer_output_gpu, sorted_block_size, n);
+                unsigned int number_of_pairs_to_merge = (n + 2 * sorted_block_size - 1) / (2 * sorted_block_size);
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, (2 * sorted_block_size) * number_of_pairs_to_merge), buffer1_gpu, buffer_output_gpu, sorted_block_size, n);
                 
                 // std::cout << "S : ";
                 // gpu_sorted = buffer_output_gpu.readVector();
