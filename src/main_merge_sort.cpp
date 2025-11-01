@@ -22,7 +22,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100 * 1000 * 1000;
+    int n = 10 * 1000 * 1000;
     int min_value = 1;
     int max_value = std::numeric_limits<int>::max() - 1;
     std::vector<unsigned int> as(n, 0);
@@ -74,8 +74,8 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 1; ++iter) {
         timer t;
-        for (int step_k = 2; step_k < m; step_k <<= 1) {
-            for (int i = 0; i < n; i += step_k) {
+        for (int step_k = 2, cnt = 1; step_k < m; step_k <<= 1, cnt++) {
+            for (int i = 0; i < n; i += std::max(step_k, GROUP_SIZE)) {
                 ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, n, step_k, i);
             }
             std::swap(buffer1_gpu, buffer2_gpu);
