@@ -35,6 +35,7 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    ocl::KernelSource ocl_smallMergeSort(ocl::getSmallMergeSort());
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
@@ -99,7 +100,9 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            for (unsigned int i = 1; (1u << (i - 1)) < n; ++i) { 
+            ocl_smallMergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, n);
+            buffer1_gpu.swap(buffer2_gpu);
+            for (unsigned int i = PIVOT; (1u << (i - 1)) < n; ++i) { 
                 ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, i, n);
                 buffer1_gpu.swap(buffer2_gpu);
             }
