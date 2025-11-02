@@ -38,33 +38,33 @@ __global__ void merge_sort_elementwise(
 
 #pragma unroll 10
     for (int sorted_k = 1; sorted_k < MERGE_TILE_SIZE; sorted_k <<= 1) {
-        const int i0 = ind;
-        const int i1 = ind + 1;
-        const int i2 = ind + 2;
-        const int i3 = ind + 3;
-
-        auto process = [&](const int& i) {
-            if (i >= MERGE_TILE_SIZE)
-                return;
-
-            const int next_k = sorted_k << 1;
+        const int next_k = sorted_k << 1;
+        int produced = 0;
+        int i = ind;
+        while (produced < 4) {
             const int base = (i & ~(next_k - 1));
             const int rem = MERGE_TILE_SIZE - base;
             const int sz = rem < next_k ? rem : next_k;
+            const int k = i - base;
+            const int can = min(4 - produced, sz - k);
             if (sz <= sorted_k) {
-                dst[i] = src[i];
-                return;
+#pragma unroll
+                for (int j = 0; j < 4; ++j) {
+                    if (j < can)
+                        dst[i + j] = src[i + j];
+                }
+                produced += can;
+                i += can;
+                continue;
             }
 
             const unsigned int* a = src + base;
             const int sz1 = sorted_k;
-            const unsigned int* b = src + base + sorted_k;
+            const unsigned int* b = a + sorted_k;
             const int sz2 = sz - sorted_k;
-            const int k = i - base;
 
             int l = max(0, k - sz2);
             int r = min(k, sz1);
-#pragma unroll 10
             while (l < r) {
                 const int m1 = (l + r) >> 1;
                 const int m2 = k - m1;
@@ -81,14 +81,22 @@ __global__ void merge_sort_elementwise(
             }
 
             const int i1 = l, i2 = k - i1;
-            const unsigned int val1 = (i1 < sz1) ? a[i1] : 0xffffffffu;
-            const unsigned int val2 = (i2 < sz2) ? b[i2] : 0xffffffffu;
-            dst[i] = ((val1 <= val2) ? val1 : val2);
-        };
-        process(i0);
-        process(i1);
-        process(i2);
-        process(i3);
+            int out_pos = i;
+#pragma unroll
+            for (int j = 0; j < can; ++j) {
+                const unsigned int val1 = (i1 < sz1) ? a[i1] : 0xffffffffu;
+                const unsigned int val2 = (i2 < sz2) ? b[i2] : 0xffffffffu;
+                if (val1 <= val2) {
+                    dst[out_pos++] = val1;
+                    ++i1;
+                } else {
+                    dst[out_pos++] = val2;
+                    ++i2;
+                }
+            }
+            produced += can;
+            i += can;
+        }
 
         __syncthreads();
         unsigned int* tmp = src;
