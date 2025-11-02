@@ -7,7 +7,7 @@
 #include "helpers/rassert.cu"
 #include "../defines.h"
 
-static constexpr unsigned int BLOCK_THREADS = 512;
+static constexpr unsigned int BLOCK_THREADS = 256;
 static constexpr unsigned int MERGE_TILE_SIZE = 1024;
 
 __global__ void merge_sort_elementwise(
@@ -19,21 +19,41 @@ __global__ void merge_sort_elementwise(
     unsigned int* src = smem;
     unsigned int* dst = smem + MERGE_TILE_SIZE;
 
-    const unsigned int thread_ind = threadIdx.x;
-    const unsigned int global_base = blockIdx.x * MERGE_TILE_SIZE;
-    for (unsigned int i = thread_ind, global_i = global_base + thread_ind; i < MERGE_TILE_SIZE; i += BLOCK_THREADS, global_i += BLOCK_THREADS)
-        src[i] = (global_i < n) ? input_data[global_base + i] : 0xffffffffu;
+    const unsigned int ind = threadIdx.x << 2;
+    const unsigned int base = blockIdx.x * MERGE_TILE_SIZE + ind;
+
+    if (base + 3u < n) {
+        const uint4 v = reinterpret_cast<const uint4*>(input_data + base)[0];
+        src[ind] = v.x;
+        src[ind + 1u] = v.y;
+        src[ind + 2u] = v.z;
+        src[ind + 3u] = v.w;
+    } else {
+        src[ind] = (base < n) ? input_data[base] : 0xffffffffu;
+        src[ind + 1u] = (base + 1u < n) ? input_data[base + 1u] : 0xffffffffu;
+        src[ind + 2u] = (base + 2u < n) ? input_data[base + 2u] : 0xffffffffu;
+        src[ind + 3u] = (base + 3u < n) ? input_data[base + 3u] : 0xffffffffu;
+    }
     __syncthreads();
 
+#pragma unroll 10
     for (int sorted_k = 1; sorted_k < MERGE_TILE_SIZE; sorted_k <<= 1) {
-        for (int i = thread_ind; i < MERGE_TILE_SIZE; i += BLOCK_THREADS) {
+        const int i0 = ind;
+        const int i1 = ind + 1;
+        const int i2 = ind + 2;
+        const int i3 = ind + 3;
+
+        auto process = [&](const int& i) {
+            if (i >= MERGE_TILE_SIZE)
+                return;
+
             const int next_k = sorted_k << 1;
-            const int base = (i / next_k) * next_k;
+            const int base = (i & ~(next_k - 1));
             const int rem = MERGE_TILE_SIZE - base;
             const int sz = rem < next_k ? rem : next_k;
             if (sz <= sorted_k) {
                 dst[i] = src[i];
-                continue;
+                return;
             }
 
             const unsigned int* a = src + base;
@@ -44,6 +64,7 @@ __global__ void merge_sort_elementwise(
 
             int l = max(0, k - sz2);
             int r = min(k, sz1);
+#pragma unroll 10
             while (l < r) {
                 const int m1 = (l + r) >> 1;
                 const int m2 = k - m1;
@@ -63,16 +84,29 @@ __global__ void merge_sort_elementwise(
             const unsigned int val1 = (i1 < sz1) ? a[i1] : 0xffffffffu;
             const unsigned int val2 = (i2 < sz2) ? b[i2] : 0xffffffffu;
             dst[i] = ((val1 <= val2) ? val1 : val2);
-        }
+        };
+        process(i0);
+        process(i1);
+        process(i2);
+        process(i3);
+
         __syncthreads();
         unsigned int* tmp = src;
         src = dst;
         dst = tmp;
     }
 
-    for (unsigned int i = thread_ind, global_i = global_base + thread_ind; i < MERGE_TILE_SIZE; i += BLOCK_THREADS, global_i += BLOCK_THREADS) {
-        if (global_i < n)
-            output_data[global_i] = src[i];
+    if (base + 3u < n)
+        reinterpret_cast<uint4*>(output_data + base)[0] = make_uint4(src[ind], src[ind + 1u], src[ind + 2u], src[ind + 3u]);
+    else {
+        if (base < n)
+            output_data[base] = src[ind];
+        if (base + 1u < n)
+            output_data[base + 1u] = src[ind + 1u];
+        if (base + 2u < n)
+            output_data[base + 2u] = src[ind + 2u];
+        if (base + 3u < n)
+            output_data[base + 3u] = src[ind + 3u];
     }
 }
 
