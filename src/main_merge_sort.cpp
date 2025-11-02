@@ -89,7 +89,7 @@ void run(int argc, char** argv)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
-    static constexpr unsigned int MERGE_TILE_SIZE = 1024;
+    static constexpr unsigned int MERGE_TILE_SIZE = 4096;
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;

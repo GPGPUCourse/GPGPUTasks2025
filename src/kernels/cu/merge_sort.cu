@@ -8,7 +8,8 @@
 #include "../defines.h"
 
 static constexpr unsigned int BLOCK_THREADS = 256;
-static constexpr unsigned int MERGE_TILE_SIZE = 1024;
+static constexpr unsigned int MERGE_TILE_SIZE = 4096;
+static constexpr unsigned int THREAD_ELEMS = 16;
 
 __global__ void merge_sort_elementwise(
     const unsigned int* input_data,
@@ -19,102 +20,115 @@ __global__ void merge_sort_elementwise(
     unsigned int* src = smem;
     unsigned int* dst = smem + MERGE_TILE_SIZE;
 
-    const unsigned int ind = threadIdx.x << 2;
-    const unsigned int base = blockIdx.x * MERGE_TILE_SIZE + ind;
+    const unsigned int ind = threadIdx.x << 4;
+    const unsigned int global_base = blockIdx.x * MERGE_TILE_SIZE + ind;
 
-    if (base + 3u < n) {
-        const uint4 v = reinterpret_cast<const uint4*>(input_data + base)[0];
-        src[ind] = v.x;
-        src[ind + 1u] = v.y;
-        src[ind + 2u] = v.z;
-        src[ind + 3u] = v.w;
-    } else {
-        src[ind] = (base < n) ? input_data[base] : 0xffffffffu;
-        src[ind + 1u] = (base + 1u < n) ? input_data[base + 1u] : 0xffffffffu;
-        src[ind + 2u] = (base + 2u < n) ? input_data[base + 2u] : 0xffffffffu;
-        src[ind + 3u] = (base + 3u < n) ? input_data[base + 3u] : 0xffffffffu;
+#pragma unroll
+    for (unsigned int seg = 0; seg < THREAD_ELEMS; seg += 4) {
+        const unsigned int cur_base = global_base + seg;
+        const unsigned int cur_ind = ind + seg;
+        if (cur_base + 3u < n) {
+            const uint4 v = reinterpret_cast<const uint4*>(input_data + cur_base)[0];
+            src[cur_ind] = v.x;
+            src[cur_ind + 1u] = v.y;
+            src[cur_ind + 2u] = v.z;
+            src[cur_ind + 3u] = v.w;
+        } else {
+            src[cur_ind] = (cur_base < n) ? input_data[cur_base] : 0xffffffffu;
+            src[cur_ind + 1u] = (cur_base + 1u < n) ? input_data[cur_base + 1u] : 0xffffffffu;
+            src[cur_ind + 2u] = (cur_base + 2u < n) ? input_data[cur_base + 2u] : 0xffffffffu;
+            src[cur_ind + 3u] = (cur_base + 3u < n) ? input_data[cur_base + 3u] : 0xffffffffu;
+        }
     }
     __syncthreads();
 
-#pragma unroll 10
+#pragma unroll 12
     for (int sorted_k = 1; sorted_k < MERGE_TILE_SIZE; sorted_k <<= 1) {
         const int next_k = sorted_k << 1;
-        int produced = 0;
-        int i = ind;
-        while (produced < 4) {
-            const int base = (i & ~(next_k - 1));
-            const int rem = MERGE_TILE_SIZE - base;
-            const int sz = rem < next_k ? rem : next_k;
-            const int k = i - base;
-            const int can = min(4 - produced, sz - k);
-            if (sz <= sorted_k) {
+        const int mask = ~(next_k - 1);
 #pragma unroll
-                for (int j = 0; j < 4; ++j) {
-                    if (j < can)
-                        dst[i + j] = src[i + j];
+        for (unsigned int seg = 0; seg < THREAD_ELEMS; seg += 4) {
+            int produced = 0;
+            int i = ind + seg;
+            while (produced < 4) {
+                const int base = i & mask;
+                const int rem = MERGE_TILE_SIZE - base;
+                const int sz = rem < next_k ? rem : next_k;
+                const int k = i - base;
+                const int can = min(4 - produced, sz - k);
+                if (sz <= sorted_k) {
+#pragma unroll
+                    for (int j = 0; j < 4; ++j) {
+                        if (j < can)
+                            dst[i + j] = src[i + j];
+                    }
+                    produced += can;
+                    i += can;
+                    continue;
+                }
+
+                const unsigned int* a = src + base;
+                const int sz1 = sorted_k;
+                const unsigned int* b = a + sorted_k;
+                const int sz2 = sz - sorted_k;
+
+                int l = max(0, k - sz2);
+                int r = min(k, sz1);
+                while (l < r) {
+                    const int m1 = (l + r) >> 1;
+                    const int m2 = k - m1;
+                    const unsigned int val1 = (m1 > 0) ? a[m1 - 1] : 0;
+                    const unsigned int val2 = (m2 > 0) ? b[m2 - 1] : 0;
+                    if (m1 > 0 && m2 < sz2 && val1 > b[m2])
+                        r = m1 - 1;
+                    else if (m2 > 0 && m1 < sz1 && val2 > a[m1])
+                        l = m1 + 1;
+                    else {
+                        l = m1;
+                        break;
+                    }
+                }
+
+                int i1 = l, i2 = k - i1;
+                int out_pos = i;
+#pragma unroll
+                for (int j = 0; j < can; ++j) {
+                    const unsigned int val1 = (i1 < sz1) ? a[i1] : 0xffffffffu;
+                    const unsigned int val2 = (i2 < sz2) ? b[i2] : 0xffffffffu;
+                    if (val1 <= val2) {
+                        dst[out_pos++] = val1;
+                        ++i1;
+                    } else {
+                        dst[out_pos++] = val2;
+                        ++i2;
+                    }
                 }
                 produced += can;
                 i += can;
-                continue;
             }
-
-            const unsigned int* a = src + base;
-            const int sz1 = sorted_k;
-            const unsigned int* b = a + sorted_k;
-            const int sz2 = sz - sorted_k;
-
-            int l = max(0, k - sz2);
-            int r = min(k, sz1);
-            while (l < r) {
-                const int m1 = (l + r) >> 1;
-                const int m2 = k - m1;
-                const unsigned int val1 = (m1 > 0) ? a[m1 - 1] : 0;
-                const unsigned int val2 = (m2 > 0) ? b[m2 - 1] : 0;
-                if (m1 > 0 && m2 < sz2 && val1 > b[m2])
-                    r = m1 - 1;
-                else if (m2 > 0 && m1 < sz1 && val2 > a[m1])
-                    l = m1 + 1;
-                else {
-                    l = m1;
-                    break;
-                }
-            }
-
-            int i1 = l, i2 = k - i1;
-            int out_pos = i;
-#pragma unroll
-            for (int j = 0; j < can; ++j) {
-                const unsigned int val1 = (i1 < sz1) ? a[i1] : 0xffffffffu;
-                const unsigned int val2 = (i2 < sz2) ? b[i2] : 0xffffffffu;
-                if (val1 <= val2) {
-                    dst[out_pos++] = val1;
-                    ++i1;
-                } else {
-                    dst[out_pos++] = val2;
-                    ++i2;
-                }
-            }
-            produced += can;
-            i += can;
         }
-
         __syncthreads();
         unsigned int* tmp = src;
         src = dst;
         dst = tmp;
     }
 
-    if (base + 3u < n)
-        reinterpret_cast<uint4*>(output_data + base)[0] = make_uint4(src[ind], src[ind + 1u], src[ind + 2u], src[ind + 3u]);
-    else {
-        if (base < n)
-            output_data[base] = src[ind];
-        if (base + 1u < n)
-            output_data[base + 1u] = src[ind + 1u];
-        if (base + 2u < n)
-            output_data[base + 2u] = src[ind + 2u];
-        if (base + 3u < n)
-            output_data[base + 3u] = src[ind + 3u];
+#pragma unroll
+    for (unsigned int seg = 0; seg < THREAD_ELEMS; seg += 4) {
+        const unsigned int cur_base = global_base + seg;
+        const unsigned int cur_ind = ind + seg;
+        if (cur_base + 3u < n)
+            reinterpret_cast<uint4*>(output_data + cur_base)[0] = make_uint4(src[cur_ind], src[cur_ind + 1u], src[cur_ind + 2u], src[cur_ind + 3u]);
+        else {
+            if (cur_base < n)
+                output_data[cur_base] = src[cur_ind];
+            if (cur_base + 1u < n)
+                output_data[cur_base + 1u] = src[cur_ind + 1u];
+            if (cur_base + 2u < n)
+                output_data[cur_base + 2u] = src[cur_ind + 2u];
+            if (cur_base + 3u < n)
+                output_data[cur_base + 3u] = src[cur_ind + 3u];
+        }
     }
 }
 
