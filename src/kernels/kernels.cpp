@@ -2,9 +2,11 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/select_sort.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/merge_sort_comp.h"
+
 
 #ifndef CUDA_SUPPORT
 namespace cuda {
@@ -32,6 +34,11 @@ const ocl::ProgramBinaries& getAplusB()
 const ProgramBinaries& getMergeSort()
 {
     return opencl_binaries_merge_sort;
+}
+
+const ProgramBinaries& getSelectSort()
+{
+    return opencl_binaries_select_sort;
 }
 } // namespace ocl
 
