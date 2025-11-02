@@ -98,9 +98,7 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            auto ceil_div = [](int x, int y) { return (x + y - 1) / y; };
             auto round_up = [](int x, int y) { return ((x + y - 1) / y) * y; };
-
             gpu::gpu_mem_32u* src = &input_gpu;
 
             int sorted_k = 1;
@@ -108,9 +106,7 @@ void run(int argc, char** argv)
             while (sorted_k < n) {
                 bool is_last_pass = (sorted_k * 2 >= n);
                 gpu::gpu_mem_32u* dst = is_last_pass ? &buffer_output_gpu : (phase % 2 == 0 ? &buffer1_gpu : &buffer2_gpu);
-
-                int num_pairs = ceil_div(n, 2 * sorted_k);
-                size_t GS = round_up(num_pairs, GROUP_SIZE);
+                size_t GS = round_up(n, GROUP_SIZE);
                 ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, GS), *src, *dst, sorted_k, n);
 
                 src = dst;
@@ -159,7 +155,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {

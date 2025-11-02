@@ -9,44 +9,60 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void merge_sort(
     __global const uint* input_data,
     __global       uint* output_data,
-                   int  sorted_k,
-                   int  n)
+                   uint  sorted_k,
+                   uint  n)
 {
     const uint gid = get_global_id(0);
-    const uint pair_span = 2 * sorted_k;
-    const uint base = gid * pair_span;
-
-    if (base >= n) 
+    if (gid >= n) 
         return;
 
-    const uint left_begin = base;
-    const uint left_end = min(base + sorted_k, (uint)n);
+    const uint len_pair  = sorted_k << 1;
+    const uint base_pair = gid & ~(len_pair - 1);
+    const uint left_begin  = base_pair;
+    const uint left_end  = min(base_pair + sorted_k, n);
+
     const uint right_begin = left_end;
-    const uint right_end = min(base + pair_span, (uint)n);
+    const uint right_end = min(base_pair + len_pair, n);
 
     if (right_begin >= right_end) {
-        for (uint i = left_begin; i < left_end; ++i)
-            output_data[i] = input_data[i];
+        output_data[gid] = input_data[gid];
         return;
     }
 
-    uint i = left_begin;
-    uint j = right_begin;
-    uint k = base;
+    const uint value  = input_data[gid];
+    const bool inLeft = (gid < right_begin);
 
-    while (i < left_end && j < right_end) {
-        uint a = input_data[i];
-        uint b = input_data[j];
-        if (a <= b) {
-            output_data[k++] = a;
-            ++i;
-        } else {
-            output_data[k++] = b;
-            ++j;
+    uint lo, hi, mid, rank;
+
+    if (inLeft) {
+        lo = right_begin;
+        hi = right_end;
+        while (lo < hi) {
+            mid = lo + ((hi - lo) >> 1);
+            const uint x = input_data[mid];
+            if (x < value)
+                lo = mid + 1; 
+            else 
+                hi = mid;
         }
+        rank = lo - right_begin;
+        const uint offset = gid - left_begin;
+        const uint pos = base_pair + offset + rank;
+        output_data[pos] = value;
+    } else {
+        lo = left_begin;
+        hi = left_end;
+        while (lo < hi) {
+            mid = lo + ((hi - lo) >> 1);
+            const uint x = input_data[mid];
+            if (x <= value)
+                lo = mid + 1;
+            else 
+                hi = mid;
+        }
+        rank = lo - left_begin;
+        const uint offset = gid - right_begin;
+        const uint pos = base_pair + offset + rank;
+        output_data[pos] = value;
     }
-    while (i < left_end)
-        output_data[k++] = input_data[i++];
-    while (j < right_end)
-        output_data[k++] = input_data[j++];
 }
