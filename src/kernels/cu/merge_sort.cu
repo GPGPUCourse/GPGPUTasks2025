@@ -10,10 +10,9 @@
 static constexpr unsigned int BLOCK_THREADS = 256;
 static constexpr unsigned int MERGE_TILE_SIZE = 1024;
 
-__launch_bounds__(BLOCK_THREADS, 2)
 __global__ void merge_sort_elementwise(
-    const unsigned int* __restrict__ input_data,
-          unsigned int* __restrict__ output_data,
+    const unsigned int* input_data,
+          unsigned int* output_data,
                    int  n)
 {
     __shared__ unsigned int smem[MERGE_TILE_SIZE << 1];
@@ -21,20 +20,12 @@ __global__ void merge_sort_elementwise(
     unsigned int* dst = smem + MERGE_TILE_SIZE;
 
     const unsigned int ind = threadIdx.x << 2;
-    const unsigned int base = blockIdx.x * MERGE_TILE_SIZE + ind;
+    const unsigned int global_base = blockIdx.x * MERGE_TILE_SIZE + ind;
 
-    if (base + 3u < n) {
-        const uint4 v = reinterpret_cast<const uint4*>(input_data + base)[0];
-        src[ind] = v.x;
-        src[ind + 1u] = v.y;
-        src[ind + 2u] = v.z;
-        src[ind + 3u] = v.w;
-    } else {
-        src[ind] = (base < n) ? input_data[base] : 0xffffffffu;
-        src[ind + 1u] = (base + 1u < n) ? input_data[base + 1u] : 0xffffffffu;
-        src[ind + 2u] = (base + 2u < n) ? input_data[base + 2u] : 0xffffffffu;
-        src[ind + 3u] = (base + 3u < n) ? input_data[base + 3u] : 0xffffffffu;
-    }
+    src[ind] = (global_base < n) ? __ldg(input_data + global_base) : 0xffffffffu;
+    src[ind + 1u] = (global_base + 1u < n) ? __ldg(input_data + global_base + 1u) : 0xffffffffu;
+    src[ind + 2u] = (global_base + 2u < n) ? __ldg(input_data + global_base + 2u) : 0xffffffffu;
+    src[ind + 3u] = (global_base + 3u < n) ? __ldg(input_data + global_base + 3u) : 0xffffffffu;
     __syncthreads();
 
 #pragma unroll 10
@@ -42,8 +33,9 @@ __global__ void merge_sort_elementwise(
         const int next_k = sorted_k << 1;
         int produced = 0;
         int i = ind;
+        const int mask = ~(next_k - 1);
         while (produced < 4) {
-            const int base = (i & ~(next_k - 1));
+            const int base = i & mask;
             const int rem = MERGE_TILE_SIZE - base;
             const int sz = rem < next_k ? rem : next_k;
             const int k = i - base;
@@ -105,23 +97,19 @@ __global__ void merge_sort_elementwise(
         dst = tmp;
     }
 
-    if (base + 3u < n)
-        reinterpret_cast<uint4*>(output_data + base)[0] = make_uint4(src[ind], src[ind + 1u], src[ind + 2u], src[ind + 3u]);
-    else {
-        if (base < n)
-            output_data[base] = src[ind];
-        if (base + 1u < n)
-            output_data[base + 1u] = src[ind + 1u];
-        if (base + 2u < n)
-            output_data[base + 2u] = src[ind + 2u];
-        if (base + 3u < n)
-            output_data[base + 3u] = src[ind + 3u];
-    }
+    if (global_base < n)
+        output_data[global_base] = src[ind];
+    if (global_base + 1u < n)
+        output_data[global_base + 1u] = src[ind + 1u];
+    if (global_base + 2u < n)
+        output_data[global_base + 2u] = src[ind + 2u];
+    if (global_base + 3u < n)
+        output_data[global_base + 3u] = src[ind + 3u];
 }
 
 __global__ void merge_sort_tiled(
-    const unsigned int* __restrict__ input_data,
-          unsigned int* __restrict__ output_data,
+    const unsigned int* input_data,
+          unsigned int* output_data,
                    int  sorted_k,
                    int  n)
 {
