@@ -45,6 +45,7 @@ set(SOURCES
         src/kernels/kernels.cpp
         src/reuse/prefixsum.cpp
         src/reuse/radixsort.cpp
+        src/reuse/mergesort.cpp
 )
 
 set(LIBRARIES
@@ -104,7 +105,8 @@ if (GPU_CUDA_SUPPORT)
             src/reuse/kernels/fill.cu
             src/reuse/kernels/radix_pre.cu
             src/reuse/kernels/radix_post.cu
-            
+            src/reuse/kernels/mergesort.cu
+
             src/kernels/cu/merge_sort.cu)
 
     add_definitions(-DCUDA_SUPPORT)
