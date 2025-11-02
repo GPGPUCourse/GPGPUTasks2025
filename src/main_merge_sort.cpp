@@ -35,6 +35,12 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    ocl::KernelSource ocl_mergeSortBig(ocl::getMergeSortBig());
+    ocl::KernelSource ocl_mergeSortSmall(ocl::getMergeSortSmall());
+    
+    ocl_mergeSort.precompile();
+    ocl_mergeSortBig.precompile();
+    ocl_mergeSortSmall.precompile();
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
@@ -98,8 +104,33 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            gpu::gpu_mem_32u *in = &input_gpu;
+            gpu::gpu_mem_32u *out = &buffer1_gpu;
+            if (n <= GROUP_SIZE * SMALL_BLOCK_SIZE) {
+                out = &buffer_output_gpu;
+            }
+            ocl_mergeSortSmall.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(n, SMALL_BLOCK_SIZE)), *in, *out, n);
+            in = out;
+            out = &buffer2_gpu;
+            uint32_t pow = SMALL_BLOCK_POW + GROUP_SIZE_POW;
+            int i = (SMALL_BLOCK_SIZE * GROUP_SIZE);
+            for (; i < BIG_BLOCK_SIZE * GROUP_SIZE && i < n; i <<= 1) {
+                if ((i << 1) >= n) {
+                    out = &buffer_output_gpu;
+                }
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), *in, *out, pow, n);
+                std::swap(in, out);
+                ++pow;
+            }
+            for (; i < n; i <<= 1) {
+                if ((i << 1) >= n) {
+                    out = &buffer_output_gpu;
+                }
+                //ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), *in, *out, pow, n);
+                ocl_mergeSortBig.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(n, BIG_BLOCK_SIZE)), *in, *out, pow, n);
+                std::swap(in, out);
+                ++pow;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
