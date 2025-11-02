@@ -7,7 +7,7 @@
 #include "helpers/rassert.cu"
 #include "../defines.h"
 
-static constexpr unsigned int BLOCK_THREADS = 256;
+static constexpr unsigned int BLOCK_THREADS = 512;
 static constexpr unsigned int MERGE_TILE_SIZE = 1024;
 
 __global__ void merge_sort_elementwise(
