@@ -34,13 +34,16 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    ocl::KernelSource ocl_mergeSortTiles(ocl::getMergeSortTiles());
+    ocl::KernelSource ocl_calcBounds(ocl::getCalcBounds());
+    ocl::KernelSource ocl_merge(ocl::getMerge());
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
     FastRandom r;
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n_power = 1 << (int)ceil(log2(n)); // округляем n до степени двойки
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
@@ -77,29 +80,53 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n_power);
+    gpu::gpu_mem_32u sparse_buffer(n_power / WRITE_EVERY), a_inds(n_power / WRITE_EVERY), b_inds(n_power / WRITE_EVERY);
+    gpu::gpu_mem_32u buffer_output_gpu(n_power), buffer(n_power);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
+    input_gpu.fill(std::numeric_limits<int>::max() - 1);
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
+    sparse_buffer.fill(255);
+    a_inds.fill(255);
+    b_inds.fill(255);
     buffer_output_gpu.fill(255);
+    buffer.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
+    std::vector<double> tile_times, calc_times, merge_times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
-
+        timer tt;
+        tile_times.push_back(0);
+        calc_times.push_back(0);
+        merge_times.push_back(0);
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            // tt.restart();
+            buffer_output_gpu.write(input_gpu, n_power * sizeof(unsigned int));
+            ocl_mergeSortTiles.exec(gpu::WorkSize(GROUP_SIZE, n_power / ELEMS_PER_THREAD), buffer_output_gpu, sparse_buffer);
+            tile_times.back() += tt.elapsed();
+            for (int sorted_n = TILE_SIZE; sorted_n < n_power; sorted_n *= 2) {
+                tt.restart();
+                ocl_calcBounds.exec(gpu::WorkSize(GROUP_SIZE, n_power / WRITE_EVERY), sparse_buffer, a_inds, b_inds, sorted_n / WRITE_EVERY);
+                calc_times.back() += tt.elapsed();
+                // auto prev = buffer_output_gpu.readVector();
+                // auto sparse = sparse_buffer.readVector();
+                // auto ainds = a_inds.readVector();
+                // auto binds = b_inds.readVector();
+                tt.restart();
+                ocl_merge.exec(gpu::WorkSize(GROUP_SIZE, n_power / ELEMS_PER_THREAD), buffer_output_gpu, buffer, a_inds, b_inds, sparse_buffer, sorted_n, n_power);
+                // auto after = buffer.readVector();
+                // меняем местами входной и выходной буферы
+                std::swap(buffer_output_gpu, buffer);
+                merge_times.back() += tt.elapsed();
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -117,6 +144,7 @@ void run(int argc, char** argv)
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
     std::cout << "GPU merge-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
+    std::cout << stats::median(tile_times) << " " << stats::median(calc_times) << " " << stats::median(merge_times) << "\n";
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();

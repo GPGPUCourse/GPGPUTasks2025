@@ -1,7 +1,9 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
-#include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/merge_sort_tiles.h"
+#include "cl/generated_kernels/calc_bounds.h"
+#include "cl/generated_kernels/merge.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/merge_sort_comp.h"
@@ -29,9 +31,19 @@ const ocl::ProgramBinaries& getAplusB()
     return opencl_binaries_aplusb;
 }
 
-const ProgramBinaries& getMergeSort()
+const ProgramBinaries& getMergeSortTiles()
 {
-    return opencl_binaries_merge_sort;
+    return opencl_binaries_merge_sort_tiles;
+}
+
+const ProgramBinaries& getCalcBounds()
+{
+    return opencl_binaries_calc_bounds;
+}
+
+const ProgramBinaries& getMerge()
+{
+    return opencl_binaries_merge;
 }
 } // namespace ocl
 
