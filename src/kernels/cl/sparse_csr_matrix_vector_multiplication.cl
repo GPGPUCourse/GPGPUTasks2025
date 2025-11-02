@@ -38,6 +38,7 @@ __kernel void sparse_csr_matrix_vector_multiplication(
         }
     }
 
+    barrier(CLK_LOCAL_MEM_FENCE);
     uint final_sum = 0;
     if (t_id == 0) {
         for (uint i = 0; i < WARP_SIZE; i++) final_sum += acc[local_row * WARP_SIZE + i];
