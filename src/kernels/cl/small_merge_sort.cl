@@ -30,32 +30,31 @@ __kernel void small_merge_sort(
         const unsigned int len = 1u << (iter - 1);
         const unsigned int left_bound = (index >> iter) << iter;
         const unsigned int middle = left_bound + len;
-        const unsigned int right_bound = middle + len;
+        const unsigned int const_target = src[index];
 
-        unsigned int left, right, target, const_left, offset;
+        unsigned int target = const_target;
+        unsigned int left, right, const_left, offset;
         if (index < middle) {
             offset = left_bound;
             const_left = left = middle - 1;
-            right = min(right_bound, (unsigned int)GROUP_SIZE);
-            target = src[index];
+            right = min(middle + len, (unsigned int)GROUP_SIZE);
         } else {
             offset = middle;
             const_left = left = left_bound - 1;
             right = middle;
-            target = src[index] + 1;
+            target += 1;
         }
 
         while (right - left > 1) {
             const unsigned int mid = (left + right) / 2;
-            if (src[mid] < target) {
-                left = mid;
-            } else {
-                right = mid;
-            }
+            const unsigned int cmp = src[mid] < target;
+            const unsigned int ncmp = 1 - cmp;
+            left = cmp * mid + ncmp * left;
+            right = ncmp * mid + cmp * right;
         }
 
         const unsigned int dst_index = left_bound + (index - offset) + (left - const_left);
-        dst[dst_index] = src[index];
+        dst[dst_index] = const_target;
         barrier(CLK_LOCAL_MEM_FENCE);
 
         {
