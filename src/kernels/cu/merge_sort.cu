@@ -73,7 +73,7 @@ __global__ void merge_sort_elementwise(
                 }
             }
 
-            int i1 = l, i2 = k - i1;
+            const int i1 = l, i2 = k - i1;
             int out_pos = i;
 #pragma unroll
             for (int j = 0; j < can; ++j) {
