@@ -10,9 +10,10 @@
 static constexpr unsigned int BLOCK_THREADS = 256;
 static constexpr unsigned int MERGE_TILE_SIZE = 1024;
 
+__launch_bounds__(BLOCK_THREADS, 2)
 __global__ void merge_sort_elementwise(
-    const unsigned int* input_data,
-          unsigned int* output_data,
+    const unsigned int* __restrict__ input_data,
+          unsigned int* __restrict__ output_data,
                    int  n)
 {
     __shared__ unsigned int smem[MERGE_TILE_SIZE << 1];
@@ -119,8 +120,8 @@ __global__ void merge_sort_elementwise(
 }
 
 __global__ void merge_sort_tiled(
-    const unsigned int* input_data,
-          unsigned int* output_data,
+    const unsigned int* __restrict__ input_data,
+          unsigned int* __restrict__ output_data,
                    int  sorted_k,
                    int  n)
 {
