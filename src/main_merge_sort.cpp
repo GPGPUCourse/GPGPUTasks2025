@@ -10,6 +10,7 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <algorithm>
 
 void run(int argc, char** argv)
 {
@@ -98,8 +99,29 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            input_gpu.copyToN(buffer1_gpu, n);
+
+            gpu::gpu_mem_32u* src_buffer = &buffer1_gpu;
+            gpu::gpu_mem_32u* dst_buffer = &buffer2_gpu;
+
+            int sorted_k = 1;
+            while (sorted_k < n) {
+                const size_t run = (size_t)sorted_k * 2u;
+                const size_t group_count = ((size_t)n + run - 1u) / run;
+                const size_t max_active_groups = 4096;
+                const size_t active_groups = std::max<size_t>(1u, std::min(group_count, max_active_groups));
+                const size_t global_work_items = active_groups * GROUP_SIZE;
+
+                gpu::WorkSize workSize(GROUP_SIZE, global_work_items);
+                ocl_mergeSort.exec(workSize, *src_buffer, *dst_buffer, sorted_k, n);
+
+                sorted_k *= 2;
+                gpu::gpu_mem_32u* tmp = src_buffer;
+                src_buffer = dst_buffer;
+                dst_buffer = tmp;
+            }
+
+            src_buffer->copyToN(buffer_output_gpu, n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
