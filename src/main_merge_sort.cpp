@@ -89,6 +89,7 @@ void run(int argc, char** argv)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
+    buffer1_gpu.writeN(as.data(), n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -98,8 +99,10 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            for (std::size_t i = 1; (1u << (i - 1)) < n; ++i) { 
+                ocl_mergeSort.exec(gpu::WorkSize(1, n), buffer1_gpu, buffer2_gpu, i, n);
+                buffer1_gpu.swap(buffer2_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -119,7 +122,7 @@ void run(int argc, char** argv)
     std::cout << "GPU merge-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = buffer1_gpu.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
