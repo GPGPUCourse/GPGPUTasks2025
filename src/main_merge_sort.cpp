@@ -1,5 +1,3 @@
-#include "../libs/gpu/libgpu/work_size.h"
-
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
