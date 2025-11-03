@@ -94,8 +94,8 @@ void run(int argc, char** argv)
         gpu::WorkSize workSize(GROUP_SIZE, n);
         input_gpu.copyTo(copy_input_gpu, n * sizeof(unsigned int));
 
-        for (size_t iter = 1; iter < n; iter *= 2) {
-            ocl_mergeSort.exec(workSize, copy_input_gpu, buffer_output_gpu, iter, n);
+        for (int sorted_k = 1; sorted_k < n; sorted_k *= 2) {
+            ocl_mergeSort.exec(workSize, copy_input_gpu, buffer_output_gpu, sorted_k, n);
             std::swap(copy_input_gpu, buffer_output_gpu);
         }
         std::swap(copy_input_gpu, buffer_output_gpu);
