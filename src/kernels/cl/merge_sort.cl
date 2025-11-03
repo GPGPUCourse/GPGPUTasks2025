@@ -29,7 +29,6 @@ merge_sort(
     const int right_search_border = min(sorted_k, n - neighbour_bucket_start_index) + 1;
     const int x = input_data[i];
 
-    printf("Right search border for index %d is %d\n", i, right_search_border);
     int left = 0, right = right_search_border, mid, y;
     while (right - left > 1) {
         mid = (left + right) / 2;
@@ -45,7 +44,5 @@ merge_sort(
     const int merged_start_index = min(bucket_start_index, neighbour_bucket_start_index);
     const int start_index = merged_start_index + i - bucket_start_index;
     const int new_index = start_index + count_less_in_neighbour_bucket;
-    printf("Placed input_data[%d] = %d by index %d (neighbour index = %d, start index = %d)\n",
-        i, x, new_index, count_less_in_neighbour_bucket, start_index);
     output_data[new_index] = x;
 }

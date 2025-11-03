@@ -22,12 +22,6 @@ void run_gpu_mergesort(
 
     auto mergesort_iter = [&](int sorted_k, gpu::gpu_mem_32u& curr_input_buffer, gpu::gpu_mem_32u& curr_output_buffer) {
         mergesort_kernel.exec(workSize, curr_input_buffer, curr_output_buffer, sorted_k, n);
-        std::cout << "run mergesort iteration, new sorted_k = " << sorted_k * 2 << "; current array:" << std::endl;
-        std::vector<unsigned int> output_cpu = curr_output_buffer.readVector();
-        for (auto el : output_cpu) {
-            std::cout << el << ' ';
-        }
-        std::cout << "\n========================================" << std::endl;
     };
 
     // first iteration: read from input buffer, write to output buffer
@@ -69,22 +63,16 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    // int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    int n = 18; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // int n = 18; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
-    // int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
-    int max_value = 10; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+    int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
         as[i] = r.next(min_value, max_value);
     }
     std::cout << "n=" << n << " values in range [" << min_value << "; " << max_value << "]" << std::endl;
-    std::cout << "initial array:\n";
-    for (auto el : as) {
-        std::cout << el << ' ';
-    }
-    std::cout << std::endl;
 
     {
         // убедимся что в массиве есть хотя бы несколько повторяющихся значений
