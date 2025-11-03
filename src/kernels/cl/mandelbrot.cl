@@ -19,7 +19,7 @@ __kernel void mandelbrot(__global float* results,
         return;
     }
 
-    const unsigned int idx = j * width + i
+    const unsigned int idx = j * width + i;
 
     const float threshold = 4.0f;
 
@@ -35,7 +35,7 @@ __kernel void mandelbrot(__global float* results,
         float y2 = y * y;
         float xy = x * y;
 
-        x = xx - yy + x0;
+        x = x2 - y2 + x0;
         y = 2.0f * xy - y0;
         ++n;
     }
@@ -50,9 +50,9 @@ __kernel void mandelbrot(__global float* results,
             float nu = log2(log2(r));
             float smoothIter = (float) n + 1.0f - nu;
             value = smoothIter / (float) iters;
-        } else {
-            value = (float) n / (float) iters;
         }
+    } else {
+        value = (float) n / (float) iters;
     }
 
     results[idx] = value;
