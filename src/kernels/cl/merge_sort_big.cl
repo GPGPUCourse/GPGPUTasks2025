@@ -31,23 +31,35 @@ __kernel void merge_sort_big(
         unsigned int l = i - sorted_k;
         unsigned int r = i;
 
+        unsigned int m = l + num_in_block + (sorted_k >> 4);
+        if (m >= r) {
+            m = r - (sorted_k >> 2);
+        }
+
         while (r - l > 1) {
-            unsigned int m = (l + r) >> 1;
             uint current = input_data[m];
+
             if (current > value) {
                 r = m;
             } else {
                 l = m;
             }
+
+            m = (l + r) >> 1;
         }
 
-        uint current = input_data[l];
-
-        if (current <= value) {
-            ++l;
+        if (l == i - sorted_k) {
+            uint current = input_data[l];
+            if (current <= value) {
+                output_data[k + l + sorted_k - i + 1] = value;
+            } else {
+                output_data[k + l + sorted_k - i] = value;
+            }
+        } else {
+            output_data[k + l + sorted_k - i + 1] = value;
         }
 
-        output_data[k + l + sorted_k - i] = value;
+
     } else {
         unsigned int l = i + sorted_k;
 
@@ -62,6 +74,11 @@ __kernel void merge_sort_big(
             r = n;
         }
 
+        unsigned int m = l + num_in_block + (sorted_k >> 4);
+        if (m >= r) {
+            m = r - (sorted_k >> 2);
+        }
+
         while (r - l > 1) {
             unsigned int m = (l + r) >> 1;
             uint current = input_data[m];
@@ -70,14 +87,19 @@ __kernel void merge_sort_big(
             } else {
                 l = m;
             }
+
+            m = (l + r) >> 1;
         }
 
-        uint current = input_data[l];
-
-        if (current < value) {
-            ++l;
+        if (l == i + sorted_k) {
+            uint current = input_data[l];
+            if (current < value) {
+                output_data[k + l - i - sorted_k + 1] = value;
+            } else {
+                output_data[k + l - i - sorted_k] = value;
+            }
+        } else {
+            output_data[k + l - i - sorted_k + 1] = value;
         }
-
-        output_data[k + l - i - sorted_k] = value;
     }
 }
