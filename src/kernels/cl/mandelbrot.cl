@@ -45,7 +45,6 @@ __kernel void mandelbrot(__global float* results,
     if (isSmoothing && iter != iters) {
         float r2 = x * x + y * y;
         float r  = sqrt(r2);
-        // Полностью копируем CPU-формулу:
         result = result - log(log(r) / log(threshold)) / log(2.0f);
     }
 
