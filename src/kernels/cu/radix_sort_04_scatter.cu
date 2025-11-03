@@ -13,7 +13,7 @@ __global__ void radix_sort_04_scatter(
     const unsigned int* buffer1,
     const unsigned int* buffer2,
     const unsigned int* buffer0,
-    unsigned unsigned int* buffer3,
+    unsigned int* buffer3,
     unsigned int n)
 {
     // TODO
