@@ -21,39 +21,34 @@ __kernel void mandelbrot(__global float* results,
 
     const unsigned int idx = j * width + i;
 
-    const float threshold = 4.0f;
+    const float threshold  = 256.0f;
+    const float threshold2 = threshold * threshold;
 
-    float x0 = fromX + ((float) i / (float) width) * sizeX;
-    float y0 = fromY + ((float) j / (float) height) * sizeY;
+    float x0 = fromX + ((float)i + 0.5f) * sizeX / (float)width;
+    float y0 = fromY + ((float)j + 0.5f) * sizeY / (float)height;
 
-    float x = 0.0f;
-    float y = 0.0f;
-    unsigned int n = 0;
+    float x = x0;
+    float y = y0;
 
-    while (n < iters && (x*x + y*y) <= threshold) {
-        float x2 = x * x;
-        float y2 = y * y;
-        float xy = x * y;
-
-        x = x2 - y2 + x0;
-        y = 2.0f * xy - y0;
-        ++n;
-    }
-
-    float value;
-    if (isSmoothing && n < iters) {
-        float r2 = x * x + y * y;
-        if (r2 <= 0.0f) {
-            value = (float) n / (float) iters;
-        } else {
-            float r = sqrt(r2);
-            float nu = log2(log2(r));
-            float smoothIter = (float) n + 1.0f - nu;
-            value = smoothIter / (float) iters;
+    unsigned int iter = 0;
+    for (; iter < iters; ++iter) {
+        float xPrev = x;
+        x = x * x - y * y + x0;
+        y = 2.0f * xPrev * y + y0;
+        if (x * x + y * y > threshold2) {
+            break;
         }
-    } else {
-        value = (float) n / (float) iters;
     }
 
-    results[idx] = value;
+    float result = (float)iter;
+
+    if (isSmoothing && iter != iters) {
+        float r2 = x * x + y * y;
+        float r  = sqrt(r2);
+        // Полностью копируем CPU-формулу:
+        result = result - log(log(r) / log(threshold)) / log(2.0f);
+    }
+
+    result = result / (float)iters;
+    results[idx] = result;
 }
