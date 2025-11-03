@@ -29,56 +29,55 @@ __kernel void merge_sort(
     int seg1_size = seg1_end - seg1_start;
     int seg2_size = seg2_end - seg2_start;
     
-    int seg1_count;
-    int seg2_count;
-    
     if (local_pos >= seg1_size + seg2_size) {
-        seg1_count = seg1_size;
-        seg2_count = seg2_size;
-    } else {
-        int left = max(0, local_pos - seg2_size);
-        int right = min(seg1_size, local_pos + 1);
-        seg1_count = left;
-        
-        while (left < right) {
-            int mid = (left + right) >> 1;
-            seg2_count = local_pos - mid;
-            
-            if (seg2_count < 0) {
-                right = mid;
-                continue;
-            }
-            
-            if (seg2_count > seg2_size) {
-                left = mid + 1;
-                continue;
-            }
-            
-            bool valid_split = true;
-            
-            if (mid > 0 && seg2_count < seg2_size) {
-                if (input_data[seg1_start + mid - 1] > input_data[seg2_start + seg2_count]) {
-                    valid_split = false;
-                    right = mid;
-                }
-            }
-            
-            if (valid_split && seg2_count > 0 && mid < seg1_size) {
-                if (input_data[seg2_start + seg2_count - 1] > input_data[seg1_start + mid]) {
-                    valid_split = false;
-                    left = mid + 1;
-                }
-            }
-            
-            if (valid_split) {
-                seg1_count = mid;
-                break;
-            }
-        }
-        
-        seg2_count = local_pos - seg1_count;
+        output_data[i] = input_data[min(i, (unsigned int)(n - 1))];
+        return;
     }
     
+    int left = max(0, local_pos - seg2_size);
+    int right = min(seg1_size, local_pos + 1);
+    int seg1_count = left;
+    
+    while (left <= right) {
+        int mid = (left + right) >> 1;
+        int seg2_count = local_pos - mid;
+        
+        if (seg2_count < 0) {
+            right = mid - 1;
+            continue;
+        }
+        
+        if (seg2_count > seg2_size) {
+            left = mid + 1;
+            continue;
+        }
+        
+        bool check1 = true;
+        bool check2 = true;
+        
+        if (mid > 0 && seg2_count < seg2_size) {
+            uint val1_prev = input_data[seg1_start + mid - 1];
+            uint val2_curr = input_data[seg2_start + seg2_count];
+            check1 = (val1_prev <= val2_curr);
+        }
+        
+        if (seg2_count > 0 && mid < seg1_size) {
+            uint val2_prev = input_data[seg2_start + seg2_count - 1];
+            uint val1_curr = input_data[seg1_start + mid];
+            check2 = (val2_prev <= val1_curr);
+        }
+        
+        if (check1 && check2) {
+            seg1_count = mid;
+            left = mid + 1;
+        } else if (!check1) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+    
+    int seg2_count = local_pos - seg1_count;
     uint result;
     
     if (seg1_count < seg1_size && seg2_count < seg2_size) {
@@ -87,8 +86,10 @@ __kernel void merge_sort(
         result = val1 <= val2 ? val1 : val2;
     } else if (seg1_count < seg1_size) {
         result = input_data[seg1_start + seg1_count];
-    } else {
+    } else if (seg2_count < seg2_size) {
         result = input_data[seg2_start + seg2_count];
+    } else {
+        result = input_data[min(i, (unsigned int)(n - 1))];
     }
     
     output_data[i] = result;
