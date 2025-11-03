@@ -79,7 +79,7 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u* buffer_output_gpu;
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -88,8 +88,6 @@ void run(int argc, char** argv)
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
-    buffer_output_gpu.fill(255);
-
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
@@ -98,8 +96,21 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            gpu::WorkSize workSize(GROUP_SIZE, n);
+            unsigned int block_size = 1;
+            gpu::gpu_mem_32u* b1 = &input_gpu;
+            gpu::gpu_mem_32u* b2 = &buffer1_gpu;
+            while (block_size < n) {
+                ocl_mergeSort.exec(workSize,*b1, *b2, block_size, n);
+                if (block_size == 1) {
+                    b1 = b2;
+                    b2 = &buffer2_gpu;
+                } else {
+                    std::swap(b1, b2);
+                }
+                block_size *= 2;
+            }
+            buffer_output_gpu = b1;
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -119,7 +130,7 @@ void run(int argc, char** argv)
     std::cout << "GPU merge-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = buffer_output_gpu->readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
