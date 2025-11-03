@@ -27,6 +27,4 @@ __kernel void sum_03_local_memory_atomic_per_workgroup(__global const uint* a,
         }
         atomic_add(sum, acc);
     }
-
-    return;
 }
