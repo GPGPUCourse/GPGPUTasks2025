@@ -48,6 +48,7 @@ void run(int argc, char** argv)
     for (size_t i = 0; i < n; ++i) {
         as[i] = r.next(min_value, max_value);
     }
+    std::cout << std::endl;
     std::cout << "n=" << n << " values in range [" << min_value << "; " << max_value << "]" << std::endl;
 
     {
@@ -90,6 +91,9 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
+    auto input_buffer_ptr = &buffer1_gpu;
+    auto output_buffer_ptr = &buffer2_gpu;
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
@@ -97,19 +101,16 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        gpu::WorkSize workSize(GROUP_SIZE, n);
+        int chunk_size = 1;
+        ocl_mergeSort.exec(workSize, input_gpu, *input_buffer_ptr, n, chunk_size);
+        chunk_size *= 2;
+        while (chunk_size * 2 < n) {
+            ocl_mergeSort.exec(workSize, *input_buffer_ptr, *output_buffer_ptr, n, chunk_size);
+            chunk_size *= 2;
+            std::swap(input_buffer_ptr, output_buffer_ptr);
         }
-
+        ocl_mergeSort.exec(workSize, *input_buffer_ptr, buffer_output_gpu, n, chunk_size);
         times.push_back(t.elapsed());
     }
     std::cout << "GPU merge-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
