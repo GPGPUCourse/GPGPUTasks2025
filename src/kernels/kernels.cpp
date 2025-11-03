@@ -1,7 +1,8 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
-#include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/merge_local_sort.h"
+#include "cl/generated_kernels/merge_merge.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/merge_sort_comp.h"
@@ -14,8 +15,8 @@ void aplusb(const gpu::WorkSize& workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void merge_sort(const gpu::WorkSize &workSize,
-    const gpu::gpu_mem_32u &input_data, gpu::gpu_mem_32u &output_data, int sorted_k, int n)
+void merge_sort(const gpu::WorkSize& workSize,
+    const gpu::gpu_mem_32u& input_data, gpu::gpu_mem_32u& output_data, int sorted_k, int n)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
@@ -28,10 +29,13 @@ const ocl::ProgramBinaries& getAplusB()
 {
     return opencl_binaries_aplusb;
 }
-
-const ProgramBinaries& getMergeSort()
+const ProgramBinaries& getMergeMerge()
 {
-    return opencl_binaries_merge_sort;
+    return opencl_binaries_merge_merge;
+}
+const ProgramBinaries& getMergeLocalSort()
+{
+    return opencl_binaries_merge_local_sort;
 }
 } // namespace ocl
 
