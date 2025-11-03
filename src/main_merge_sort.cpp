@@ -11,6 +11,13 @@
 
 #include <fstream>
 
+void print_vector(std::vector<unsigned int> vec) {
+    for (int i = 0; i < vec.size(); i++) {
+        std::cout << vec[i] << " ";
+    }
+    std::cout << std::endl;
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -98,8 +105,17 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            int sorted_k = 1;
+            while (sorted_k < n) {
+                if (sorted_k == 1) {
+                    ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1_gpu, sorted_k, n);
+                } else {
+                    ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, sorted_k, n);
+                    std::swap(buffer1_gpu, buffer2_gpu);
+                }
+                sorted_k *= 2;
+            }
+            buffer_output_gpu = buffer1_gpu;
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
