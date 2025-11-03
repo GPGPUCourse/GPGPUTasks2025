@@ -99,7 +99,7 @@ void run(int argc, char** argv)
             std::swap(copy_input_gpu, buffer_output_gpu);
         }
         std::swap(copy_input_gpu, buffer_output_gpu);
-        
+
         times.push_back(t.elapsed());
     }
     std::cout << "GPU merge-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;

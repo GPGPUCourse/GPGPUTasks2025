@@ -9,10 +9,10 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void merge_sort(
     __global const uint* input_data,
     __global       uint* output_data,
-                   uint  sorted_k,
-                   uint  n)
+                   int  sorted_k,
+                   int  n)
 {
-    const unsigned int idx = get_global_id(0);
+    const int idx = get_global_id(0);
     if (idx >= n) {
         return;
     }
@@ -28,7 +28,7 @@ __kernel void merge_sort(
         return;
     }
 
-    const uint nb_base = neighbour_bucket_id * sorted_k;
+    const int nb_base = neighbour_bucket_id * sorted_k;
     int left = 0;
     int right = min(sorted_k, n - nb_base) - 1;
     while (left <= right) {
