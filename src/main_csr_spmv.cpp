@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -27,7 +27,7 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
     std::vector<unsigned int> csr_columns(number_of_non_zero_values, 0);
     std::vector<unsigned int> csr_values(number_of_non_zero_values, 0);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int row = 0; row < nrows; ++row) {
         FastRandom r(239 * row);
         unsigned int non_zero_row_values = csr_row_offsets[row + 1] - csr_row_offsets[row];
@@ -40,11 +40,11 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
         }
     }
 
-    return {csr_row_offsets, csr_columns, csr_values};
+    return { csr_row_offsets, csr_columns, csr_values };
 }
 
 std::vector<unsigned int> generate_vector(
-    unsigned int n, unsigned int max_value=10000)
+    unsigned int n, unsigned int max_value = 10000)
 {
     FastRandom r(2391);
 
@@ -57,13 +57,13 @@ std::vector<unsigned int> generate_vector(
 }
 
 std::vector<unsigned int> sparse_csr_matrix_vector_multiplication(
-    const std::vector<unsigned int> &csr_row_offsets, const std::vector<unsigned int> &csr_columns, const std::vector<unsigned int> &csr_values,
-    const std::vector<unsigned int> &vector_values,
+    const std::vector<unsigned int>& csr_row_offsets, const std::vector<unsigned int>& csr_columns, const std::vector<unsigned int>& csr_values,
+    const std::vector<unsigned int>& vector_values,
     unsigned int nrows, unsigned int ncols)
 {
     std::vector<unsigned int> result_vector_values(nrows, 0);
 
-    #pragma omp parallel for schedule(dynamic, 128)
+#pragma omp parallel for schedule(dynamic, 128)
     for (int row = 0; row < nrows; ++row) {
         size_t accumulator = 0;
         unsigned int row_from = csr_row_offsets[row];
@@ -80,46 +80,31 @@ std::vector<unsigned int> sparse_csr_matrix_vector_multiplication(
 
 void run(int argc, char** argv)
 {
-    // chooseGPUVkDevices:
-    // - Если не доступо ни одного устройства - кинет ошибку
-    // - Если доступно ровно одно устройство - вернет это устройство
-    // - Если доступно N>1 устройства:
-    //   - Если аргументов запуска нет или переданное число не находится в диапазоне от 0 до N-1 - кинет ошибку
-    //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
     gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
 
-    // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
-    // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
-    // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
-    // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
-    // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
-    // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
-    // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
-    //          если же вас это не останавливает - профилировщик (nsight-systems) при запуске на NVIDIA тоже работает (хоть и менее мощный чем nsight-compute)
-    //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
-    //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
-
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     ocl::KernelSource ocl_spvm(ocl::getSparseCSRMatrixVectorMult());
-
     avk2::KernelSource vk_spvm(avk2::getSparseCSRMatrixVectorMult());
-
     FastRandom r;
 
-    const unsigned int nrows = 1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    const unsigned int ncols = 1000*1000;
+    const unsigned int nrows = 1000'000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    const unsigned int ncols = 1000'000;
     const unsigned int max_value = 1000;
+
+    // const unsigned int nrows = 5; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // const unsigned int ncols = 5;
+    // const unsigned int max_value = 3;
     std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " << max_value << "]" << std::endl;
 
     std::vector<std::pair<unsigned int, unsigned int>> evaluated_min_max_nnz_per_row = {
-        {32, 32},
-        {128, 128},
-        {1, 32},
-        {1, 128},
-        {32, 128},
+        { 32, 32 },
+        { 128, 128 },
+        { 1, 32 },
+        { 1, 128 },
+        { 32, 128 },
+        { 3, 3 },
     };
-    for (auto [min_nnz_per_row, max_nnz_per_col]: evaluated_min_max_nnz_per_row) {
+    for (auto [min_nnz_per_row, max_nnz_per_col] : evaluated_min_max_nnz_per_row) {
         std::cout << "____________________________________________________________________________________________" << std::endl;
         const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(nrows, ncols, min_nnz_per_row, max_nnz_per_col, max_value);
         const std::vector<unsigned int> vector_values = generate_vector(ncols, max_value);
@@ -150,9 +135,6 @@ void run(int argc, char** argv)
         csr_values_gpu.writeN(csr_values.data(), csr_values.size());
         vector_values_gpu.writeN(vector_values.data(), vector_values.size());
 
-        // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
-        // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
-        // Если вам нужно занулять буферы в процессе вычислений - создайте кернел который это сделает
         output_vector_values_gpu.fill(255);
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -160,20 +142,13 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
-            // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-            // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeCUDA) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeVulkan) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else {
-                rassert(false, 4531412341, context.type());
-            }
+            cuda::sparse_csr_matrix_vector_multiplication(gpu::WorkSize(GROUP_SIZE, nrows),
+                csr_row_offsets_gpu,
+                csr_columns_gpu,
+                csr_values_gpu,
+                vector_values_gpu,
+                output_vector_values_gpu,
+                nrows, ncols);
 
             times.push_back(t.elapsed());
         }
@@ -204,7 +179,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
@@ -213,5 +189,6 @@ int main(int argc, char** argv)
         }
     }
 
+    avk2::InstanceContext::clearGlobalInstanceContext();
     return 0;
 }
