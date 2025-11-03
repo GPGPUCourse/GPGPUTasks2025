@@ -1,13 +1,14 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
@@ -34,13 +35,14 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
+    ocl::KernelSource ocl_copy(ocl::getCopy());
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
@@ -83,11 +85,6 @@ void run(int argc, char** argv)
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
-    // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
-    // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
-    // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -98,8 +95,19 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            buffer1_gpu.writeN(as.data(), n);
+            gpu::gpu_mem_32u* current_input = &buffer1_gpu;
+            gpu::gpu_mem_32u* current_output = &buffer_output_gpu;
+
+            for (int k = 1; k < n; k <<= 1) {
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), *current_input, *current_output, k, n);
+                std::swap(current_input, current_output);
+            }
+
+            if (current_input != &buffer_output_gpu) {
+                ocl_copy.exec(gpu::WorkSize(GROUP_SIZE, n), *current_input, buffer_output_gpu, n);
+            }
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -142,7 +150,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {

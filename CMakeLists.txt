@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA
 option(GPU_CUDA_SUPPORT "CUDA support." OFF)
@@ -59,6 +60,7 @@ set(LIBRARIES
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
+        src/kernels/cl/copy.cl
         src/kernels/cl/merge_sort.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
