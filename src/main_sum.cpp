@@ -130,18 +130,32 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
                         uint work_size = n;
+                        auto* in  = &input_gpu;
+                        auto* out = &reduction_buffer1_gpu;
+
                         reduction_buffer1_gpu.fill(0);
                         reduction_buffer2_gpu.fill(0);
                         while (work_size > 1) {
+                            uint groups = div_ceil(work_size, (unsigned int)GROUP_SIZE);
+                            uint global_size = groups * GROUP_SIZE;
+
                             ocl_sum04LocalReduction.exec(
-                                gpu::WorkSize(GROUP_SIZE, n),
-                                reduction_buffer1_gpu,
-                                reduction_buffer2_gpu,
+                                gpu::WorkSize(GROUP_SIZE, global_size),
+                                *in,
+                                *out,
                                 work_size
                             );
-                            work_size = div_ceil(work_size, (unsigned int)GROUP_SIZE);
+
+                            work_size = groups;
+                            if (out == &reduction_buffer1_gpu) {
+                                in  = &reduction_buffer1_gpu;
+                                out = &reduction_buffer2_gpu;
+                            } else {
+                                in  = &reduction_buffer2_gpu;
+                                out = &reduction_buffer1_gpu;
+                            }
                         }
-                        reduction_buffer1_gpu.readN(&gpu_sum, 1);
+                        in->readN(&gpu_sum, 1);
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
