@@ -72,7 +72,7 @@ void run(int argc, char** argv)
     while (m < n) m <<= 1;
     m <<= 1;
     std::vector<double> times;
-    for (int iter = 0; iter < 1; ++iter) {
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
         for (int step_k = 2, cnt = 1; step_k < m; step_k <<= 1, cnt++) {
             for (int i = 0; i < n; i += std::max(step_k, GROUP_SIZE)) {
