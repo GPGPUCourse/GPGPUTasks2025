@@ -11,6 +11,16 @@
 
 #include <fstream>
 
+std::string print_buffer(const gpu::gpu_mem_32u& buf) {
+    std::stringstream out;
+    std::vector<uint> vec = buf.readVector();
+    for (uint x : vec) {
+        out << x << " ";
+    }
+    out << "\n";
+    return out.str();
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -35,6 +45,8 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    ocl::KernelSource ocl_mergeBase(ocl::getMergeBase());
+    ocl::KernelSource ocl_mergeFast(ocl::getMergeFast());
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
@@ -78,7 +90,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u buffer_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -86,8 +98,7 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
+    buffer_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -98,8 +109,21 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            uint k = 0;
+            input_gpu.copyToN(buffer_gpu, n);
+            while ((1 << k) < n) {
+                // std::cout << "buffer: " << print_buffer(buffer_gpu);
+                // std::cout << "OK" << k << "\n";
+                if (k < 4) {
+                    ocl_mergeBase.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_gpu, buffer_output_gpu, k, n);
+                } else {
+                    ocl_mergeFast.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_gpu, buffer_output_gpu, k, n);
+                }
+                std::swap(buffer_gpu, buffer_output_gpu);
+                k++;
+            }
+            // std::cout << "buffer: " << print_buffer(buffer_gpu);
+            std::swap(buffer_gpu, buffer_output_gpu);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
