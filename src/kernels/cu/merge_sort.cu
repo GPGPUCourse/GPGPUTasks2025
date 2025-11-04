@@ -18,8 +18,8 @@ __global__ void merge_sort(
         return;
 
     size_t i = (index / (2 * sorted_k)) * (2 * sorted_k);
-    size_t j = min(i + 2 * sorted_k, (long long)n);
-    size_t mid = min(i + sorted_k, (long long)n);
+    size_t j = min(i + 2 * sorted_k, (unsigned long long)n);
+    size_t mid = min(i + sorted_k, (unsigned long long)n);
 
     bool in_f = (index < mid);
     size_t idx = in_f ? index - i : index - mid;
