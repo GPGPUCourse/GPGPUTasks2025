@@ -36,8 +36,6 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
 
-    avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
-
     FastRandom r;
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
@@ -98,14 +96,12 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            input_gpu.copyToN(buffer1_gpu, n);
+            for (int sorted_k = 1; sorted_k < n; sorted_k <<= 1) {
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n),buffer1_gpu, buffer2_gpu, sorted_k, n);
+                buffer1_gpu.swap(buffer2_gpu);
+            }
+            buffer1_gpu.copyToN(buffer_output_gpu, n);
         } else {
             rassert(false, 4531412341, context.type());
         }
