@@ -76,7 +76,7 @@ void run(int argc, char** argv)
         timer t;
         for (int step_k = 2, cnt = 1; step_k < m; step_k <<= 1, cnt++) {
             for (int i = 0; i < n; i += std::max(step_k, GROUP_SIZE)) {
-                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, n, step_k, i);
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, step_k), buffer1_gpu, buffer2_gpu, n, step_k, i);
             }
             std::swap(buffer1_gpu, buffer2_gpu);
         }

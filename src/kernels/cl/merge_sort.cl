@@ -13,7 +13,7 @@ __kernel void merge_sort(
                    int  step_k,
                    int  start)
 {
-    const unsigned int i = get_global_id(0);
+    const unsigned int i = get_global_id(0) + start;
     const unsigned int local_i = get_local_id(0);
     const int bucket = local_i / step_k;
     const unsigned left_bound = start + step_k * bucket;
