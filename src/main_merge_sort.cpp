@@ -104,7 +104,7 @@ void run(int argc, char** argv)
             gpu::gpu_mem_32u* current_input = &buffer1_gpu;
             gpu::gpu_mem_32u* current_output = &buffer2_gpu;
 
-            for (size_t sorted_k = 1; sorted_k < n; sorted_k <<= 1) {
+            for (int sorted_k = 1; sorted_k < n; sorted_k <<= 1) {
                 gpu::WorkSize ws(GROUP_SIZE, n);
                 ocl_mergeSort.exec(ws, *current_input, *current_output, sorted_k, n);
                 
