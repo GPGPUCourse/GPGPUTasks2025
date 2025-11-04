@@ -1,17 +1,29 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1)
+    __global const uint* pow2_sum,
+    __global       uint* next_pow2_sum,
+    uint n)
 {
-    // TODO
+    const uint global_id = get_global_id(0);
+    const uint num_outputs = (n + 1) >> 1;
+
+    if (global_id < num_outputs) {
+        uint in_base = global_id << 1;
+        uint left_value = pow2_sum[in_base];
+        uint right_value = 0;
+
+        uint right_pos = in_base + 1;
+        if (right_pos < n) {
+            right_value = pow2_sum[right_pos];
+        }
+
+        next_pow2_sum[global_id] = left_value + right_value;
+    }
 }
