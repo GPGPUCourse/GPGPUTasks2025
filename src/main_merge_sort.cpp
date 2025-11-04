@@ -64,7 +64,6 @@ void run(int argc, char** argv)
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
-    buffer1_gpu.writeN(as.data(), n);
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
@@ -73,6 +72,7 @@ void run(int argc, char** argv)
     m <<= 1;
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
+        buffer1_gpu.writeN(as.data(), n);
         timer t;
         for (int step_k = 2, cnt = 1; step_k < m; step_k <<= 1, cnt++) {
             for (int i = 0; i < n; i += std::max(step_k, GROUP_SIZE)) {
