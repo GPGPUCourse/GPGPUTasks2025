@@ -2,6 +2,7 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/pre_merge_sort.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/merge_sort_comp.h"
@@ -32,6 +33,10 @@ const ocl::ProgramBinaries& getAplusB()
 const ProgramBinaries& getMergeSort()
 {
     return opencl_binaries_merge_sort;
+}
+
+const ProgramBinaries& getPreMergeSort() {
+    return opencl_binaries_pre_merge_sort;
 }
 } // namespace ocl
 

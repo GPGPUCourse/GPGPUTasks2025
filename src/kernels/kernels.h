@@ -11,6 +11,7 @@ namespace ocl {
 const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getMergeSort();
+const ProgramBinaries& getPreMergeSort();
 }
 
 namespace avk2 {
