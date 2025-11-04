@@ -98,8 +98,24 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            std::vector<unsigned int> tmp_input = input_gpu.readVector();
+            buffer1_gpu.writeN(tmp_input.data(), n);
+
+            gpu::gpu_mem_32u* current_input = &buffer1_gpu;
+            gpu::gpu_mem_32u* current_output = &buffer2_gpu;
+
+            for (size_t sorted_k = 1; sorted_k < n; sorted_k <<= 1) {
+                gpu::WorkSize ws(GROUP_SIZE, n);
+                ocl_mergeSort.exec(ws, *current_input, *current_output, sorted_k, n);
+                
+                std::swap(current_input, current_output);
+            }
+
+            if (current_input != &buffer_output_gpu) {
+                std::vector<unsigned int> tmp = current_input->readVector();
+                buffer_output_gpu.writeN(tmp.data(), n);
+            }
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
