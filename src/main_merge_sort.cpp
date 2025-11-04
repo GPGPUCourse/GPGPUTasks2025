@@ -40,11 +40,11 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    //int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     
-    int n = 100*1000*1000;
+    //int n = 10000;
     //int max_value = 8;
     
     std::vector<unsigned int> as(n, 0);
@@ -118,7 +118,7 @@ void run(int argc, char** argv)
             int len = 1;
             while (len < n) {
                 size_t num_threads = (n + 2ull * len - 1) / (2ull * len);
-                gpu::WorkSize ws(GROUP_SIZE, (int)num_threads);
+                gpu::WorkSize ws(GROUP_SIZE, (int)n);
 
                 if (len == 1) {
                     //print_first_k(input_gpu, " BEFORE input_buf");

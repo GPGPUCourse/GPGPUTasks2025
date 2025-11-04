@@ -13,29 +13,42 @@ __global__ void merge_sort(
                    int  sorted_k,
                    int  n)
 {
-    size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    size_t start = tid * 2ull * sorted_k;
-    if (start >= (size_t)n)
+    size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= n)
         return;
 
-    size_t mid = min(start + (size_t)sorted_k, (size_t)n);
-    size_t end = min(start + 2ull * (size_t)sorted_k, (size_t)n);
+    size_t i = (index / (2 * sorted_k)) * (2 * sorted_k);
+    size_t j = min(i + 2 * sorted_k, (long long)n);
+    size_t mid = min(i + sorted_k, (long long)n);
 
-    size_t i = start;
-    size_t j = mid;
-    size_t idx = start;
+    bool in_f = (index < mid);
+    size_t idx = in_f ? index - i : index - mid;
 
-    while (i < mid && j < end) {
-        if (input_data[i] <= input_data[j])
-            output_data[idx++] = input_data[i++];
+    const unsigned int* f_block = input_data + i;
+    const unsigned int* s_block = input_data + mid;
+    size_t f = mid - i;
+    size_t s = j - mid;
+
+    unsigned int my_val = input_data[index];
+
+    size_t l = 0, r = in_f ? s : f;
+    while (l < r) {
+        size_t m = (l + r) / 2;
+        unsigned int cmp_val = in_f ? s_block[m] : f_block[m];
+        if (cmp_val < my_val || (in_f && cmp_val == my_val))
+            l = m + 1;
         else
-            output_data[idx++] = input_data[j++];
+            r = m;
     }
-    while (i < mid)
-        output_data[idx++] = input_data[i++];
-    while (j < end)
-        output_data[idx++] = input_data[j++];
+
+    size_t pos;
+    if (in_f)
+        pos = i + idx + l;
+    else
+        pos = i + l + idx;
+
+    if (pos < n)
+        output_data[pos] = my_val;
 }
 
 namespace cuda {
