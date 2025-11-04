@@ -13,8 +13,29 @@ __global__ void merge_sort(
                    int  sorted_k,
                    int  n)
 {
-    const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    // TODO
+    size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    size_t start = tid * 2ull * sorted_k;
+    if (start >= (size_t)n)
+        return;
+
+    size_t mid = min(start + (size_t)sorted_k, (size_t)n);
+    size_t end = min(start + 2ull * (size_t)sorted_k, (size_t)n);
+
+    size_t i = start;
+    size_t j = mid;
+    size_t idx = start;
+
+    while (i < mid && j < end) {
+        if (input_data[i] <= input_data[j])
+            output_data[idx++] = input_data[i++];
+        else
+            output_data[idx++] = input_data[j++];
+    }
+    while (i < mid)
+        output_data[idx++] = input_data[i++];
+    while (j < end)
+        output_data[idx++] = input_data[j++];
 }
 
 namespace cuda {
