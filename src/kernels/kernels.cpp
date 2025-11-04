@@ -2,7 +2,6 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/merge_sort.h"
-#include "cl/generated_kernels/prepare_merge_sort.h"
 #include "cl/generated_kernels/merge_base.h"
 #include "cl/generated_kernels/merge_fast.h"
 
@@ -35,10 +34,6 @@ const ocl::ProgramBinaries& getAplusB()
 const ProgramBinaries& getMergeSort()
 {
     return opencl_binaries_merge_sort;
-}
-
-const ProgramBinaries& getPrepareMergeSort() {
-    return opencl_binaries_prepare_merge_sort;
 }
 
 const ProgramBinaries& getMergeBase() {

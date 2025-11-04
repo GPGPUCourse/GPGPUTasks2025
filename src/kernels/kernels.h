@@ -12,8 +12,6 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getMergeSort();
 
-const ProgramBinaries& getPrepareMergeSort();
-
 const ProgramBinaries& getMergeBase();
 
 const ProgramBinaries& getMergeFast();
