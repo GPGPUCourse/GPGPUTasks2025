@@ -35,6 +35,7 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    ocl::KernelSource ocl_blockSort(ocl::getBlockSort());
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
@@ -98,9 +99,10 @@ void run(int argc, char** argv)
         gpu::WorkSize work_size(GROUP_SIZE, (n + GROUP_SIZE - 1) / GROUP_SIZE * GROUP_SIZE);
 
         buffer1_gpu.writeN(as.data(), n);
+        ocl_blockSort.exec(work_size, buffer1_gpu, buffer2_gpu, n);
 
-        bool use_buffer1 = true;
-        for (int k = 1; k < n; k *= 2, use_buffer1 = !use_buffer1) {
+        bool use_buffer1 = false;
+        for (int k = GROUP_SIZE; k < n; k *= 2, use_buffer1 = !use_buffer1) {
             auto& in  = use_buffer1 ? buffer1_gpu : buffer2_gpu;
             auto& out = use_buffer1 ? buffer2_gpu : buffer1_gpu;
 
