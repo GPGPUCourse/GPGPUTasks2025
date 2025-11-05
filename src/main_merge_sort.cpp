@@ -1,7 +1,7 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libxorbit/contexted_timer.h>
+#include <libbase/timer.h>
 #include <libbase/fast_random.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
@@ -99,8 +99,10 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(67);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
-    ContextedTimer t;
+    std::vector<double> times;
     for (int iter = 0; iter < iter_count; ++iter) {
+        timer t;
+
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         rassert(context.type() == gpu::Context::TypeCUDA, 4531412341);
@@ -116,12 +118,11 @@ void run(int argc, char** argv)
         }
         output_gpu_ptr = save_buffer;
 
-        t.nextLap();
+        times.push_back(t.elapsed());
     }
     rassert(output_gpu_ptr != nullptr, 8959325364);
     const auto& output_gpu = *output_gpu_ptr;
 
-    const auto& times = t.totalTimes();
     std::cout << "GPU merge-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)

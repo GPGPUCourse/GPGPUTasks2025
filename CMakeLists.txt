@@ -49,7 +49,6 @@ set(LIBRARIES
         libimages
         libutils
         libjson
-        libxorbit
 )
 
 # compile_opencl CMake-функция объявлена в libs/gpu/libgpu/CMakeLists.txt:157
