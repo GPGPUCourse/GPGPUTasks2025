@@ -49,6 +49,7 @@ set(LIBRARIES
         libimages
         libutils
         libjson
+        libxorbit
 )
 
 # compile_opencl CMake-функция объявлена в libs/gpu/libgpu/CMakeLists.txt:157
@@ -82,6 +83,10 @@ set(VULKAN_DEFINES)
 foreach(VK_FILE IN LISTS VULKAN_SOURCES)
     compile_vulkan(HEADERS ${VK_FILE} VULKAN_DEFINES)
 endforeach()
+
+if (LOCAL_RUN)
+    add_definitions(-DLOCAL_RUN)
+endif ()
 
 if (GPU_CUDA_SUPPORT)
     enable_language(CUDA)
