@@ -102,6 +102,7 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_spvm(ocl::getSparseCSRMatrixVectorMult());
+    ocl::KernelSource ocl_zeros(ocl::Zerofy());
 
     avk2::KernelSource vk_spvm(avk2::getSparseCSRMatrixVectorMult());
 
@@ -125,6 +126,47 @@ void run(int argc, char** argv)
         const std::vector<unsigned int> vector_values = generate_vector(ncols, max_value);
         const unsigned int number_of_non_zero_values = csr_row_offsets[nrows];
         const unsigned int nnz = number_of_non_zero_values;
+
+        // for (auto a : csr_row_offsets)
+        //     std::cout << a << " ";
+        // std::cout << std::endl;
+
+        // for (auto a : csr_columns)
+        //     std::cout << a << " ";
+        // std::cout << std::endl;
+
+        
+        // for (auto a : csr_values)
+        //     std::cout << a << " ";
+        // std::cout << std::endl;
+
+        // std::cout << std::endl;
+        
+
+        // int it = 0;
+        // for (int r = 0; r < nrows; ++r) {
+        //     for (int c = 0; c < ncols; ++c) {
+
+        //         long long val = -1;
+        //         for (int it = csr_row_offsets[r]; it < (r + 1 < nrows ? csr_row_offsets[r + 1] : csr_values.size()); it++)
+        //             if (csr_columns[it] == c) {
+        //                 // printf("r = %d, c = %d, it = %d\n", r, c, it);
+        //                 val = csr_values[it];
+        //                 it++;
+        //                 break;
+        //             }
+
+        //         if (val == -1)
+        //             std::cout << 'x' << " ";
+        //         else
+        //             std::cout << val << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
+
+        // for (auto a : vector_values)
+        //     std::cout << a << " ";
+        // std::cout << std::endl;
 
         std::vector<unsigned int> nnz_per_row(nrows);
         for (int row = 0; row < nrows; ++row) {
@@ -164,7 +206,9 @@ void run(int argc, char** argv)
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
                 // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                ocl_zeros.exec(gpu::WorkSize(GROUP_SIZE, nrows), output_vector_values_gpu, nrows);
+                ocl_spvm.exec(gpu::WorkSize(GROUP_SIZE, nnz), csr_values_gpu, csr_columns_gpu, csr_row_offsets_gpu, nrows, nnz, vector_values_gpu, output_vector_values_gpu);
+                // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -185,6 +229,10 @@ void run(int argc, char** argv)
 
         // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> gpu_results = output_vector_values_gpu.readVector();
+
+        // for (auto a : gpu_results)
+        //     std::cout << a << " ";
+        // std::cout << std::endl;
 
         rassert(cpu_results.size() == gpu_results.size(), 43572348952, cpu_results.size(), gpu_results.size());
 
