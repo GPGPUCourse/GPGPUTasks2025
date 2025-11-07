@@ -7,6 +7,7 @@
 #include "helpers/rassert.cu"
 #include "../defines.h"
 
+
 __global__ void merge_sort(
     const unsigned int* input_data,
           unsigned int* output_data,
@@ -25,38 +26,38 @@ __global__ void merge_sort(
 
     unsigned int* C = output_data + run_start;
 
-    // нечего сортировать справа
+    const int bInx = blockDim.x;  
+    const int tIdx = threadIdx.x;
+    const int lenC = lenA + lenB;  
+
+  
     if (lenB == 0) {
-        const int T = blockDim.x, t = threadIdx.x;
-        const int chunk = (lenA + T - 1) / T;
-        const int beg = t * chunk;
+        const int chunk = (lenA + bInx - 1) / bInx;
+        const int beg = tIdx * chunk;
         const int end = min(lenA, beg + chunk);
         for (int i = beg; i < end; ++i) C[i] = A[i];
         return;
     }
-    // сортировка
-    if (threadIdx.x == 0) {
-        int ia = 0, ib = 0, count = 0;
 
-        while (ia < lenA && ib < lenB) {
-            unsigned int va = A[ia];
-            unsigned int vb = B[ib];
+    for (int k = tIdx; k < lenC; k += bInx) {
 
-            if (va <= vb) {
-                C[count++] = va;
-                ia++;
-            } else {
-                C[count++] = vb;
-                ib++;
-            }
+        float fraction = float(k + 1) * float(lenA) / float(lenA + lenB);
+        int leftIdx  = min(lenA, max(0, int(fraction)));
+        int rightIdx = (k + 1) - leftIdx;
+
+        while (leftIdx > 0 && rightIdx < lenB && A[leftIdx - 1] > B[rightIdx]) {
+            leftIdx--;
+            rightIdx++;
         }
-        // для хвостов
-        while (ia < lenA) {
-            C[count++] = A[ia++];
+
+        while (rightIdx > 0 && leftIdx < lenA && B[rightIdx - 1] > A[leftIdx]) {
+            leftIdx++;
+            rightIdx--;
         }
-        while (ib < lenB) {
-            C[count++] = B[ib++];
-        }
+
+        unsigned int a_left = (leftIdx > 0) ? A[leftIdx - 1] : 0;
+        unsigned int b_left = (rightIdx > 0) ? B[rightIdx - 1] : 0;
+        C[k] = (a_left >= b_left) ? a_left : b_left;
     }
 }
 namespace cuda {
@@ -70,3 +71,4 @@ void merge_sort(const gpu::WorkSize &workSize,
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
+
