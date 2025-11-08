@@ -12,8 +12,33 @@ layout (push_constant) uniform PushConstants {
     uint h;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+shared float tile[GROUP_SIZE_X][GROUP_SIZE_Y];
+
+layout (local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
 void main()
 {
-    // TODO
+    uint local_x = gl_LocalInvocationID.x;
+    uint local_y = gl_LocalInvocationID.y;
+    uint block_x = gl_WorkGroupID.x;
+    uint block_y = gl_WorkGroupID.y;
+
+    uint global_in_x = block_x * GROUP_SIZE_X + local_x;
+    uint global_in_y = block_y * GROUP_SIZE_Y + local_y;
+
+    if (global_in_x < params.w && global_in_y < params.h) {
+        uint input_index = global_in_y * params.w + global_in_x;
+        tile[local_y][local_x] = matrix[input_index];
+    } else {
+        tile[local_y][local_x] = 0.0;
+    }
+
+    barrier();
+
+    uint global_out_x = block_y * GROUP_SIZE_Y + local_x;
+    uint global_out_y = block_x * GROUP_SIZE_X + local_y;
+
+    if (global_out_x < params.h && global_out_y < params.w) {
+        uint output_index = global_out_y * params.h + global_out_x;
+        transposed_matrix[output_index] = tile[local_x][local_y];
+    }
 }
