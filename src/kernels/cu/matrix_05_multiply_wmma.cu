@@ -19,7 +19,39 @@ __global__ void matrix_multiply_wmma(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO 020 Это добровольное задание за супер-пупер-баллы престижа сверх нормы
+    wmma::fragment<wmma::matrix_a, GROUP_SIZE_Y, GROUP_SIZE_X, GROUP_SIZE_Y, half, wmma::row_major> a_frag;
+    wmma::fragment<wmma::matrix_b, GROUP_SIZE_Y, GROUP_SIZE_X, GROUP_SIZE_Y, half, wmma::row_major> b_frag;
+    wmma::fragment<wmma::accumulator, GROUP_SIZE_Y, GROUP_SIZE_X, GROUP_SIZE_Y, float> c_frag;
+
+    __shared__ __align__(16) half As[GROUP_SIZE_Y * GROUP_SIZE_X];
+    __shared__ __align__(16) half Bs[GROUP_SIZE_Y * GROUP_SIZE_X];
+
+    wmma::fill_fragment(c_frag, 0.0f);
+
+    for (unsigned int i = 0; i < k; i += GROUP_SIZE_X) {
+        for (unsigned int j = blockDim.x * threadIdx.y + threadIdx.x; j < GROUP_SIZE_X * GROUP_SIZE_Y; j += blockDim.x * blockDim.y) {
+            unsigned int tile_row = j / GROUP_SIZE_X;
+            unsigned int tile_col = j % GROUP_SIZE_X;
+            
+            unsigned int a_row = blockIdx.y * GROUP_SIZE_Y + tile_row;
+            unsigned int a_col = i + tile_col;
+            unsigned int b_row = i + tile_row;
+            unsigned int b_col = blockIdx.x * GROUP_SIZE_X + tile_col;
+            As[j] = __float2half_rn(a[a_row * k + a_col]);
+            Bs[j] = __float2half_rn(b[b_row * w + b_col]);
+        }
+
+        wmma::load_matrix_sync(a_frag, As, GROUP_SIZE_X);
+        wmma::load_matrix_sync(b_frag, Bs, GROUP_SIZE_X);
+        wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+    }
+
+    unsigned int c_row = blockIdx.y * GROUP_SIZE_Y;
+    unsigned int c_col = blockIdx.x * GROUP_SIZE_X;
+
+    if (c_row < h && c_col < w) {
+        wmma::store_matrix_sync(c + c_row * w + c_col, c_frag, w, wmma::mem_row_major);
+    }
 }
 
 namespace cuda {
