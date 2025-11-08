@@ -64,16 +64,16 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            ocl_fill_with_zeros.exec(gpu::WorkSize(1, n), buffer1_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, n);
             buffer1_pow2_sum_gpu.writeN(as.data(), n);
-            ocl_fill_with_zeros.exec(gpu::WorkSize(1, n), buffer2_pow2_sum_gpu, n);
-            ocl_fill_with_zeros.exec(gpu::WorkSize(1, n), prefix_sum_accum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(gpu::WorkSize(GROUP_SIZE, n), prefix_sum_accum_gpu, n);
             unsigned int current_n = n;
             int pow2 = 0;
             while (current_n > 1) {
-                ocl_prefix_accumulation.exec(gpu::WorkSize(1, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
                 int new_n = (current_n + 1) / 2;
-                ocl_sum_reduction.exec(gpu::WorkSize(1, new_n), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, current_n);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, new_n), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, current_n);
                 pow2 += 1;
                 current_n = new_n;
                 buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);

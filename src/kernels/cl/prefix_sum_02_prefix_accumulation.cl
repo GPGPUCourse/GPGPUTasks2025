@@ -5,7 +5,7 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_sum_02_prefix_accumulation(
     __global const uint* pow2_sum,
     __global       uint* prefix_sum_accum,
