@@ -158,7 +158,7 @@ void run(int argc, char** argv)
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
-        for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
+        for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
             ocl_spvm.exec(gpu::WorkSize(256, nrows), csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows);
