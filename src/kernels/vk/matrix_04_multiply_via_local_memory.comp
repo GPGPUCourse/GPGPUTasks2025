@@ -14,8 +14,51 @@ layout (push_constant) uniform PushConstants {
     uint k;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+shared float tileA[GROUP_SIZE_Y][GROUP_SIZE_X];
+shared float tileB[GROUP_SIZE_Y][GROUP_SIZE_X];
+
+layout (local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
 void main()
 {
-    // TODO
+    uint local_x = gl_LocalInvocationID.x;
+    uint local_y = gl_LocalInvocationID.y;
+    uint group_x = gl_WorkGroupID.x;
+    uint group_y = gl_WorkGroupID.y;
+
+    uint row = group_y * GROUP_SIZE_Y + local_y;
+    uint col = group_x * GROUP_SIZE_X + local_x;
+
+    float sum = 0.0;
+
+    uint num_tiles = (params.k + GROUP_SIZE_X - 1) / GROUP_SIZE_X;
+
+    for (uint t = 0; t < num_tiles; t++) {
+        uint load_a_row = row;
+        uint load_a_col = t * GROUP_SIZE_X + local_x;
+        if (load_a_row < params.h && load_a_col < params.k) {
+            tileA[local_y][local_x] = a[load_a_row * params.k + load_a_col];
+        } else {
+            tileA[local_y][local_x] = 0.0;
+        }
+
+        uint load_b_row = t * GROUP_SIZE_Y + local_y;
+        uint load_b_col = col;
+        if (load_b_row < params.k && load_b_col < params.w) {
+            tileB[local_y][local_x] = b[load_b_row * params.w + load_b_col];
+        } else {
+            tileB[local_y][local_x] = 0.0;
+        }
+
+        barrier();
+
+        for (uint i = 0; i < GROUP_SIZE_X; i++) {
+            sum += tileA[local_y][i] * tileB[i][local_x];
+        }
+
+        barrier();
+    }
+
+    if (row < params.h && col < params.w) {
+        c[row * params.w + col] = sum;
+    }
 }
