@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1))) // чтобы запустить с #define GROUP_SIZE   128 надо было комментировать эту строку
 __kernel void aplusb(__global const uint* a,
                      __global const uint* b,
                      __global       uint* c,
