@@ -92,14 +92,24 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            input_gpu.copyToN(buffer1_gpu, n);
+
+            auto* prev = &buffer1_gpu;
+            auto* curr = &buffer2_gpu;
+            int k = 0;
+            do {
+                ++k;
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), *prev, *curr, k, n);
+                std::swap(prev, curr);
+            } while (n > (1 << k));
+            prev->copyToN(buffer_output_gpu, n);
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
