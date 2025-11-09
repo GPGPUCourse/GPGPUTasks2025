@@ -43,6 +43,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum04LocalReduction(ocl::getSum04LocalReduction());
 
     unsigned int n = 100 * 1000 * 1000;
+    // unsigned int n = 10;
     rassert(n % LOAD_K_VALUES_PER_ITEM == 0, 4356345432524); // for simplicity
     std::vector<unsigned int> values(n, 0);
     size_t cpu_sum = 0;
@@ -59,7 +60,16 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(values.data(), n);
+    {
+        std::vector<double> times;
+        for (int iter = 0; iter < 10; iter++) {
+            timer t;
+            input_gpu.writeN(values.data(), n);
+            times.push_back(t.elapsed());
+        }
+        double memory_size_gb = sizeof(unsigned int) * n / 1024.0 / 1024.0 / 1024.0;
+        std::cout << "median bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
+    }
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
@@ -104,12 +114,11 @@ void run(int argc, char** argv)
                         ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, sum_accum_gpu, n);
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
-                        for (unsigned int current_n = n, step = 0; current_n > 1; n = div_ceil(current_n, (uint)GROUP_SIZE), step++) {
+                        for (unsigned int current_n = n, step = 0; current_n > 1; current_n = div_ceil(current_n, (uint)GROUP_SIZE), step++) {
                             if (step == 0) {
                                 ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, reduction_buffer1_gpu, n);
                                 if (current_n <= GROUP_SIZE)
                                     reduction_buffer1_gpu.readN(&gpu_sum, 1);
-
                             } else if (step % 2 == 1) {
                                 ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, current_n), reduction_buffer1_gpu, reduction_buffer2_gpu, current_n);
                                 if (current_n <= GROUP_SIZE)
