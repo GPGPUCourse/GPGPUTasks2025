@@ -152,11 +152,11 @@ void run(int argc, char** argv)
         // Если вам нужно занулять буферы в процессе вычислений - создайте кернел который это сделает
         output_vector_values_gpu.fill(0);
 
-        models::CSRMatrix matrix(
-            std::move(csr_values_gpu),
-            std::move(csr_columns_gpu),
-            std::move(csr_row_offsets_gpu)
-        );
+        // models::CSRMatrix matrix(
+        //     std::move(csr_values_gpu),
+        //     std::move(csr_columns_gpu),
+        //     std::move(csr_row_offsets_gpu)
+        // );
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
@@ -165,7 +165,7 @@ void run(int argc, char** argv)
 
             rassert(context.type() == gpu::Context::TypeCUDA, 4531412341);
             gpu::WorkSize workSize(GROUP_SIZE, nrows);
-            cuda::sparse_csr_matrix_vector_multiplication(workSize, matrix, vector_values_gpu, output_vector_values_gpu);
+            cuda::sparse_csr_matrix_vector_multiplication(workSize, csr_values_gpu, csr_columns_gpu, csr_row_offsets_gpu, vector_values_gpu, output_vector_values_gpu);
 
             times.push_back(t.elapsed());
         }
