@@ -8,14 +8,32 @@
 #include "../defines.h"
 
 __global__ void radix_sort_01_local_counting(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     const unsigned int* buffer1,
           unsigned int* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    unsigned int n,
+    unsigned int bit)
 {
-    // TODO
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    __shared__ unsigned int group_counts[RADIX];
+
+    if (threadIdx.x < RADIX) {
+        group_counts[threadIdx.x] = 0;
+    }
+
+    __syncthreads();
+
+    if (index < n) {
+        const unsigned int value = buffer1[index];
+        const unsigned int digit = (value >> (RADIX_BITS * bit)) & RADIX_MASK;
+        atomicAdd(&group_counts[digit], 1);
+    }
+
+    __syncthreads();
+
+    if (threadIdx.x < RADIX) {
+        unsigned int pos = threadIdx.x * (n + GROUP_SIZE - 1) / GROUP_SIZE + blockIdx.x;
+        buffer2[pos] = group_counts[threadIdx.x];
+    }
 }
 
 namespace cuda {
