@@ -8,15 +8,33 @@
 #include "../defines.h"
 
 __global__ void radix_sort_04_scatter(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    const unsigned int* buffer1,
-    const unsigned int* buffer2,
-          unsigned int* buffer3,
-    unsigned int a1,
-    unsigned int a2)
+    const unsigned int* values,
+    const unsigned int* prefixes_scan_accum,
+          unsigned int* scatter,
+    unsigned int n,
+    unsigned int offset)
 {
-    // TODO
+    unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    __shared__ unsigned int digits[GROUP_SIZE];
+    if (idx < n) {
+        digits[threadIdx.x] = (values[idx] >> (RADIX_BITS * offset)) & RADIX_MASK;
+    }
+    __syncthreads();
+
+    unsigned int local_offset = 0;
+
+    for (unsigned int i = 0; i < threadIdx.x; i++) {
+        if (digits[threadIdx.x] == digits[i]) {
+            local_offset++;
+        }
+    }
+    
+    if (idx < n) {
+        unsigned int pref_pos = (n + GROUP_SIZE - 1) / GROUP_SIZE * digits[threadIdx.x] + blockIdx.x;
+        unsigned int global_offset = pref_pos > 0 ? prefixes_scan_accum[pref_pos - 1] : 0;
+        scatter[global_offset + local_offset] = values[idx];
+    }
 }
 
 namespace cuda {

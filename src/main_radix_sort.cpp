@@ -28,7 +28,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -85,25 +85,26 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
+    const unsigned int hist_size = ((n + GROUP_SIZE - 1) / GROUP_SIZE) * RADIX;
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u buffer_local_hist_gpu(hist_size), buffer1_pow2_sum_gpu(hist_size), buffer2_pow2_sum_gpu(hist_size), prefix_sum_accum_gpu(hist_size); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u input_buffer_gpu(n), buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    buffer_local_hist_gpu.fill(228);
+    buffer1_pow2_sum_gpu.fill(229);
+    buffer2_pow2_sum_gpu.fill(230);
+    prefix_sum_accum_gpu.fill(231);
+    buffer_output_gpu.fill(232);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
@@ -117,13 +118,37 @@ void run(int argc, char** argv)
             // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
             // ocl_radixSort04Scatter.exec();
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
+            const unsigned int n_bits = sizeof(unsigned int) * 8;
+            const unsigned int n_groups = n_bits / RADIX_BITS;
+
+            input_gpu.copyToN(input_buffer_gpu, n);
+
+            gpu::gpu_mem_32u& in_buf = input_buffer_gpu;
+            gpu::gpu_mem_32u& out_buf = buffer_output_gpu;
+
+            for (unsigned int bit = 0; bit < n_groups; bit++) {
+                cuda::fill_buffer_with_zeros(gpu::WorkSize(GROUP_SIZE, hist_size), buffer_local_hist_gpu, hist_size);
+                cuda::radix_sort_01_local_counting(gpu::WorkSize(GROUP_SIZE, n), in_buf, buffer_local_hist_gpu, n, bit);
+
+                gpu::gpu_mem_32u& buf1 = buffer1_pow2_sum_gpu;
+                gpu::gpu_mem_32u& buf2 = buffer2_pow2_sum_gpu;
+
+                buffer_local_hist_gpu.copyToN(prefix_sum_accum_gpu, hist_size);
+                buffer_local_hist_gpu.copyToN(buf1, hist_size);
+
+                cuda::radix_sort_03_global_prefixes_scan_accumulation(gpu::WorkSize(GROUP_SIZE, hist_size), buf1, prefix_sum_accum_gpu, hist_size, 0);
+                
+                for (unsigned int pow2 = 0; hist_size >> pow2 != 1; pow2++) {
+                    cuda::radix_sort_02_global_prefixes_scan_sum_reduction(gpu::WorkSize(GROUP_SIZE, (hist_size >> (pow2 + 1))), buf1, buf2, hist_size >> pow2);
+                    std::swap(buf1, buf2);
+                    cuda::radix_sort_03_global_prefixes_scan_accumulation(gpu::WorkSize(GROUP_SIZE, hist_size), buf1, prefix_sum_accum_gpu, hist_size, pow2 + 1);
+                }
+
+                cuda::radix_sort_04_scatter(gpu::WorkSize(GROUP_SIZE, n), in_buf, prefix_sum_accum_gpu, out_buf, n, bit);
+                std::swap(in_buf, out_buf);
+            }
+
+            in_buf.copyToN(buffer_output_gpu, n);
         } else if (context.type() == gpu::Context::TypeVulkan) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
