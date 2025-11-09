@@ -19,5 +19,33 @@ void main()
 	const uint i = gl_GlobalInvocationID.x;
 	const uint j = gl_GlobalInvocationID.y;
 
-    // TODO
+    const float threshold = 256.0f;
+    const float threshold2 = threshold * threshold;
+
+    if (i >= params.width || j >= params.height)
+        return;
+
+    float x0 = params.fromX + (i + 0.5f) * params.sizeX / params.width;
+    float y0 = params.fromY + (j + 0.5f) * params.sizeY / params.height;
+
+    float x = x0;
+    float y = y0;
+
+    int iter = 0;
+    for (; iter < params.iters; ++iter) {
+        float xPrev = x;
+        x = x * x - y * y + x0;
+        y = 2.0f * xPrev * y + y0;
+        if ((x * x + y * y) > threshold2) {
+            break;
+        }
+    }
+
+    float result = iter;
+    if (params.isSmoothing != 0 && iter != params.iters) {
+        result = result - log(log(sqrt(x * x + y * y)) / log(threshold)) / log(2.0f);
+    }
+
+    result = 1.0f * result / params.iters;
+    results[j * params.width + i] = result;
 }
