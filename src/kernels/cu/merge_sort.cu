@@ -14,7 +14,44 @@ __global__ void merge_sort(
                    int  n)
 {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    // TODO
+    
+    unsigned int sorted_group_num = i / sorted_k;
+    unsigned int sorted_group_index = i % sorted_k;
+    unsigned int is_left_group = sorted_group_num % 2 == 0;
+
+    if (i < n) {
+        if (is_left_group) {
+            unsigned int mirror_group_num = sorted_group_num + 1;
+
+            unsigned int left_bound = sorted_k * mirror_group_num;
+            unsigned int right_bound = min(sorted_k * (mirror_group_num + 1), n);
+
+            while (left_bound < right_bound) {
+                unsigned int mid = (left_bound + right_bound) / 2;
+                if (input_data[mid] < input_data[i]) {
+                    left_bound = mid + 1;
+                } else {
+                    right_bound = mid;
+                }
+            }
+            output_data[left_bound - sorted_k + sorted_group_index] = input_data[i];
+        } else {
+            unsigned int mirror_group_num = sorted_group_num - 1;
+
+            unsigned int left_bound = sorted_k * mirror_group_num;
+            unsigned int right_bound = min(sorted_k * (mirror_group_num + 1), n);
+
+            while (left_bound < right_bound) {
+                unsigned int mid = (left_bound + right_bound) / 2;
+                if (input_data[mid] <= input_data[i]) {
+                    left_bound = mid + 1;
+                } else {
+                    right_bound = mid;
+                }
+            }
+            output_data[right_bound + sorted_group_index] = input_data[i];
+        }
+    }
 }
 
 namespace cuda {
