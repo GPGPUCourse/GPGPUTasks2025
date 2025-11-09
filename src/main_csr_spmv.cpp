@@ -164,7 +164,7 @@ void run(int argc, char** argv)
             t.restart();
 
             rassert(context.type() == gpu::Context::TypeCUDA, 4531412341);
-            gpu::WorkSize workSize(GROUP_SIZE, nrows * 32);
+            gpu::WorkSize workSize(GROUP_SIZE, nrows);
             cuda::sparse_csr_matrix_vector_multiplication(workSize, matrix, vector_values_gpu, output_vector_values_gpu);
 
             times.push_back(t.elapsed());
