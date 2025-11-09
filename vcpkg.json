@@ -1,0 +1,8 @@
+{
+  "name": "gpgputasks",
+  "version-string": "1.0",
+  "builtin-baseline": "ce18e7ab7d2c440946e935f7b23222aa81f1be9b",
+  "dependencies": [
+    "gtest"
+  ]
+}
