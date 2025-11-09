@@ -31,7 +31,7 @@ __global__ void radix_sort_04_scatter(
     }
     
     if (idx < n) {
-        unsigned int pref_pos = digits[threadIdx.x] * (n + GROUP_SIZE - 1) / GROUP_SIZE + blockIdx.x;
+        unsigned int pref_pos = (n + GROUP_SIZE - 1) / GROUP_SIZE * digits[threadIdx.x] + blockIdx.x;
         unsigned int global_offset = pref_pos > 0 ? prefixes_scan_accum[pref_pos - 1] : 0;
         scatter[global_offset + local_offset] = values[idx];
     }

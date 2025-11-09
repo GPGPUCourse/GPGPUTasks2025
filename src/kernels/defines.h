@@ -5,7 +5,7 @@
 #define GROUP_SIZE_X 16
 #define GROUP_SIZE_Y 16
 
-#define RADIX_BITS 1
+#define RADIX_BITS 4
 #define RADIX (1u << RADIX_BITS)
 #define RADIX_MASK (RADIX - 1)
 

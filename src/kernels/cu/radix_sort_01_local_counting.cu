@@ -31,7 +31,7 @@ __global__ void radix_sort_01_local_counting(
     __syncthreads();
 
     if (threadIdx.x < RADIX) {
-        unsigned int pos = threadIdx.x * (n + GROUP_SIZE - 1) / GROUP_SIZE + blockIdx.x;
+        unsigned int pos = (n + GROUP_SIZE - 1) / GROUP_SIZE * threadIdx.x + blockIdx.x;
         buffer2[pos] = group_counts[threadIdx.x];
     }
 }

@@ -12,7 +12,7 @@ __global__ void radix_sort_03_global_prefixes_scan_accumulation(
           unsigned int* prefix_sum_accum,
     unsigned int n,
     unsigned int pow2)
-{   
+{
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int check_bit = 1u << pow2;
     if (idx < n && idx & check_bit) {
