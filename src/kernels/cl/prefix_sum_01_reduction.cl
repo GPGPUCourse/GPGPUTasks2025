@@ -1,5 +1,5 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
@@ -7,11 +7,15 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void prefix_sum_01_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* pow2_sum, // contains n values
-    __global       uint* next_pow2_sum, // will contain (n+1)/2 values
+    __global const uint* pow2_sum,
+    __global  uint* next_pow2_sum,
     unsigned int n)
 {
-    // TODO
+    uint out_n = (n + 1u) / 2u;
+    for (uint i = 0; i < out_n; i++)
+    {
+        uint a = pow2_sum[2u*i];
+        uint b = (2u*i + 1u < n) ? pow2_sum[2u*i + 1u] : 0u;
+        next_pow2_sum[i] = a + b;
+    }
 }
