@@ -157,15 +157,14 @@ void run(int argc, char** argv)
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
-        unsigned int row_cnt = csr_row_offsets.size();
-        unsigned int column_cnt = csr_columns.size();
+        unsigned int row_cnt = csr_row_offsets.size() - 1;
         for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             gpu::WorkSize workSize(GROUP_SIZE, vector_values_gpu.size());
-            ocl_spvm.exec(workSize, csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, row_cnt, column_cnt);
+            ocl_spvm.exec(workSize, csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, row_cnt);
 
             times.push_back(t.elapsed());
         }
