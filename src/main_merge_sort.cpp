@@ -11,6 +11,22 @@
 
 #include <fstream>
 
+
+void print_vec(const std::string& str, const std::vector<unsigned int>& v) {
+    std::cout << str << "[";
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::cout << std::setw(3);
+        std::cout << std::to_string(v[i]);
+        std::cout << " ";
+    }
+    std::cout << "]";
+    std::cout << std::endl;
+}
+
+void print_vec(const std::vector<unsigned int>& v) {
+    print_vec("", v);
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -90,25 +106,33 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
+    buffer1_gpu.writeN(as.data(), n);
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
+        buffer1_gpu.writeN(as.data(), n);
+        // buffer2_gpu.fill(255);
+        // std::cout << "====================" << std::endl;
+
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        int k = 1;
+        auto* a = &buffer1_gpu;
+        auto* b = &buffer2_gpu;
+        while (k < n) {
+            // print_vec("in:  ", a->readVector());
+            // std::cout << "k=" << k << std::endl;
+            ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), *a, *b, k, n);
+            std::swap(a, b);
+            k *= 2;
+            // print_vec("out: ", a->readVector());
         }
+
+        buffer_output_gpu.writeN(a->readVector().data(), n);
+        // print_vec("res: ", buffer_output_gpu.readVector());
 
         times.push_back(t.elapsed());
     }
