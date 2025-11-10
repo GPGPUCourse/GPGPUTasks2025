@@ -6,9 +6,9 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void aplusb(__global const uint* a,
-                     __global const uint* b,
-                     __global       uint* c,
+__kernel void aplusb(__global const unsigned int* a,
+                     __global const unsigned int* b,
+                     __global       unsigned int* c,
                             unsigned int  n)
 {
     const unsigned int index = get_global_id(0);
