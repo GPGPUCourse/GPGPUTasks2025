@@ -15,7 +15,7 @@
 void print_vec(const std::string& str, const std::vector<unsigned int>& v) {
     std::cout << str << "[";
     for (size_t i = 0; i < v.size(); ++i) {
-        std::cout << std::setw(3);
+        // std::cout << std::setw(3);
         std::cout << std::to_string(v[i]);
         std::cout << " ";
     }
