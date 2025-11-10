@@ -171,7 +171,7 @@ void run(int argc, char** argv)
                     csr_values_gpu,
                     vector_values_gpu,
                     output_vector_values_gpu,
-                    ncols, nrows, csr_values.size());
+                    ncols, nrows, static_cast<uint>(csr_values.size()));
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
