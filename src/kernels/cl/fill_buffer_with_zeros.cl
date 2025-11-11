@@ -10,7 +10,7 @@ __kernel void fill_buffer_with_zeros(
     __global uint* buffer,
     unsigned int n)
 {
-    const unsigned int i = get_global_id(0);
-    if (i < n)
-        buffer[i] = 0;
+    const uint idx = get_global_id(0);
+    if (idx < n)
+        buffer[idx] = 0;
 }
