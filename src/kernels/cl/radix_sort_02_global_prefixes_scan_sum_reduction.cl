@@ -5,13 +5,21 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
     __global const uint* buffer1,
     __global       uint* buffer2,
-    unsigned int a1)
+    unsigned int n)
 {
-    // TODO
+    const uint idx = get_global_id(0);
+    if (2 * idx >= n) return;
+    
+    uint res = buffer1[2 * idx];
+
+    if (2 * idx + 1 < n)
+        res += buffer1[2 * idx + 1];
+
+    buffer2[idx] = res;
 }
