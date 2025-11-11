@@ -89,7 +89,7 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_mandelbrot(ocl::getMandelbrot());
 
-    avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
+    // avk2::KernelSource vk_mandelbrot(avk2::getMandelbrot());
 
     // Аллоцируем буфер в VRAM
     gpu::gpu_mem_32f gpu_results(width * height);
@@ -121,8 +121,18 @@ void run(int argc, char** argv)
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
-                    // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    gpu::WorkSize workSize(16, 16, width, height);
+
+                    ocl_mandelbrot.exec(
+                        workSize, 
+                        gpu_results,
+                        width,
+                        height,
+                        centralX - sizeX / 2.0f,
+                        centralY - sizeY / 2.0f,
+                        sizeX, sizeY, iterationsLimit, isSmoothing
+                    );
+                    // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
