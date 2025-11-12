@@ -163,7 +163,7 @@ void run(int argc, char** argv)
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
-                ocl_spvm.exec(gpu::WorkSize(GROUP_SIZE, nrows * GROUP_SIZE), csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows, ncols);
+                ocl_spvm.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, GROUP_SIZE_X, nrows), csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows, ncols);
             } else {
                 rassert(false, 4531412341, context.type());
             }
