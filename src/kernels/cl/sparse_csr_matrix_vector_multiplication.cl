@@ -15,22 +15,23 @@ __kernel void sparse_csr_matrix_vector_multiplication(
     const uint nrows,
     const uint ncols
 ) {
-    uint index = get_global_id(0);
-    if (index >= nrows) {
-        return;
-    }
+    __local uint local_sums[GROUP_SIZE];
+    uint index = get_group_id(0);
+    uint local_index = get_local_id(0);
     uint row_start = csr_row_offsets[index];
-    uint row_end;
-    if (index + 1 < nrows) {
-        row_end = csr_row_offsets[index + 1];
-    } else {
-        row_end = csr_row_offsets[nrows];
-    }
-    uint sum = 0;
-    for (uint j = row_start; j < row_end; j++) {
+    uint row_end = csr_row_offsets[index + 1];
+    local_sums[local_index] = 0;
+    for (uint j = row_start + local_index; j < row_end; j += GROUP_SIZE) {
         uint col = csr_columns[j];
         uint val = csr_values[j];
-        sum += val * vector_values[col];
+        local_sums[local_index] += val * vector_values[col];
     }
-    output_vector_values[index] = sum;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (local_index == 0) {
+        uint sum = 0;
+        for (uint i = 0; i < GROUP_SIZE; i++) {
+            sum += local_sums[i];
+        }
+        output_vector_values[index] = sum;
+    }
 }
