@@ -5,8 +5,27 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void sparse_csr_matrix_vector_multiplication() // TODO input/output buffers
+__kernel __attribute__((reqd_work_group_size(GROUP_SIZE_X, 1, 1)))
+void sparse_csr_matrix_vector_multiplication(
+    __global const uint* row_offsets,
+    __global const uint* columns,
+    __global const uint* values,
+    __global const uint* x,
+    __global uint* y,
+    const uint nrows)
 {
-    // TODO
+    const uint index = get_global_id(0);
+
+    if (index >= nrows) {
+        return;
+    }
+
+    const uint start = row_offsets[index];
+    const uint end = row_offsets[index + 1];
+
+    uint sum = 0;
+    for (uint j = start; j < end; ++j) {
+        sum += values[j] * x[columns[j]];
+    }
+    y[index] = sum;
 }
