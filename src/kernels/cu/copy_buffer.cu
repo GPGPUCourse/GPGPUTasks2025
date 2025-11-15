@@ -1,28 +1,22 @@
-#include <libgpu/context.h>
-#include <libgpu/work_size.h>
-#include <libgpu/shared_device_buffer.h>
-
-#include <libgpu/cuda/cu/common.cu>
-
-#include "helpers/rassert.cu"
-#include "../defines.h"
-
-__global__ void fill_buffer_with_zeros(
+#include "libgpu/context.h"
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
+#include "libgpu/cuda/utils.h"
+__global__ void copy_buffer(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    unsigned int *buffer,
-    unsigned int n) {
-    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    buffer[idx] = 0;
+    const unsigned int *from,
+    unsigned int *to) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    to[index] = from[index];
 }
 
 namespace cuda {
-    void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
-                                gpu::gpu_mem_32u &buffer, unsigned int n) {
+    void copy_buffer(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &from, gpu::gpu_mem_32u &to) {
         gpu::Context context;
         rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
         cudaStream_t stream = context.cudaStream();
-        ::fill_buffer_with_zeros<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(buffer.cuptr(), n);
+        ::copy_buffer<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(from.cuptr(), to.cuptr());
         CUDA_CHECK_KERNEL(stream);
     }
-} // namespace cuda
+}

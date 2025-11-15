@@ -99,7 +99,9 @@ if (GPU_CUDA_SUPPORT)
             src/kernels/cu/aplusb.cu
             src/kernels/cu/fill_buffer_with_zeros.cu
             src/kernels/cu/prefix_sum_01_reduction.cu
-            src/kernels/cu/prefix_sum_02_prefix_accumulation.cu)
+            src/kernels/cu/prefix_sum_02_prefix_accumulation.cu
+            src/kernels/cu/copy_buffer.cu
+    )
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})
