@@ -1,13 +1,14 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
@@ -27,7 +28,7 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
     std::vector<unsigned int> csr_columns(number_of_non_zero_values, 0);
     std::vector<unsigned int> csr_values(number_of_non_zero_values, 0);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int row = 0; row < nrows; ++row) {
         FastRandom r(239 * row);
         unsigned int non_zero_row_values = csr_row_offsets[row + 1] - csr_row_offsets[row];
@@ -40,11 +41,11 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
         }
     }
 
-    return {csr_row_offsets, csr_columns, csr_values};
+    return { csr_row_offsets, csr_columns, csr_values };
 }
 
 std::vector<unsigned int> generate_vector(
-    unsigned int n, unsigned int max_value=10000)
+    unsigned int n, unsigned int max_value = 10000)
 {
     FastRandom r(2391);
 
@@ -57,13 +58,13 @@ std::vector<unsigned int> generate_vector(
 }
 
 std::vector<unsigned int> sparse_csr_matrix_vector_multiplication(
-    const std::vector<unsigned int> &csr_row_offsets, const std::vector<unsigned int> &csr_columns, const std::vector<unsigned int> &csr_values,
-    const std::vector<unsigned int> &vector_values,
+    const std::vector<unsigned int>& csr_row_offsets, const std::vector<unsigned int>& csr_columns, const std::vector<unsigned int>& csr_values,
+    const std::vector<unsigned int>& vector_values,
     unsigned int nrows, unsigned int ncols)
 {
     std::vector<unsigned int> result_vector_values(nrows, 0);
 
-    #pragma omp parallel for schedule(dynamic, 128)
+#pragma omp parallel for schedule(dynamic, 128)
     for (int row = 0; row < nrows; ++row) {
         size_t accumulator = 0;
         unsigned int row_from = csr_row_offsets[row];
@@ -107,19 +108,19 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    const unsigned int nrows = 1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    const unsigned int ncols = 1000*1000;
+    const unsigned int nrows = 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    const unsigned int ncols = 1000 * 1000;
     const unsigned int max_value = 1000;
     std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " << max_value << "]" << std::endl;
 
     std::vector<std::pair<unsigned int, unsigned int>> evaluated_min_max_nnz_per_row = {
-        {32, 32},
-        {128, 128},
-        {1, 32},
-        {1, 128},
-        {32, 128},
+        { 32, 32 },
+        { 128, 128 },
+        { 1, 32 },
+        { 1, 128 },
+        { 32, 128 },
     };
-    for (auto [min_nnz_per_row, max_nnz_per_col]: evaluated_min_max_nnz_per_row) {
+    for (auto [min_nnz_per_row, max_nnz_per_col] : evaluated_min_max_nnz_per_row) {
         std::cout << "____________________________________________________________________________________________" << std::endl;
         const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(nrows, ncols, min_nnz_per_row, max_nnz_per_col, max_value);
         const std::vector<unsigned int> vector_values = generate_vector(ncols, max_value);
@@ -164,7 +165,14 @@ void run(int argc, char** argv)
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
                 // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                ocl_spvm.exec(
+                    gpu::WorkSize(GROUP_SIZE, GROUP_SIZE * nrows),
+                    csr_row_offsets_gpu,
+                    csr_columns_gpu,
+                    csr_values_gpu,
+                    vector_values_gpu,
+                    output_vector_values_gpu,
+                    nrows);
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -204,7 +212,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
