@@ -251,17 +251,85 @@ float random01(inout uint s)
 bool bvh_closest_hit(vec3 orig,
                      vec3 dir,
                      float tMin,
-                     out float outT, // сюда нужно записать t рассчитанный в intersect_ray_triangle(..., t, u, v)
+                     out float outT,
                      out int outFaceId,
-                     out float outU, // сюда нужно записать u рассчитанный в intersect_ray_triangle(..., t, u, v)
-                     out float outV) // сюда нужно записать v рассчитанный в intersect_ray_triangle(..., t, u, v)
+                     out float outU,
+                     out float outV)
 {
     int rootIndex = 0;
-    int leafStart = int(params.nfaces) - 1;
+    int leafStart = int(params.nfaces) - 1; // leaves: [leafStart .. leafStart + nfaces - 1]
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackSize = 0;
+    stack[stackSize++] = rootIndex;
 
-    return false; // no intersections found
+    float tBest = FLT_MAX_GLSL;
+    int   faceBest = -1;
+    float uBest = 0.0;
+    float vBest = 0.0;
+
+    float tNear, tFar;
+
+    while (stackSize > 0)
+    {
+        int nodeIndex = stack[--stackSize];
+        BVHNodeGPU node = bvhNodes[nodeIndex];
+
+        // AABB culling with current best t
+        if (!intersect_ray_aabb(orig, dir, node.aabb,
+                                tMin, tBest,
+                                tNear, tFar))
+        {
+            continue;
+        }
+
+        bool isLeaf = (nodeIndex >= leafStart);
+        if (isLeaf)
+        {
+            uint leafIdx  = uint(nodeIndex - leafStart);
+            uint triIndex = leafTriIndices[leafIdx];
+
+            uvec3 f = loadFace(triIndex);
+            vec3 v0 = loadVertex(f.x);
+            vec3 v1 = loadVertex(f.y);
+            vec3 v2 = loadVertex(f.z);
+
+            float t, u, v;
+            // backface culling: false (same as original kernel)
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2,
+                                       tMin, tBest,
+                                       false,
+                                       t, u, v))
+            {
+                if (t < tBest)
+                {
+                    tBest    = t;
+                    faceBest = int(triIndex);
+                    uBest    = u;
+                    vBest    = v;
+                }
+            }
+        }
+        else
+        {
+            // Internal node: push children (no near/far sorting)
+            if (stackSize < 62)
+            {
+                stack[stackSize++] = int(node.leftChildIndex);
+                stack[stackSize++] = int(node.rightChildIndex);
+            }
+        }
+    }
+
+    if (faceBest >= 0)
+    {
+        outT      = tBest;
+        outFaceId = faceBest;
+        outU      = uBest;
+        outV      = vBest;
+        return true;
+    }
+    return false;
 }
 
 // BVH traversal: any hit (for AO rays)
@@ -273,9 +341,60 @@ bool any_hit_from(vec3 orig,
     int rootIndex = 0;
     int leafStart = int(params.nfaces) - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackSize = 0;
+    stack[stackSize++] = rootIndex;
 
-    return false; // no intersections found
+    float tMin = 1e-4;
+    float tMax = FLT_MAX_GLSL;
+    float tNear, tFar;
+
+    while (stackSize > 0)
+    {
+        int nodeIndex = stack[--stackSize];
+        BVHNodeGPU node = bvhNodes[nodeIndex];
+
+        if (!intersect_ray_aabb(orig, dir, node.aabb,
+                                tMin, tMax,
+                                tNear, tFar))
+        {
+            continue;
+        }
+
+        bool isLeaf = (nodeIndex >= leafStart);
+        if (isLeaf)
+        {
+            uint leafIdx  = uint(nodeIndex - leafStart);
+            uint triIndex = leafTriIndices[leafIdx];
+            if (int(triIndex) == ignore_face)
+                continue;
+
+            uvec3 f = loadFace(triIndex);
+            vec3 a = loadVertex(f.x);
+            vec3 b = loadVertex(f.y);
+            vec3 c = loadVertex(f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir,
+                                       a, b, c,
+                                       tMin, tMax,
+                                       false,
+                                       t, u, v))
+            {
+                // early out on first occluder
+                return true;
+            }
+        }
+        else
+        {
+            if (stackSize < 62)
+            {
+                stack[stackSize++] = int(node.leftChildIndex);
+                stack[stackSize++] = int(node.rightChildIndex);
+            }
+        }
+    }
+    return false;
 }
 
 void make_basis(vec3 n, out vec3 t, out vec3 b)
