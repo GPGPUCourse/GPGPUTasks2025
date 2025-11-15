@@ -23,17 +23,73 @@ __device__ bool bvh_closest_hit(
     const float* vertices,
     const unsigned int* faces,
     float tMin,
-    float& outT, // сюда нужно записать t рассчитанный в intersect_ray_triangle(..., t, u, v)
+    float& outT,
     int& outFaceId,
-    float& outU, // сюда нужно записать u рассчитанный в intersect_ray_triangle(..., t, u, v)
-    float& outV) // сюда нужно записать v рассчитанный в intersect_ray_triangle(..., t, u, v)
+    float& outU,
+    float& outV)
 {
     const int rootIndex = 0;
-    const int leafStart = (int)nfaces - 1;
+    const int leafStart = (int)nfaces - 1; // leaves: [leafStart .. leafStart + nfaces - 1]
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    // Simple fixed-size stack (sufficient for typical BVHs)
+    int stack[64];
+    int stackSize = 0;
+    stack[stackSize++] = rootIndex;
 
-    return false; // no intersections found
+    float tBest = FLT_MAX;
+    int   faceBest = -1;
+    float uBest = 0.0f, vBest = 0.0f;
+
+    float tNear, tFar;
+
+    while (stackSize > 0) {
+        int nodeIndex = stack[--stackSize];
+        const BVHNodeGPU& node = nodes[nodeIndex];
+
+        // AABB culling with current best t
+        if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, tBest, tNear, tFar))
+            continue;
+
+        bool isLeaf = (nodeIndex >= leafStart);
+        if (isLeaf) {
+            unsigned int leafIdx  = (unsigned int)(nodeIndex - leafStart);
+            unsigned int triIndex = leafTriIndices[leafIdx];
+
+            uint3 f = loadFace(faces, triIndex);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t,u,v;
+            // backface culling: false (same as original kernel)
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2,
+                                       tMin, tBest, false, t,u,v))
+            {
+                if (t < tBest) {
+                    tBest = t;
+                    faceBest = (int)triIndex;
+                    uBest = u;
+                    vBest = v;
+                }
+            }
+        } else {
+            // Internal node: push children
+            // (no near/far sorting for simplicity)
+            if (stackSize < 62) { // avoid overflow
+                stack[stackSize++] = (int)node.leftChildIndex;
+                stack[stackSize++] = (int)node.rightChildIndex;
+            }
+        }
+    }
+
+    if (faceBest >= 0) {
+        outT       = tBest;
+        outFaceId  = faceBest;
+        outU       = uBest;
+        outV       = vBest;
+        return true;
+    }
+    return false;
 }
 
 // BVH traversal: any hit (for AO rays)
@@ -51,9 +107,47 @@ __device__ bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackSize = 0;
+    stack[stackSize++] = rootIndex;
 
-    return false; // no intersections found
+    const float tMin = 1e-4f;
+    const float tMax = FLT_MAX;
+    float tNear, tFar;
+
+    while (stackSize > 0) {
+        int nodeIndex = stack[--stackSize];
+        const BVHNodeGPU& node = nodes[nodeIndex];
+
+        if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, tMax, tNear, tFar))
+            continue;
+
+        bool isLeaf = (nodeIndex >= leafStart);
+        if (isLeaf) {
+            unsigned int leafIdx  = (unsigned int)(nodeIndex - leafStart);
+            unsigned int triIndex = leafTriIndices[leafIdx];
+            if ((int)triIndex == ignore_face)
+                continue;
+
+            uint3 f = loadFace(faces, triIndex);
+            float3 a = loadVertex(vertices, f.x);
+            float3 b = loadVertex(vertices, f.y);
+            float3 c = loadVertex(vertices, f.z);
+
+            float t,u,v;
+            if (intersect_ray_triangle(orig, dir, a, b, c,
+                                       tMin, tMax, false, t,u,v))
+            {
+                return true; // early out on first occluder
+            }
+        } else {
+            if (stackSize < 62) {
+                stack[stackSize++] = (int)node.leftChildIndex;
+                stack[stackSize++] = (int)node.rightChildIndex;
+            }
+        }
+    }
+    return false;
 }
 
 // + helper: build tangent basis for a given normal
