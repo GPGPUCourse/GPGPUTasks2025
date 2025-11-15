@@ -2,8 +2,8 @@
 #define my_defines_vk
 
 #define GROUP_SIZE   256
-#define GROUP_SIZE_X 16
-#define GROUP_SIZE_Y 16
+#define GROUP_SIZE_X 128
+#define GROUP_SIZE_Y 2
 
 #define SMALL_GROUP_SIZE 32
 
