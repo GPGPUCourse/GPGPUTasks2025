@@ -289,7 +289,7 @@ SceneGeometry loadPLY(const std::string &path)
 {
     using namespace ply_detail;
 
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(path);
     rassert(in.good(), 3100, path);
 
     // Header
