@@ -15,7 +15,13 @@ __global__ void radix_sort_01_local_counting(
     unsigned int a1,
     unsigned int a2)
 {
-    // TODO
+    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx >= a1) {
+        return;
+    }
+
+    buffer2[idx] = (buffer1[idx] >> a2) & 1;
 }
 
 namespace cuda {
