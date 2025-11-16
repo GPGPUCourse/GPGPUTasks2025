@@ -1,8 +1,8 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
@@ -50,7 +50,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -86,20 +86,29 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
+    const int group_cnt = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+    const unsigned int buckets_per_group = 1u << BITS_PER_PASS;
+    const unsigned int bucks_size = group_cnt * buckets_per_group;
+
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u group_counts(bucks_size),
+        global_counts_reduce_a(bucks_size),
+        global_counts_reduce_b(bucks_size),
+        global_counts_accum(bucks_size);
+    // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+    gpu::gpu_mem_32u buffer_output_gpu(n), buffer_out_2(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
+    group_counts.fill(255);
+    global_counts_reduce_a.fill(255);
+    global_counts_reduce_b.fill(255);
+    global_counts_accum.fill(255);
     buffer_output_gpu.fill(255);
+    buffer_out_2.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -109,13 +118,62 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            constexpr unsigned int n_bits = BITS_PER_PASS;
+            gpu::gpu_mem_32u* scatter_outputs[2] = { &buffer_out_2, &buffer_output_gpu };
+            gpu::gpu_mem_32u* scatter_src = &input_gpu;
+            int next_output_idx = 0;
+
+            for (int offset = 0; offset < 32; offset += n_bits) {
+                gpu::gpu_mem_32u* scatter_dst = scatter_outputs[next_output_idx];
+
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), *scatter_src, group_counts, offset, n);
+
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, bucks_size), global_counts_accum, bucks_size);
+
+                unsigned int current_group_cnt = group_cnt;
+                unsigned int pow2 = 0;
+
+                if (current_group_cnt > 0) {
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(
+                        gpu::WorkSize(16, bucks_size),
+                        group_counts,
+                        global_counts_accum,
+                        group_cnt,
+                        pow2);
+                    ++pow2;
+
+                    gpu::gpu_mem_32u* reduce_src = &group_counts;
+                    gpu::gpu_mem_32u* reduce_dst = &global_counts_reduce_a;
+
+                    while (current_group_cnt > 1) {
+                        const unsigned int next_rows = (current_group_cnt + 1) / 2;
+
+                        ocl_radixSort02GlobalPrefixesScanSumReduction.exec(
+                            gpu::WorkSize(16, static_cast<size_t>(next_rows) * buckets_per_group),
+                            *reduce_src,
+                            *reduce_dst,
+                            current_group_cnt);
+
+                        ocl_radixSort03GlobalPrefixesScanAccumulation.exec(
+                            gpu::WorkSize(16, bucks_size),
+                            *reduce_dst,
+                            global_counts_accum,
+                            group_cnt,
+                            pow2);
+
+                        current_group_cnt = next_rows;
+                        ++pow2;
+
+                        reduce_src = reduce_dst;
+                        reduce_dst = (reduce_dst == &global_counts_reduce_a) ? &global_counts_reduce_b : &global_counts_reduce_a;
+                    }
+                }
+
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), *scatter_src, global_counts_accum, *scatter_dst, offset, n);
+
+                scatter_src = scatter_dst;
+                next_output_idx ^= 1;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -168,7 +226,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
