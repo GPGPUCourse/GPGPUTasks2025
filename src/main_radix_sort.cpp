@@ -173,7 +173,6 @@ void run(int argc, char** argv)
         } else if (context.type() == gpu::Context::TypeVulkan) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
             // vk_radixSort01LocalCounting.exec();
             // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
             // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
