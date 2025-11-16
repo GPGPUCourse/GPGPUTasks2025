@@ -16,7 +16,15 @@ __global__ void radix_sort_03_global_prefixes_scan_accumulation(
     unsigned int a1,
     unsigned int a2)
 {
-    // TODO
+    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    const unsigned int boundary = idx / (1ull << a2);
+
+    if (idx >= a1 || boundary == 0 || !(idx & (1ull << a2))) {
+        return;
+    }
+
+    buffer2[idx] += buffer1[boundary - 1];
 }
 
 namespace cuda {
