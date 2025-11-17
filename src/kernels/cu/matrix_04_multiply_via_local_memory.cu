@@ -15,7 +15,41 @@ __global__ void matrix_multiply_via_local_memory(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+    static_assert(GROUP_SIZE_X==GROUP_SIZE_Y);
+
+    const uint index_x = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint index_y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (index_x >= w || index_y >= h)
+        return;
+
+    float result = 0;
+
+    constexpr uint GROUP_SIZE_K = GROUP_SIZE_Y;
+    __shared__ float local_data1[(GROUP_SIZE_K+1)*GROUP_SIZE_K];
+    __shared__ float local_data2[(GROUP_SIZE_K+1)*GROUP_SIZE_K];
+    const uint local_index_to = threadIdx.y * (GROUP_SIZE_K+1) + threadIdx.x;
+
+    for (uint i = 0; i < k; i += GROUP_SIZE_K) {
+        if (i + threadIdx.x < k)
+            local_data1[local_index_to] = a[index_y * k + (i + threadIdx.x)];
+        else
+            local_data1[local_index_to] = 0;
+        if (i + threadIdx.y < k)
+            local_data2[local_index_to] = b[(i + threadIdx.y) * w + index_x];
+        else
+            local_data2[local_index_to] = 0;
+
+        __syncthreads();
+
+        for (uint j = 0; j < GROUP_SIZE_K; j++) {
+            result += local_data1[threadIdx.y * (GROUP_SIZE_K+1) + j] * local_data2[j * (GROUP_SIZE_K+1) + threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    c[index_y * w + index_x] = result;
 }
 
 namespace cuda {
