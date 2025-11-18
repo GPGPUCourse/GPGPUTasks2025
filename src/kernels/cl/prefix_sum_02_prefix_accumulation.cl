@@ -13,12 +13,18 @@ prefix_sum_02_prefix_accumulation(
     unsigned int n,
     unsigned int pow2)
 {
-    int idx = get_global_id(0);
+    uint idx = get_global_id(0);
 
     if (idx >= n)
         return;
-    
-    if(idx & (1 << pow2)) {
-        prefix_sum_accum[idx] += pow2_sum[idx >> pow2];
+
+    // printf("\tKernel #%02d (value: %d): ", idx, ((idx + 1) >> pow2) - 1);
+
+    if ((idx + 1) & (1 << pow2)) {
+        // printf("passed");
+        prefix_sum_accum[idx] += pow2_sum[((idx + 1) >> pow2) - 1];
+    } else {
+        // printf("didn't pass");
     }
+    // printf("\n");
 }

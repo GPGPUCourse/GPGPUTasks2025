@@ -7,7 +7,7 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
-prefix_sum_01_sum_reduction(
+prefix_sum_01_reduction(
     __global const uint* pow2_sum, // contains n values
     __global uint* next_pow2_sum, // will contain ceil(n/2) values
     unsigned int n)
@@ -15,7 +15,11 @@ prefix_sum_01_sum_reduction(
     uint m = (n + 1) / 2;
     uint idx = get_global_id(0);
 
-    if(idx >= m) return;
+    if (idx >= m)
+        return;
 
-    next_pow2_sum[idx] = pow2_sum[2 * idx] + pow2_sum[2 * idx + 1];
+    if (2 * idx + 1 < n)
+        next_pow2_sum[idx] = pow2_sum[2 * idx] + pow2_sum[2 * idx + 1];
+    else
+        next_pow2_sum[idx] = pow2_sum[2 * idx];
 }
