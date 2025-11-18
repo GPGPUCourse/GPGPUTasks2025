@@ -5,3 +5,4 @@ build*
 cmake-build*
 .vs
 scripts/linux/googletest-release-1.10.0/*
+.vscode
