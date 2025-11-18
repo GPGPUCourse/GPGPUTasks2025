@@ -20,7 +20,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100 * 1000 * 1000;
+    unsigned int n = 100; // 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -40,18 +40,18 @@ void run(int argc, char** argv)
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, 0);
+        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, n, 0);
 
         for (uint k = 1, window_size = 2; window_size <= n; k++, window_size <<= 1) {
             if (k == 1) {
-                // ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), input_gpu, buffer1_pow2_sum_gpu, n);
-                // ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, k);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), input_gpu, buffer1_pow2_sum_gpu, n);
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, k);
             } else if (k % 2 == 0) {
-                // ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, div_ceil(n, window_size >> 1));
-                // ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, k);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, div_ceil(n, window_size >> 1));
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, k);
             } else {
-                // ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer2_pow2_sum_gpu, buffer1_pow2_sum_gpu, div_ceil(n, window_size >> 1));
-                // ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, k);
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, (n + 1) / 2), buffer2_pow2_sum_gpu, buffer1_pow2_sum_gpu, div_ceil(n, window_size >> 1));
+                ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, k);
             }
         }
 
