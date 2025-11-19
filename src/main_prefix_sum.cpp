@@ -58,31 +58,26 @@ void run(int argc, char** argv)
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
+    gpu::WorkSize ws(GROUP_SIZE, n);
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        ocl_fill_with_zeros.exec(
+            ws,
+            input_gpu,
+            prefix_sum_accum_gpu,
+            buffer1_pow2_sum_gpu,
+            buffer2_pow2_sum_gpu,
+            (cl_uint) n
+            );
+        ocl_prefix_accumulation.exec(ws, input_gpu, prefix_sum_accum_gpu, n, 0);
+
+        auto* buf1 = &buffer1_pow2_sum_gpu;
+        auto* buf2 = &buffer2_pow2_sum_gpu;
+        for (unsigned int deg = 0, l = n, nl = (l + 1) / 2; l > 1 && ++deg; l = nl, nl = (l + 1) / 2) {
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, nl), *buf1, *buf2, nl);
+            ocl_prefix_accumulation.exec(ws, *buf2, prefix_sum_accum_gpu, n, deg);
+            std::swap(buf1, buf2);
         }
 
         times.push_back(t.elapsed());
