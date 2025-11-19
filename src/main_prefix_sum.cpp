@@ -72,12 +72,14 @@ void run(int argc, char** argv)
             );
         ocl_prefix_accumulation.exec(ws, input_gpu, prefix_sum_accum_gpu, n, 0);
 
-        auto* buf1 = &buffer1_pow2_sum_gpu;
-        auto* buf2 = &buffer2_pow2_sum_gpu;
-        for (unsigned int deg = 0, l = n, nl = (l + 1) / 2; l > 1 && ++deg; l = nl, nl = (l + 1) / 2) {
-            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, nl), *buf1, *buf2, nl);
-            ocl_prefix_accumulation.exec(ws, *buf2, prefix_sum_accum_gpu, n, deg);
-            std::swap(buf1, buf2);
+        for (
+            unsigned int deg = 0, l = n, nl = (l + 1) / 2;
+            l > 1 && ++deg;
+            l = nl, nl = (l + 1) / 2
+            ) {
+            ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, nl), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, nl);
+            ocl_prefix_accumulation.exec(ws, buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, deg);
+            std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
         }
 
         times.push_back(t.elapsed());
