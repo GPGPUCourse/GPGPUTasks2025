@@ -77,6 +77,21 @@ void run(int argc, char** argv)
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
 
+    const int pci_iters = 5;
+    std::vector<double> pci_times;
+    const size_t bytes = sizeof(unsigned int) * (size_t)n;
+    for (int i = 0; i < pci_iters; i++) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        double elapsed = t.elapsed();
+        pci_times.push_back(elapsed);
+        double bw_gb_s = (double)bytes / (1024.0 * 1024.0 * 1024.0) / elapsed;
+        std::cout << "PCI-E upload iter " << (i + 1) << "/" << pci_iters << ": " << std::fixed << std::setprecision(6) << elapsed << " s, " << std::setprecision(3) << bw_gb_s << " GB/s" << std::endl;
+    }
+    double pci_median_time = stats::median(pci_times);
+    double pci_median_bw = (double)bytes / (1024.0 * 1024.0 * 1024.0) / pci_median_time;
+    std::cout << "PCI-E upload median time: " << std::fixed << std::setprecision(6) << pci_median_time << " s -> " << std::setprecision(3) << pci_median_bw << " GB/s (median of " << pci_iters << " runs)" << std::endl;
+
     std::vector<std::string> algorithm_names = {
         "CPU",
         "CPU with OpenMP",
@@ -114,10 +129,17 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
                         // TODO ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        ocl_sum03LocalMemoryAtomicPerWorkgroup.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, sum_accum_gpu, n);
+                        sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "04 local reduction") {
                         // TODO ocl_sum04LocalReduction.exec(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        ocl_sum04LocalReduction.exec(gpu::WorkSize(GROUP_SIZE, n / LOAD_K_VALUES_PER_ITEM), input_gpu, reduction_buffer1_gpu, n);
+                        std::vector<unsigned int> partials = reduction_buffer1_gpu.readVector();
+                        gpu_sum = 0;
+                        for (auto v : partials) gpu_sum += v;
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
