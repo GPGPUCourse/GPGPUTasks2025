@@ -10,12 +10,17 @@
 __global__ void radix_sort_01_local_counting(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
     // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    const unsigned int* buffer1,
-          unsigned int* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    const unsigned int* input,
+          unsigned int* buffer,
+    unsigned int n,
+    unsigned int k)
 {
-    // TODO
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (index >= n)
+        return;
+
+    buffer[index] = (input[index] & k) == 0;
 }
 
 namespace cuda {
