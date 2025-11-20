@@ -14,6 +14,7 @@
 #include "io/scene_reader.h"
 
 #include "cpu_helpers/build_bvh_cpu.h"
+#include "debug/debug_bvh.h"
 
 #include <filesystem>
 #include <fstream>
@@ -50,6 +51,26 @@ size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
         }
     }
     return count;
+}
+
+void dfs_epta(int u, std::vector<BVHNodeGPU> &nodes, int nfaces) {
+    if (u >= nfaces - 1) {
+        return;
+    }
+
+    BVHNodeGPU l = nodes[nodes[u].leftChildIndex];
+    BVHNodeGPU r = nodes[nodes[u].rightChildIndex];
+
+    dfs_epta(nodes[u].leftChildIndex, nodes, nfaces);
+    dfs_epta(nodes[u].rightChildIndex, nodes, nfaces);
+
+    nodes[u].aabb.min_x = std::min(l.aabb.min_x, r.aabb.min_x);
+    nodes[u].aabb.min_y = std::min(l.aabb.min_y, r.aabb.min_y);
+    nodes[u].aabb.min_z = std::min(l.aabb.min_z, r.aabb.min_z);
+
+    nodes[u].aabb.max_x = std::max(l.aabb.max_x, r.aabb.max_x);
+    nodes[u].aabb.max_y = std::max(l.aabb.max_y, r.aabb.max_y);
+    nodes[u].aabb.max_z = std::max(l.aabb.max_z, r.aabb.max_z);
 }
 
 void run(int argc, char** argv)
@@ -114,7 +135,7 @@ void run(int argc, char** argv)
         std::cout << "Loading scene " << scene_path << "..." << std::endl;
         timer loading_scene_t;
         SceneGeometry scene = loadScene(scene_path);
-        // scene.faces.resize(15);
+        // scene.faces.resize(100);
         // если на каком-то датасете падает - удобно взять подможество треугольников - например просто вызовите scene.faces.resize(10000);
         const unsigned int nvertices = scene.vertices.size();
         unsigned int nfaces = scene.faces.size();
@@ -366,11 +387,21 @@ void run(int argc, char** argv)
                     } 
                 }
 
-                ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, nfaces + nfaces - 1), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, buffer3, nfaces);                    
+                ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, nfaces), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, buffer3, nfaces);
+
+                std::vector<BVHNodeGPU> nodes(nfaces + nfaces - 1);
+                lbvh_nodes_gpu.readN(nodes.data(), nfaces + nfaces - 1);
+ 
+                dfs_epta(0, nodes, nfaces);
+
+                lbvh_nodes_gpu.writeN(nodes.data(), nfaces + nfaces - 1);
+    
+                for (auto a : debug::bvh_detail::compute_depths(nodes))
+                    if (a > 100)
+                        std::cout << "EBAT" << std::endl;
 
                 printf("build bvh ok!\n");
                 gpu_lbvh_times.push_back(t.elapsed());
-                // exit(0);
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
             double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);

@@ -41,14 +41,13 @@ __kernel void lbvh_aabb_generation(
     __global const float*      vertices,
     __global BVHNodeGPU*       nodes,
     __global int*              parent,
-    __global uint*             counter,
+    __global uint*             stack,
     __global uint*             terminated,
     uint                       nfaces
    )
 {
     int i = get_global_id(0);
     const int leafStart = (int)nfaces - 1; 
-
     // calc aabb
     if (i < nfaces) {
         int face_id = face_indexes[i];
@@ -56,61 +55,91 @@ __kernel void lbvh_aabb_generation(
             printf("EPTA1\n");
         process_tri(faces, vertices, face_id - leafStart, &nodes[i + leafStart]);
 
-        int node_id = parent[i + leafStart];
-        while (node_id != -1) {
-            
-            if (node_id < 0 || node_id >= nfaces + nfaces - 1) {
-                printf("EPTA2.5 %d\n", node_id);
-            }
+        // i += leafStart;
+        // printf("terminated %d, cnt : %d, node = %d, l = %d, r = %d, has aabb = (%f,%f,%f) -- (%f,%f,%f)\n",
+        // terminated[i], counter[i], i,
+        // nodes[i].leftChildIndex, nodes[i].rightChildIndex,
+        // nodes[i].aabb.min_x, nodes[i].aabb.min_y, nodes[i].aabb.min_z,
+        // nodes[i].aabb.max_x, nodes[i].aabb.max_y, nodes[i].aabb.max_z);
 
-            if (terminated[i] < 1) {
-                atomic_add(&counter[node_id], 1);
+        // int node_id = parent[i + leafStart];
+        // while (node_id != -1) {
+        //     barrier(CLK_GLOBAL_MEM_FENCE);
 
-                // printf("node_id = %d < nodes = %d\n", node_id, nfaces - 1);
+        //     if (node_id < 0 || node_id >= nfaces + nfaces - 1) {
+        //         printf("EPTA2.5 %d\n", node_id);
+        //     }
 
-                if (counter[node_id] == 1) {
-                    atomic_add(&terminated[i], 1);
-                }
+        //     if (terminated[i] < 1) {
+        //         atomic_add(&counter[node_id], 1);
 
-                if (terminated[i] < 1) {
-                    // printf("node = %d val = %d nfaces = %d\n", node_id, nodes[node_id].leftChildIndex, nfaces);
-                    // printf("node = %d val = %d\n", node_id, nodes[node_id].rightChildIndex);
+        //         // printf("node_id = %d < nodes = %d\n", node_id, nfaces - 1);
 
-                    BVHNodeGPU l = nodes[nodes[node_id].leftChildIndex];
-                    BVHNodeGPU r = nodes[nodes[node_id].rightChildIndex];
+        //         if (counter[node_id] == 1) {
+        //             atomic_add(&terminated[i], 1);
+        //         }
+
+        //         rassert(counter[node_id] <= 2, 953835335);
+
+        //         if (terminated[i] < 1) {
+        //             // printf("node = %d val = %d nfaces = %d\n", node_id, nodes[node_id].leftChildIndex, nfaces);
+        //             // printf("node = %d val = %d\n", node_id, nodes[node_id].rightChildIndex);
+
+        //             BVHNodeGPU l = nodes[nodes[node_id].leftChildIndex];
+        //             BVHNodeGPU r = nodes[nodes[node_id].rightChildIndex];
                     
-                    if (counter[node_id] > 1) {
-                        nodes[node_id].aabb.min_x = min(l.aabb.min_x, r.aabb.min_x);
-                        nodes[node_id].aabb.min_y = min(l.aabb.min_y, r.aabb.min_y);
-                        nodes[node_id].aabb.min_z = min(l.aabb.min_z, r.aabb.min_z);
+        //             if (counter[node_id] > 1) {
+        //                 nodes[node_id].aabb.min_x = min(l.aabb.min_x, r.aabb.min_x);
+        //                 nodes[node_id].aabb.min_y = min(l.aabb.min_y, r.aabb.min_y);
+        //                 nodes[node_id].aabb.min_z = min(l.aabb.min_z, r.aabb.min_z);
 
-                        nodes[node_id].aabb.max_x = max(l.aabb.max_x, r.aabb.max_x);
-                        nodes[node_id].aabb.max_y = max(l.aabb.max_y, r.aabb.max_y);
-                        nodes[node_id].aabb.max_z = max(l.aabb.max_z, r.aabb.max_z);
-                    }
-                }
-            }
+        //                 nodes[node_id].aabb.max_x = max(l.aabb.max_x, r.aabb.max_x);
+        //                 nodes[node_id].aabb.max_y = max(l.aabb.max_y, r.aabb.max_y);
+        //                 nodes[node_id].aabb.max_z = max(l.aabb.max_z, r.aabb.max_z);
+        //             }
+        //         }
+        //     }
 
-            barrier(CLK_GLOBAL_MEM_FENCE);
+        //     barrier(CLK_GLOBAL_MEM_FENCE);
             
-            node_id = parent[node_id];
-        }
+        //     node_id = parent[node_id];
+        // }
     }
 
-    if (i == 0)
-        printf("aabb build done\n");
+    barrier(CLK_GLOBAL_MEM_FENCE);
+
+    // if (i == 0) { 
+    //     for (int k = leafStart - 1; k >= 0; k--) {
+    //         BVHNodeGPU l = nodes[nodes[k].leftChildIndex];
+    //         BVHNodeGPU r = nodes[nodes[k].rightChildIndex];
+
+    //         nodes[k].aabb.min_x = min(l.aabb.min_x, r.aabb.min_x);
+    //         nodes[k].aabb.min_y = min(l.aabb.min_y, r.aabb.min_y);
+    //         nodes[k].aabb.min_z = min(l.aabb.min_z, r.aabb.min_z);
+
+    //         nodes[k].aabb.max_x = max(l.aabb.max_x, r.aabb.max_x);
+    //         nodes[k].aabb.max_y = max(l.aabb.max_y, r.aabb.max_y);
+    //         nodes[k].aabb.max_z = max(l.aabb.max_z, r.aabb.max_z);
+    //     }
+    // }     
+
+    // barrier(CLK_GLOBAL_MEM_FENCE);
+
+    // if (i == 0)
+    //     printf("aabb build done\n");
 
     if (i < nfaces) {
         rassert(face_indexes >= leafStart, 90890356);
         face_indexes[i] -= leafStart;
     }
 
-    if (i < leafStart) { 
-        printf("cnt : %d, node = %d, l = %d, r = %d, has aabb = (%f,%f,%f) -- (%f,%f,%f)\n", counter[i], i,
-        nodes[i].leftChildIndex, nodes[i].rightChildIndex,
-        nodes[i].aabb.min_x, nodes[i].aabb.min_y, nodes[i].aabb.min_z,
-        nodes[i].aabb.max_x, nodes[i].aabb.max_y, nodes[i].aabb.max_z);
-    }
+    // if (i < leafStart) {
+    //     printf("terminated %d, cnt : %d, node = %d, l = %d, r = %d, has aabb = (%f,%f,%f) -- (%f,%f,%f)\n",
+    //     terminated[i], counter[i], i,
+    //     nodes[i].leftChildIndex, nodes[i].rightChildIndex,
+    //     nodes[i].aabb.min_x, nodes[i].aabb.min_y, nodes[i].aabb.min_z,
+    //     nodes[i].aabb.max_x, nodes[i].aabb.max_y, nodes[i].aabb.max_z);
+    // }
 }
 
 
