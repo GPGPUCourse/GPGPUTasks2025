@@ -80,6 +80,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_merge_sort(ocl::getMergeSort());
     ocl::KernelSource ocl_morton_code(ocl::getMortonCode());
     ocl::KernelSource ocl_lbvh_construction(ocl::getLBVHConstruction());
+    ocl::KernelSource ocl_lbvh_aabb_generation(ocl::getAABBGen());
+    
     ocl::KernelSource ocl_zeros(ocl::getZeros());
     
 
@@ -340,7 +342,7 @@ void run(int argc, char** argv)
                 
                 
                 // nfaces = 12;
-                // codes = {2,2,2,2,2,2,2,2,2,2,2,2};
+                // codes = {1,2,3,4,5,6,7,8,9,10,11,12};
                 // indexes = {};
                 // for (int i = 0; i < nfaces; i++)
                 //     indexes.push_back(i + nfaces - 1);
@@ -349,7 +351,23 @@ void run(int argc, char** argv)
                 face_indexes.writeN(indexes.data(), nfaces);
 
                 ocl_lbvh_construction.exec(gpu::WorkSize(GROUP_SIZE, nfaces), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, buffer3, nfaces);
-                
+            
+                std::vector<uint> parents(nfaces + nfaces - 1);
+                buffer1.readN(parents.data(), nfaces + nfaces - 1);
+                for (int i = 0; i < nfaces + nfaces - 1; i++) {
+                    int id = i;
+                    while (id != -1) {
+                        if (id < 0 || id > nfaces + nfaces - 1) {
+                            std::cout << "node " << id << " parent = " << (int)parents[id] << std::endl;
+                            exit(0);
+                        }
+                        // std::cout << "node " << id << " parent = " << (int)parents[id] << std::endl;
+                        id = (int)parents[id];
+                    } 
+                }
+
+                ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, nfaces + nfaces - 1), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, buffer3, nfaces);                    
+
                 printf("build bvh ok!\n");
                 gpu_lbvh_times.push_back(t.elapsed());
                 // exit(0);

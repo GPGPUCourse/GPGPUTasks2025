@@ -68,6 +68,7 @@ set(OPENCL_SOURCES
         src/kernels/cl/merge_sort.cl
         src/kernels/cl/morton_code_generation.cl
         src/kernels/cl/lbvh_construction.cl
+        src/kernels/cl/lbvh_aabb_generation.cl
         src/kernels/cl/zeros.cl
         )
 

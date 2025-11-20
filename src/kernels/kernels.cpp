@@ -6,6 +6,8 @@
 #include "cl/generated_kernels/merge_sort.h"
 #include "cl/generated_kernels/morton_code_generation.h"
 #include "cl/generated_kernels/lbvh_construction.h"
+#include "cl/generated_kernels/lbvh_aabb_generation.h"
+
 #include "cl/generated_kernels/zeros.h"
 
 
@@ -74,6 +76,11 @@ const ProgramBinaries& getMortonCode()
 const ProgramBinaries& getLBVHConstruction()
 {
     return opencl_binaries_lbvh_construction;
+}
+
+const ProgramBinaries& getAABBGen()
+{
+    return opencl_binaries_lbvh_aabb_generation;
 }
 
 const ProgramBinaries& getZeros()
