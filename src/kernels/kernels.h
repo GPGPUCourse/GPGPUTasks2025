@@ -28,6 +28,11 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+const ProgramBinaries& getMergeSort();
+const ProgramBinaries& getMortonCode();
+const ProgramBinaries& getLBVHConstruction();
+const ProgramBinaries& getZeros();
+
 }
 
 namespace avk2 {

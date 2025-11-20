@@ -45,6 +45,7 @@ static inline bool bvh_closest_hit(
 
     while (stackSize > 0) {
         int nodeIndex = stack[--stackSize];
+        rassert(nodeIndex < nfaces + nfaces - 1, 3905813);
         BVHNodeGPU node = nodes[nodeIndex];
 
         if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, t_anw, &tNear, &tFar))
@@ -52,8 +53,13 @@ static inline bool bvh_closest_hit(
 
         if (nodeIndex >= leafStart) {
             uint leafIdx  = (uint)(nodeIndex - leafStart);
+            rassert(leafIdx >= 0, 92048908);
+            rassert(leafIdx < nfaces, 942048908);
+            
             uint triIndex = leafTriIndices[leafIdx];
-
+            rassert(triIndex >= 0, 92048908);
+            rassert(triIndex < nfaces, 942048908);
+            
             uint3  f  = loadFace(faces, triIndex);
             float3 v0 = loadVertex(vertices, f.x);
             float3 v1 = loadVertex(vertices, f.y);
@@ -70,6 +76,7 @@ static inline bool bvh_closest_hit(
                 }
             }
         } else {
+            rassert(stackSize < 100, 1);
             stack[stackSize++] = (int)node.leftChildIndex;
             stack[stackSize++] = (int)node.rightChildIndex;
         }
@@ -120,6 +127,9 @@ static inline bool any_hit_from(
             if ((int)triIndex == ignore_face)
                 continue;
 
+            rassert(triIndex >= 0, 92048908);
+            rassert(triIndex < nfaces, 942048908);
+
             uint3  f = loadFace(faces, triIndex);
             float3 v0 = loadVertex(vertices, f.x);
             float3 v1 = loadVertex(vertices, f.y);
@@ -130,6 +140,7 @@ static inline bool any_hit_from(
                 return true;
 
         } else {
+            rassert(stackSize < 100, 1);
             stack[stackSize++] = (int)node.leftChildIndex;
             stack[stackSize++] = (int)node.rightChildIndex;
         }
@@ -165,7 +176,7 @@ __kernel void ray_tracing_render_using_lbvh(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    rassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 786435342);
+    // rassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 786435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 

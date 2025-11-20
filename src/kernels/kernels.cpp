@@ -3,6 +3,11 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/morton_code_generation.h"
+#include "cl/generated_kernels/lbvh_construction.h"
+#include "cl/generated_kernels/zeros.h"
+
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -55,6 +60,27 @@ const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getMergeSort()
+{
+    return opencl_binaries_merge_sort;
+}
+
+const ProgramBinaries& getMortonCode()
+{
+    return opencl_binaries_morton_code_generation;
+}
+
+const ProgramBinaries& getLBVHConstruction()
+{
+    return opencl_binaries_lbvh_construction;
+}
+
+const ProgramBinaries& getZeros()
+{
+    return opencl_binaries_zeros;
+}
+
 } // namespace ocl
 
 namespace avk2 {
