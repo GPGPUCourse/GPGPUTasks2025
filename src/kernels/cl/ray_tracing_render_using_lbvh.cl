@@ -54,10 +54,10 @@ static inline bool bvh_closest_hit(
 
         uint tri_i = leafTriIndices[i - leafStart];
 
-        uint3 f = loadFace(faces, tri_i);
-        float3 v0 = loadVertex(vertices, f.x);
-        float3 v1 = loadVertex(vertices, f.y);
-        float3 v2 = loadVertex(vertices, f.z);
+        uint3 face = loadFace(faces, tri_i);
+        float3 v0 = loadVertex(vertices, face.x);
+        float3 v1 = loadVertex(vertices, face.y);
+        float3 v2 = loadVertex(vertices, face.z);
 
         float t, u, v;
         if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, t_ans, false, &t, &u, &v) && t < t_ans) {
@@ -111,10 +111,10 @@ static inline bool any_hit_from(
             continue;
         }
 
-        uint3 f = loadFace(faces, tri_i);
-        float3 v0 = loadVertex(vertices, f.x);
-        float3 v1 = loadVertex(vertices, f.y);
-        float3 v2 = loadVertex(vertices, f.z);
+        uint3 face = loadFace(faces, tri_i);
+        float3 v0 = loadVertex(vertices, face.x);
+        float3 v1 = loadVertex(vertices, face.y);
+        float3 v2 = loadVertex(vertices, face.z);
 
         float t, u, v;
         if (intersect_ray_triangle_any(orig, dir, v0, v1, v2, false, &t, &u, &v)) {
