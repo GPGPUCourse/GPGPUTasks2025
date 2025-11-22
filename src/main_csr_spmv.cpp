@@ -103,6 +103,10 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_spvm(ocl::getSparseCSRMatrixVectorMult());
 
+    ocl::KernelSource ocl_offsets(ocl::getSparseCSRMatrixOffsets());
+
+    ocl::KernelSource ocl_decomp(ocl::getSparseCSRMatrixDecomp());
+
     avk2::KernelSource vk_spvm(avk2::getSparseCSRMatrixVectorMult());
 
     FastRandom r;
@@ -110,6 +114,7 @@ void run(int argc, char** argv)
     const unsigned int nrows = 1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     const unsigned int ncols = 1000*1000;
     const unsigned int max_value = 1000;
+
     std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " << max_value << "]" << std::endl;
 
     std::vector<std::pair<unsigned int, unsigned int>> evaluated_min_max_nnz_per_row = {
@@ -153,18 +158,24 @@ void run(int argc, char** argv)
         // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
         // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
         // Если вам нужно занулять буферы в процессе вычислений - создайте кернел который это сделает
-        output_vector_values_gpu.fill(255);
+//        output_vector_values_gpu.fill(0);
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+            output_vector_values_gpu.fill(0);
             t.restart();
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                ocl_spvm.exec(gpu::WorkSize(GROUP_SIZE, nnz), nrows, ncols, csr_row_offsets_gpu,
+                    csr_columns_gpu,
+                    csr_values_gpu,
+                    vector_values_gpu,
+                    output_vector_values_gpu,
+                    nnz);
+
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);

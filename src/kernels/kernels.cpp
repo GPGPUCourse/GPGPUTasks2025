@@ -2,6 +2,8 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/sparse_csr_matrix_vector_multiplication.h"
+#include "cl/generated_kernels/sparse_csr_matrix_offsets.h"
+#include "cl/generated_kernels/sparse_csr_matrix_decomp.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/sparse_csr_matrix_vector_multiplication_comp.h"
@@ -31,6 +33,15 @@ const ocl::ProgramBinaries& getAplusB()
 const ProgramBinaries& getSparseCSRMatrixVectorMult()
 {
     return opencl_binaries_sparse_csr_matrix_vector_multiplication;
+}
+
+const ProgramBinaries& getSparseCSRMatrixOffsets()
+{
+    return opencl_binaries_sparse_csr_matrix_offsets;
+}
+const ProgramBinaries& getSparseCSRMatrixDecomp()
+{
+    return opencl_binaries_sparse_csr_matrix_decomp;
 }
 } // namespace ocl
 

@@ -59,7 +59,9 @@ set(LIBRARIES
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
-        src/kernels/cl/sparse_csr_matrix_vector_multiplication.cl)
+        src/kernels/cl/sparse_csr_matrix_vector_multiplication.cl
+        src/kernels/cl/sparse_csr_matrix_offsets.cl
+        src/kernels/cl/sparse_csr_matrix_decomp.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)

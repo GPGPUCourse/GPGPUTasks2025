@@ -11,6 +11,10 @@ namespace ocl {
 const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getSparseCSRMatrixVectorMult();
+
+const ProgramBinaries& getSparseCSRMatrixOffsets();
+
+const ProgramBinaries& getSparseCSRMatrixDecomp();
 }
 
 namespace avk2 {
