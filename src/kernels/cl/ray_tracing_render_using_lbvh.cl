@@ -13,27 +13,74 @@
 #include "geometry_helpers.cl"
 #include "random_helpers.cl"
 
+#define MAX_STACK_SIZE 20
+
 // BVH traversal: closest hit along ray
 static inline bool bvh_closest_hit(
     const float3              orig,
     const float3              dir,
-    __global const BVHNodeGPU* nodes,
-    __global const uint*      leafTriIndices,
-    uint                      nfaces,
-    __global const float*     vertices,
-    __global const uint*      faces,
+    __global const BVHNodeGPU* nodes, // узлы BVH - 0 = корень
+    __global const uint*      leafTriIndices, // index треугольника в листе BVH
+    uint                      nfaces, // кол-во треугольников
+    __global const float*     vertices, // вершины - Vn.x, Vn.y, Vn.z, V(n+1).x, ...
+    __global const uint*      faces, // треугольники - Tn.VIndex1, Tn.VIndex2, Tn.VIndex3, T(n+1).VIndex1, ...
     float                     tMin,
     __private float*          outT, // сюда нужно записать t рассчитанный в intersect_ray_triangle(..., t, u, v)
     __private int*            outFaceId,
     __private float*          outU, // сюда нужно записать u рассчитанный в intersect_ray_triangle(..., t, u, v)
     __private float*          outV) // сюда нужно записать v рассчитанный в intersect_ray_triangle(..., t, u, v)
 {
-    const int rootIndex = 0;
-    const int leafStart = (int)nfaces - 1;
+    const uint leafStart = nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    uint stack[MAX_STACK_SIZE];
+    uint stack_size = 0;
+    stack[stack_size++] = 0; // добавим root в стек
 
-    return false;
+    do {
+        const uint node_index = stack[--stack_size]; // достаём узел со стека
+
+        if (node_index >= leafStart) { // текущий узел - лист
+            const uint triIndex = leafTriIndices[node_index - leafStart];
+
+            const uint3  face = loadFace(faces, triIndex);
+            const float3 v0 = loadVertex(vertices, face.x);
+            const float3 v1 = loadVertex(vertices, face.y);
+            const float3 v2 = loadVertex(vertices, face.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(
+                orig, dir,
+                v0, v1, v2,
+                tMin, *outT, false,
+                &t, &u, &v))
+            {
+                *outT = t;
+                *outFaceId = triIndex;
+                *outU = u;
+                *outV = v;
+            }
+        } else {
+            __global const BVHNodeGPU* node = &nodes[node_index];
+
+            float tHitNear[3], tHitFar[3]; // unused
+            if (intersect_ray_aabb(
+                orig, dir,
+                node->aabb,
+                tMin, FLT_MAX,
+                tHitNear, tHitFar))
+            {
+                if (node->leftChildIndex != UINT_MAX) {
+                    stack[stack_size++] = node->leftChildIndex;
+                }
+                if (node->rightChildIndex != UINT_MAX) {
+                    stack[stack_size++] = node->rightChildIndex;
+                }
+            }
+        }
+
+    } while (stack_size > 0);
+
+    return *outFaceId != -1;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -47,10 +94,52 @@ static inline bool any_hit_from(
     uint                      nfaces,
     int                       ignore_face)
 {
-    const int rootIndex = 0;
-    const int leafStart = (int)nfaces - 1;
+    const uint leafStart = nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    uint stack[MAX_STACK_SIZE];
+    uint stack_size = 0;
+    stack[stack_size++] = 0; // добавим root в стек
+
+    do {
+        const uint node_index = stack[--stack_size]; // достаём узел со стека
+
+        if (node_index >= leafStart) { // текущий узел - лист
+            const uint triIndex = leafTriIndices[node_index - leafStart];
+
+            const uint3  face = loadFace(faces, triIndex);
+            const float3 v0 = loadVertex(vertices, face.x);
+            const float3 v1 = loadVertex(vertices, face.y);
+            const float3 v2 = loadVertex(vertices, face.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(
+                orig, dir,
+                v0, v1, v2,
+                1e-4f, FLT_MAX, false,
+                &t, &u, &v))
+            {
+                return true;
+            }
+        } else {
+            __global const BVHNodeGPU* node = &nodes[node_index];
+
+            float tHitNear[3], tHitFar[3]; // unused
+            if (intersect_ray_aabb(
+                orig, dir,
+                node->aabb,
+                1e-4f, FLT_MAX,
+                tHitNear, tHitFar))
+            {
+                if (node->leftChildIndex != UINT_MAX) {
+                    stack[stack_size++] = node->leftChildIndex;
+                }
+                if (node->rightChildIndex != UINT_MAX) {
+                    stack[stack_size++] = node->rightChildIndex;
+                }
+            }
+        }
+
+    } while (stack_size > 0);
 
     return false;
 }

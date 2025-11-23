@@ -1,7 +1,10 @@
 **/*_cl.h
 **/generated_kernels/*
 .idea
-build*
+
+строка ниже стоила мне всей домашки - мой основной файл build_lbvh.cl не добавился в коммит и я его стёр локально :(
+./build*
+
 data**
 results**
 cmake-build*
