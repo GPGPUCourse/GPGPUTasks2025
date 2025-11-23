@@ -3,11 +3,6 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
-#include "cl/generated_kernels/small_merge_sort.h"
-#include "cl/generated_kernels/merge_sort.h"
-#include "cl/generated_kernels/pre_build_lbvh.h"
-#include "cl/generated_kernels/build_lbvh.h"
-#include "cl/generated_kernels/post_build_lbvh.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -59,31 +54,6 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
-}
-
-const ProgramBinaries& getSmallMergeSort()
-{
-    return opencl_binaries_small_merge_sort;
-}
-
-const ProgramBinaries& getMergeSort()
-{
-    return opencl_binaries_merge_sort;
-}
-
-const ProgramBinaries& getPreBuildLBVH()
-{
-    return opencl_binaries_pre_build_lbvh;
-}
-
-const ProgramBinaries& getBuildLBVH()
-{
-    return opencl_binaries_build_lbvh;
-}
-
-const ProgramBinaries& getPostBuildLBVH()
-{
-    return opencl_binaries_post_build_lbvh;
 }
 } // namespace ocl
 

@@ -77,11 +77,11 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
-    ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
-    ocl::KernelSource ocl_smallMergeSort(ocl::getSmallMergeSort());
-    ocl::KernelSource ocl_preBuildLBVH(ocl::getPreBuildLBVH());
-    ocl::KernelSource ocl_buildLBVH(ocl::getBuildLBVH());
-    ocl::KernelSource ocl_postBuildLBVH(ocl::getPostBuildLBVH());
+    ocl::KernelSource ocl_mergeSort(ocl::getRTWithLBVH(), "merge_sort");
+    ocl::KernelSource ocl_smallMergeSort(ocl::getRTWithLBVH(), "small_merge_sort");
+    ocl::KernelSource ocl_preBuildLBVH(ocl::getRTWithLBVH(), "pre_build_lbvh");
+    ocl::KernelSource ocl_buildLBVH(ocl::getRTWithLBVH(), "build_lbvh");
+    ocl::KernelSource ocl_postBuildLBVH(ocl::getRTWithLBVH(), "post_build_lbvh");
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
