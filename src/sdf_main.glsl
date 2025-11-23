@@ -172,45 +172,50 @@ SDFResult ground(vec3 pos) {
 
 SDFResult alien(vec3 pos) {
     vec3 origPos = pos;
+    vec3 alienPos = vec3(0.0, fract(iTime * 0.1) * PERIOD * 2.0, 0.0);
+    pos -= alienPos;
     pos.xy = mod(pos.xy + PERIOD, vec2(2.0 * PERIOD)) - PERIOD;
+    float bounce1 = max(sin(iTime * 3.1415), 0.0);
+    float bounce2 = max(sin((iTime + 1.0) * 3.1415), 0.0);
+    vec3 bodyOffset = vec3(0.0, 0.0, (bounce1 + bounce2) * 0.1);
+    vec3 bodyPos = pos - bodyOffset;
     float bottom = sdf(
             Sphere(
                 vec3(0.0, 0.0, 1.5),
                 1.0
             ),
-            pos
+            bodyPos
         );
     float top = sdf(
             Sphere(
                 vec3(0.0, 0.0, 2.5),
                 0.5
             ),
-            pos
+            bodyPos
         );
     float torso = smoothMin(bottom, top, 0.25);
-
     float limbs = min(
             min(
                 sdf(Capsule(
                         vec3(0.8, 0.0, 2.0),
                         vec3(1.1 + sin(iTime * 10.0) * 0.1, 0.0, 2.8),
                         0.15
-                    ), pos),
+                    ), pos - bodyOffset),
                 sdf(Capsule(
                         vec3(-0.8, 0.0, 2.0),
                         vec3(-1.2, 0.0, 1.2),
                         0.15
-                    ), pos)
+                    ), bodyPos)
             ),
             min(
                 sdf(Capsule(
-                        vec3(0.3, 0.0, 0.6),
-                        vec3(0.3, 0.0, 0.2),
+                        vec3(0.3, 0.0, 0.6) + bodyOffset,
+                        vec3(0.3, 0.5 - abs(2.0 * fract(iTime * 0.5) - 1.0), 0.2 + 0.1 * bounce1),
                         0.2
                     ), pos),
                 sdf(Capsule(
-                        vec3(-0.3, 0.0, 0.6),
-                        vec3(-0.3, 0.0, 0.2),
+                        vec3(-0.3, 0.0, 0.6) + bodyOffset,
+                        vec3(-0.3, 0.5 - abs(2.0 * fract((iTime + 1.0) * 0.5) - 1.0), 0.2 + 0.1 * bounce2),
                         0.2
                     ), pos)
             )
@@ -220,9 +225,9 @@ SDFResult alien(vec3 pos) {
                 0.3,
                 1.0,
                 0.2
-            ), vec3(pos.x, 2.6 - pos.z, pos.y - 0.9));
+            ), vec3(bodyPos.x, 2.6 - bodyPos.z, bodyPos.y - 0.9));
 
-    float tex = fbm(pos);
+    float tex = fbm(bodyPos);
     SDFResult body = SDFResult(
             smoothMin(-smoothMin(-torso, mouth, 0.01), limbs, 0.02),
             Material(
@@ -235,12 +240,12 @@ SDFResult alien(vec3 pos) {
     SDFResult teeth = SDFResult(
             min(
                 min(
-                    sdf(Sphere(vec3(0.2, 0.7, 1.4), 0.15), pos),
-                    sdf(Sphere(vec3(-0.2, 0.7, 1.4), 0.15), pos)
+                    sdf(Sphere(vec3(0.2, 0.7, 1.4), 0.15), bodyPos),
+                    sdf(Sphere(vec3(-0.2, 0.7, 1.4), 0.15), bodyPos)
                 ),
                 min(
-                    sdf(Sphere(vec3(0.2, 0.7, 1.85), 0.15), pos),
-                    sdf(Sphere(vec3(-0.2, 0.7, 1.85), 0.15), pos)
+                    sdf(Sphere(vec3(0.2, 0.7, 1.85), 0.15), bodyPos),
+                    sdf(Sphere(vec3(-0.2, 0.7, 1.85), 0.15), bodyPos)
                 )
             ),
             Material(
@@ -251,8 +256,8 @@ SDFResult alien(vec3 pos) {
         );
 
     vec3 eyePos = vec3(0.0, 0.5, 2.5);
-    vec3 eyeLook = normalize(CAMERA_POS - eyePos + (pos - origPos));
-    vec3 eyeDir = normalize(pos - eyePos);
+    vec3 eyeLook = normalize(CAMERA_POS - eyePos + (bodyPos - origPos));
+    vec3 eyeDir = normalize(bodyPos - eyePos);
     vec3 eyeCol = clamp(
             vec3(0.0, 0.0, 1.0) * step(dot(eyeDir, eyeLook), 0.95) +
                 vec3(1.0) * step(dot(eyeDir, eyeLook), 0.8),
@@ -265,7 +270,7 @@ SDFResult alien(vec3 pos) {
                     eyePos,
                     0.5
                 ),
-                pos
+                bodyPos
             ),
             Material(
                 eyeCol,
