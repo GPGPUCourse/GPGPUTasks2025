@@ -16,8 +16,8 @@ __kernel void sparse_csr_matrix_vector_multiplication(
     uint col_size
 )
 {
-    uint j = get_local_id(0);
-    uint i = get_group_id(0);
+    uint i = get_global_id(1);
+    uint j = get_global_id(0);
 
     uint nz_count = offsets[i + 1] - offsets[i];
     uint read_from = offsets[i] + j;
