@@ -28,6 +28,15 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+const ProgramBinaries& getLBVHInitPrimsFindMinMax();
+const ProgramBinaries& getLBVHReduceMinMax();
+const ProgramBinaries& getLBVHMorton();
+const ProgramBinaries& getMergeSort();
+const ProgramBinaries& getMergeSortBig();
+const ProgramBinaries& getMergeSortSmall();
+const ProgramBinaries& getLBVHBuildLeaves();
+const ProgramBinaries& getLBVHBuildInternals();
+const ProgramBinaries& getLBVHBuildInternalsAABB();
 }
 
 namespace avk2 {

@@ -63,6 +63,15 @@ set(LIBRARIES
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
+        src/kernels/cl/lbvh_init_prims_find_min_max.cl
+        src/kernels/cl/lbvh_morton.cl
+        src/kernels/cl/merge_sort.cl
+        src/kernels/cl/merge_sort_big.cl
+        src/kernels/cl/merge_sort_small.cl
+        src/kernels/cl/lbvh_reduce_min_max.cl
+        src/kernels/cl/lbvh_build_leaves.cl
+        src/kernels/cl/lbvh_build_internals.cl
+        src/kernels/cl/lbvh_build_internals_aabb.cl
         src/kernels/cl/ray_tracing_render_brute_force.cl
         src/kernels/cl/ray_tracing_render_using_lbvh.cl)
 
