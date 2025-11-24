@@ -17,4 +17,5 @@ __kernel void fill_buffer_with_zeros(
     if (gid < n) { // пока не вышли за пределы буфера
         buffer[gid] = 0;
     }
+
 }

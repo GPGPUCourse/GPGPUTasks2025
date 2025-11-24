@@ -13,6 +13,7 @@ __kernel void prefix_sum_01_reduction(
     __global       uint* next_pow2_sum, // will contain (n+1)/2 values
     unsigned int n)
 {
+
     // TODO
     unsigned int gid = get_global_id(0); // индекс потока
     unsigned int index = gid * 2;   // каждый поток отвечает за пару элементов 2*gid и 2*gid + 1

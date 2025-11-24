@@ -14,6 +14,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int n,
     unsigned int pow2)
 {
+
     // TODO
     const unsigned int index = get_global_id(0);
     const unsigned int step = 1u << pow2; // step = 2^pow2
