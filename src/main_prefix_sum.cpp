@@ -65,24 +65,43 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             // ocl_fill_with_zeros.exec();
             // ocl_sum_reduction.exec();
             // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+
+            // идея решения - в 01_reduction я параллельно уменьшаю размер массива вдвое сохраняя суммы пар в новый массив
+            // в 02_prefix_accumulation я нахожу какие элементы относятся ко второй половине каждого блока и добавляю им сумму блока слева
+            // так шаг за шагом я разгоняю эти блоковые суммы по всему массиву пока каждый элемент не получит свой префикс
+            // то есть тут я в цикле по stage каждый раз обновляю prefix_sum_accum через ocl_prefix_accumulation
+            // затем через ocl_sum_reduction строю новый более короткий массив блоковых сумм
+            // после этого меняю буферы местами обновляю active и перехожу к следующему шагу с большим размером блока пока active не станет равен 1 и не останется одна блоковая сумма
+
+            // записываю на гпу массивы которые буду использовать, чтобы каждый раз не читать с цпу
+            buffer1_pow2_sum_gpu.writeN(as.data(), n);
+            prefix_sum_accum_gpu.writeN(as.data(), n);
+            unsigned int active = n; // количество активных элементов на текущей стадии
+            unsigned int stage = 0; // номер стадии (начинается с 0)
+            while (active > 1) { // пока не останется один элемент
+                ocl_prefix_accumulation.exec( // вычисляем префиксные суммы для текущего количества активных элементов
+                    gpu::WorkSize(256, n),
+                    buffer1_pow2_sum_gpu,  // откуда читаем данные
+                    prefix_sum_accum_gpu, // куда пишем префиксные суммы
+                    n,
+                    stage
+                );
+                // вычисляем сумму пар элементов для следующей стадии редукции
+                const unsigned int reduced = (active >> 1) + (active & 1);
+                ocl_sum_reduction.exec(
+                    gpu::WorkSize(256, reduced),
+                    buffer1_pow2_sum_gpu,
+                    buffer2_pow2_sum_gpu,
+                    active
+                );
+                // меняем буферы местами для следующей итерации
+                buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+                active = reduced; // обновляем количество активных элементов
+                ++stage; // переходим к следующей стадии
+            }
         }
 
         times.push_back(t.elapsed());
