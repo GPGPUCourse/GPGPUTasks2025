@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(GPGPUTasks)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_CXX_STANDARD 17)
 
 # Если вы установили CUDA SDK - можете включить поддержку CUDA

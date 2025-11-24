@@ -40,6 +40,8 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
         }
     }
 
+    // csr_row_offsets.push_back(csr_columns.size());
+
     return {csr_row_offsets, csr_columns, csr_values};
 }
 
@@ -78,6 +80,13 @@ std::vector<unsigned int> sparse_csr_matrix_vector_multiplication(
     return result_vector_values;
 }
 
+void dump(int nrows, const std::vector<uint>& data) {
+    for(int i=0; i<nrows; ++i) {
+        std::cout << data[i] << " ";
+    }
+    std::cout << "\n";
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -107,9 +116,11 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    const unsigned int nrows = 1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    const unsigned int ncols = 1000*1000;
-    const unsigned int max_value = 1000;
+    // const unsigned int nrows = 1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // const unsigned int ncols = 1000*1000;
+    const unsigned int nrows = 10; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    const unsigned int ncols = 10;
+    const unsigned int max_value = 10;
     std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " << max_value << "]" << std::endl;
 
     std::vector<std::pair<unsigned int, unsigned int>> evaluated_min_max_nnz_per_row = {
@@ -153,30 +164,23 @@ void run(int argc, char** argv)
         // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
         // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
         // Если вам нужно занулять буферы в процессе вычислений - создайте кернел который это сделает
-        output_vector_values_gpu.fill(255);
+        output_vector_values_gpu.fill(0);
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
         for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
-            // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-            // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeCUDA) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeVulkan) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else {
-                rassert(false, 4531412341, context.type());
-            }
+            ocl_spvm.exec(gpu::WorkSize(GROUP_SIZE, nrows), csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows, csr_columns_gpu.size());
 
             times.push_back(t.elapsed());
         }
+
+        std::cerr << "expected: ";
+        dump(nrows, cpu_results);
+        std::cerr << "\ngot: ";
+        dump(nrows, output_vector_values_gpu.readVector());
+        std::cerr << "\n";
 
         std::cout << "GPU SpMV (sparse matrix-vector multiplication) times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
