@@ -7,6 +7,8 @@
 #include "cl/generated_kernels/morton_code_generation.h"
 #include "cl/generated_kernels/lbvh_construction.h"
 #include "cl/generated_kernels/lbvh_aabb_generation.h"
+#include "cl/generated_kernels/bigbox_calc.h"
+
 
 #include "cl/generated_kernels/zeros.h"
 
@@ -86,6 +88,11 @@ const ProgramBinaries& getAABBGen()
 const ProgramBinaries& getZeros()
 {
     return opencl_binaries_zeros;
+}
+
+const ProgramBinaries& getBigBoxCalc()
+{
+    return opencl_binaries_bigbox_calc;
 }
 
 } // namespace ocl

@@ -48,8 +48,6 @@ __kernel void lbvh_construction(
     __global const float*      vertices,
     __global BVHNodeGPU*       nodes,
     __global int*              parent,
-    __global uint*             counter,
-    __global uint*             terminated,
     uint                       nfaces
    )
 {

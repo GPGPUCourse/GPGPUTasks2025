@@ -33,7 +33,7 @@ const ProgramBinaries& getMortonCode();
 const ProgramBinaries& getLBVHConstruction();
 const ProgramBinaries& getAABBGen();
 const ProgramBinaries& getZeros();
-
+const ProgramBinaries& getBigBoxCalc();
 }
 
 namespace avk2 {

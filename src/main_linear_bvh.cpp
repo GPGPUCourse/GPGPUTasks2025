@@ -102,6 +102,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_morton_code(ocl::getMortonCode());
     ocl::KernelSource ocl_lbvh_construction(ocl::getLBVHConstruction());
     ocl::KernelSource ocl_lbvh_aabb_generation(ocl::getAABBGen());
+    ocl::KernelSource ocl_bigbox_calc(ocl::getBigBoxCalc());
     
     ocl::KernelSource ocl_zeros(ocl::getZeros());
     
@@ -135,7 +136,6 @@ void run(int argc, char** argv)
         std::cout << "Loading scene " << scene_path << "..." << std::endl;
         timer loading_scene_t;
         SceneGeometry scene = loadScene(scene_path);
-        // scene.faces.resize(100);
         // если на каком-то датасете падает - удобно взять подможество треугольников - например просто вызовите scene.faces.resize(10000);
         const unsigned int nvertices = scene.vertices.size();
         unsigned int nfaces = scene.faces.size();
@@ -334,13 +334,15 @@ void run(int argc, char** argv)
         ocl_zeros.exec(gpu::WorkSize(GROUP_SIZE, nfaces + nfaces - 1), buffer2, nfaces + nfaces - 1);
         ocl_zeros.exec(gpu::WorkSize(GROUP_SIZE, nfaces + nfaces - 1), buffer3, nfaces + nfaces - 1);
 
+        gpu::shared_device_buffer_typed<AABBGPU> bigbox(1);
 
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                ocl_morton_code.exec(gpu::WorkSize(GROUP_SIZE, nfaces), nfaces, vertices_gpu, faces_gpu, morton_codes);
+                ocl_bigbox_calc.exec(gpu::WorkSize(GROUP_SIZE, 1), nfaces, vertices_gpu, faces_gpu, bigbox.clmem());
+                ocl_morton_code.exec(gpu::WorkSize(GROUP_SIZE, nfaces), nfaces, vertices_gpu, faces_gpu, morton_codes, bigbox.clmem());
                 
                 std::vector<MortonCode> codes(nfaces, 0);
                 std::vector<uint> indexes(nfaces, 0);
@@ -351,7 +353,6 @@ void run(int argc, char** argv)
                     zip[i].first = codes[i];
                     zip[i].second = i;
                 }
-                std::cout << std::endl;
                 
                 // EMY BOOGWE POХUЙ
                 std::sort(zip.begin(), zip.end());
@@ -359,8 +360,6 @@ void run(int argc, char** argv)
                     codes[i] = zip[i].first; 
                     indexes[i] = zip[i].second + nfaces - 1;
                 }
-                std::cout << std::endl;
-                
                 
                 // nfaces = 12;
                 // codes = {1,2,3,4,5,6,7,8,9,10,11,12};
@@ -371,34 +370,38 @@ void run(int argc, char** argv)
                 morton_codes.writeN(codes.data(), nfaces);
                 face_indexes.writeN(indexes.data(), nfaces);
 
-                ocl_lbvh_construction.exec(gpu::WorkSize(GROUP_SIZE, nfaces), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, buffer3, nfaces);
+                ocl_lbvh_construction.exec(gpu::WorkSize(GROUP_SIZE, nfaces), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, nfaces);
             
-                std::vector<uint> parents(nfaces + nfaces - 1);
-                buffer1.readN(parents.data(), nfaces + nfaces - 1);
-                for (int i = 0; i < nfaces + nfaces - 1; i++) {
-                    int id = i;
-                    while (id != -1) {
-                        if (id < 0 || id > nfaces + nfaces - 1) {
-                            std::cout << "node " << id << " parent = " << (int)parents[id] << std::endl;
-                            exit(0);
-                        }
-                        // std::cout << "node " << id << " parent = " << (int)parents[id] << std::endl;
-                        id = (int)parents[id];
-                    } 
-                }
+                // std::vector<uint> parents(nfaces + nfaces - 1);
+                // buffer1.readN(parents.data(), nfaces + nfaces - 1);
+                
 
-                ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, nfaces), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, buffer3, nfaces);
+                ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, 2*nfaces - 1), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, nfaces, 1);
+                for (int layer = 0; layer < 32; layer++) { 
+                    ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, 2*nfaces - 1), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, nfaces, 0);    
+                }
 
                 std::vector<BVHNodeGPU> nodes(nfaces + nfaces - 1);
                 lbvh_nodes_gpu.readN(nodes.data(), nfaces + nfaces - 1);
  
-                dfs_epta(0, nodes, nfaces);
+                // dfs_epta(0, nodes, nfaces);
 
-                lbvh_nodes_gpu.writeN(nodes.data(), nfaces + nfaces - 1);
-    
-                for (auto a : debug::bvh_detail::compute_depths(nodes))
-                    if (a > 100)
-                        std::cout << "EBAT" << std::endl;
+                // lbvh_nodes_gpu.writeN(nodes.data(), nfaces + nfaces - 1);
+
+                // for (int i = 0; i < nfaces - 1; i++) {
+                //     printf("node = %d, (%f %f %f) -- (%f %f %f),\n   node = %d l = (%f %f %f) -- (%f %f %f)\n   node = %d r = (%f %f %f) -- (%f %f %f)\n", 
+                //         i, nodes[i].aabb.min_x, nodes[i].aabb.min_y, nodes[i].aabb.min_z,
+                //            nodes[i].aabb.max_x, nodes[i].aabb.max_y, nodes[i].aabb.max_z,
+
+                //            nodes[i].leftChildIndex,
+                //            nodes[nodes[i].leftChildIndex].aabb.min_x, nodes[nodes[i].leftChildIndex].aabb.min_y, nodes[nodes[i].leftChildIndex].aabb.min_z,
+                //            nodes[nodes[i].leftChildIndex].aabb.max_x, nodes[nodes[i].leftChildIndex].aabb.max_y, nodes[nodes[i].leftChildIndex].aabb.max_z,
+                           
+                //            nodes[i].rightChildIndex,
+                //            nodes[nodes[i].rightChildIndex].aabb.min_x, nodes[nodes[i].rightChildIndex].aabb.min_y, nodes[nodes[i].rightChildIndex].aabb.min_z,
+                //            nodes[nodes[i].rightChildIndex].aabb.max_x, nodes[nodes[i].rightChildIndex].aabb.max_y, nodes[nodes[i].rightChildIndex].aabb.max_z
+                //         );
+                // }
 
                 printf("build bvh ok!\n");
                 gpu_lbvh_times.push_back(t.elapsed());

@@ -52,9 +52,12 @@ __kernel void morton_code_generation(
     uint                      nfaces,
     __global const float*     vertices,
     __global const uint*      faces,
-    __global uint*            morton_encoding)
+    __global uint*            morton_encoding,
+    __global AABBGPU*                  bigbox)
 {
     uint i = get_global_id(0);
+
+    
 
     if (i < nfaces) {
         uint3  f  = loadFace(faces, i);
@@ -66,7 +69,18 @@ __kernel void morton_code_generation(
         float y = (v0.y + v1.y + v2.y) / 3;
         float z = (v0.z + v1.z + v2.z) / 3;
         
-        MortonCode baricenter = morton3D(x, y, z);
+        float dx = bigbox[0].max_x - bigbox[0].min_x;
+        float dy = bigbox[0].max_y - bigbox[0].min_y;
+        float dz = bigbox[0].max_z - bigbox[0].min_z;
+        
+        MortonCode baricenter = morton3D((x - bigbox[0].min_x) / dx,
+                                         (y - bigbox[0].min_y) / dy,
+                                         (z - bigbox[0].min_z) / dz);
+
+        rassert((x - bigbox[0].min_x) > 0, 95694078589);
+        rassert((y - bigbox[0].min_y) > 0, 95694078589);
+        rassert((z - bigbox[0].min_z) > 0, 95694078589);
+
 
         morton_encoding[i] = baricenter;
     }
