@@ -224,7 +224,7 @@ void run(int argc, char** argv)
 
             size_t non_empty_brute_force_face_ids = countNonEmpty(brute_force_framebuffer_face_ids, NO_FACE_ID);
             size_t non_empty_brute_force_ambient_occlusion = countNonEmpty(brute_force_framebuffer_ambient_occlusion, NO_AMBIENT_OCCLUSION);
-            // rassert(non_empty_brute_force_face_ids > width * height / 10, 2345123412, non_empty_brute_force_face_ids);
+            rassert(non_empty_brute_force_face_ids > width * height / 10, 2345123412, non_empty_brute_force_face_ids);
             rassert(non_empty_brute_force_ambient_occlusion > width * height / 10, 3423413421, non_empty_brute_force_face_ids);
             timer images_saving_t;
             debug_io::dumpImage(results_dir + "/framebuffer_face_ids_brute_force.bmp", debug_io::randomMapping(brute_force_framebuffer_face_ids, NO_FACE_ID));
@@ -310,8 +310,8 @@ void run(int argc, char** argv)
             if (has_brute_force) {
                 unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, cpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
                 unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, cpu_lbvh_framebuffer_face_ids, 1);
-                // rassert(count_ao_errors < width * height / 100, 345341512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
-                // rassert(count_face_id_errors < width * height / 100, 3453415123546587, count_face_id_errors, to_percent(count_face_id_errors, width * height));
+                rassert(count_ao_errors < width * height / 100, 345341512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
+                rassert(count_face_id_errors < width * height / 100, 3453415123546587, count_face_id_errors, to_percent(count_face_id_errors, width * height));
             }
         }
 
@@ -361,48 +361,19 @@ void run(int argc, char** argv)
                     indexes[i] = zip[i].second + nfaces - 1;
                 }
                 
-                // nfaces = 12;
-                // codes = {1,2,3,4,5,6,7,8,9,10,11,12};
-                // indexes = {};
-                // for (int i = 0; i < nfaces; i++)
-                //     indexes.push_back(i + nfaces - 1);
-  
                 morton_codes.writeN(codes.data(), nfaces);
                 face_indexes.writeN(indexes.data(), nfaces);
 
                 ocl_lbvh_construction.exec(gpu::WorkSize(GROUP_SIZE, nfaces), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, nfaces);
-            
-                // std::vector<uint> parents(nfaces + nfaces - 1);
-                // buffer1.readN(parents.data(), nfaces + nfaces - 1);
-                
 
                 ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, 2*nfaces - 1), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, nfaces, 1);
                 for (int layer = 0; layer < 32; layer++) { 
                     ocl_lbvh_aabb_generation.exec(gpu::WorkSize(GROUP_SIZE, 2*nfaces - 1), morton_codes, face_indexes, faces_gpu, vertices_gpu, lbvh_nodes_gpu.clmem(), buffer1, buffer2, nfaces, 0);    
                 }
 
-                std::vector<BVHNodeGPU> nodes(nfaces + nfaces - 1);
-                lbvh_nodes_gpu.readN(nodes.data(), nfaces + nfaces - 1);
+                // std::vector<BVHNodeGPU> nodes(nfaces + nfaces - 1);
+                // lbvh_nodes_gpu.readN(nodes.data(), nfaces + nfaces - 1);
  
-                // dfs_epta(0, nodes, nfaces);
-
-                // lbvh_nodes_gpu.writeN(nodes.data(), nfaces + nfaces - 1);
-
-                // for (int i = 0; i < nfaces - 1; i++) {
-                //     printf("node = %d, (%f %f %f) -- (%f %f %f),\n   node = %d l = (%f %f %f) -- (%f %f %f)\n   node = %d r = (%f %f %f) -- (%f %f %f)\n", 
-                //         i, nodes[i].aabb.min_x, nodes[i].aabb.min_y, nodes[i].aabb.min_z,
-                //            nodes[i].aabb.max_x, nodes[i].aabb.max_y, nodes[i].aabb.max_z,
-
-                //            nodes[i].leftChildIndex,
-                //            nodes[nodes[i].leftChildIndex].aabb.min_x, nodes[nodes[i].leftChildIndex].aabb.min_y, nodes[nodes[i].leftChildIndex].aabb.min_z,
-                //            nodes[nodes[i].leftChildIndex].aabb.max_x, nodes[nodes[i].leftChildIndex].aabb.max_y, nodes[nodes[i].leftChildIndex].aabb.max_z,
-                           
-                //            nodes[i].rightChildIndex,
-                //            nodes[nodes[i].rightChildIndex].aabb.min_x, nodes[nodes[i].rightChildIndex].aabb.min_y, nodes[nodes[i].rightChildIndex].aabb.min_z,
-                //            nodes[nodes[i].rightChildIndex].aabb.max_x, nodes[nodes[i].rightChildIndex].aabb.max_y, nodes[nodes[i].rightChildIndex].aabb.max_z
-                //         );
-                // }
-
                 printf("build bvh ok!\n");
                 gpu_lbvh_times.push_back(t.elapsed());
             }
