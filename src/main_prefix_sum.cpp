@@ -54,11 +54,11 @@ void run(int argc, char** argv)
             // ocl_prefix_accumulation.exec();
             unsigned int k = 2;
             auto& buf_a = buffer1_pow2_sum_gpu;
-            ocl_sum_segments.exec(gpu::WorkSize(1, n), input_gpu, buf_a, k, n);
+            ocl_sum_segments.exec(gpu::WorkSize(256, n), input_gpu, buf_a, k, n);
             k *= 2;
             auto& buf_b = buffer2_pow2_sum_gpu;
             while (k < n) {
-                ocl_sum_segments.exec(gpu::WorkSize(1, n), buf_a, buf_b, k, n);
+                ocl_sum_segments.exec(gpu::WorkSize(256, n), buf_a, buf_b, k, n);
                 std::swap(buf_a, buf_b);
                 k *= 2;
             }
