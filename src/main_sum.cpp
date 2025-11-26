@@ -37,7 +37,7 @@ void run(int argc, char** argv)
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -72,10 +72,18 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u reduction_buffer2_gpu(div_ceil(n, (unsigned int)GROUP_SIZE));
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
-    input_gpu.writeN(values.data(), n);
     // TODO 1) замерьте здесь какая достигнута пропускная пособность PCI-E шины
     // TODO 2) сделайте замер хотя бы три раза
     // TODO 3) и выведите рассчет на основании медианного времени (в легко понятной форме - GB/s)
+    std::vector<double> times;
+    for (int i = 0; i < 3; ++i) {
+        timer t;
+        input_gpu.writeN(values.data(), n);
+        times.push_back(t.elapsed());
+    }
+
+    double pci_memory_transferred = sizeof(unsigned int) * n / 1024. / 1024. / 1024.;
+    std::cout << "PCE-E memory through put: " << pci_memory_transferred / stats::median(times) << " GB/s" << std::endl;
 
     std::vector<std::string> algorithm_names = {
         "CPU",
@@ -133,10 +141,33 @@ void run(int argc, char** argv)
                         sum_accum_gpu.readN(&gpu_sum, 1);
                     } else if (algorithm == "03 local memory and atomicAdd from master thread") {
                         // TODO cuda::sum_03_local_memory_atomic_per_workgroup(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        sum_accum_gpu.fill(0);
+                        cuda::sum_03_local_memory_atomic_per_workgroup(
+                            gpu::WorkSize(GROUP_SIZE, n),
+                            input_gpu,
+                            sum_accum_gpu,
+                            n
+                        );
+                        sum_accum_gpu.readN(&gpu_sum, 1);
+                        // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
                     } else if (algorithm == "04 local reduction") {
                         // TODO cuda::sum_04_local_reduction(...);
-                        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                        unsigned int sz = n;
+                        do {
+                            gpu::gpu_mem_32u& source = ((sz == n) ? input_gpu : reduction_buffer2_gpu);
+
+                            cuda::sum_04_local_reduction(
+                                gpu::WorkSize(GROUP_SIZE, sz),
+                                source,
+                                reduction_buffer1_gpu,
+                                sz
+                            );
+                            
+                            std::swap(reduction_buffer1_gpu, reduction_buffer2_gpu);
+                            sz = div_ceil(sz, (unsigned int)GROUP_SIZE);
+                        } while (sz > 1);
+                        
+                        reduction_buffer2_gpu.readN(&gpu_sum, 1);
                     } else {
                         rassert(false, 652345234321, algorithm, algorithm_index);
                     }
