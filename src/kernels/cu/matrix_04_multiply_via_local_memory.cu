@@ -15,7 +15,39 @@ __global__ void matrix_multiply_via_local_memory(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+    // GSX SHOULD BE EQUAL TO GSY
+    unsigned constexpr TILE = GROUP_SIZE_X;
+
+    __shared__ float lhs[TILE][TILE];
+    __shared__ float rhs[TILE][TILE];
+
+    float val = 0;
+
+    for (unsigned int iter = 0; iter < (k + TILE - 1) / TILE; ++iter) {
+        // Load tiles
+        unsigned int lhs_row = (TILE * blockIdx.y + threadIdx.y);
+        unsigned int lhs_col = iter * TILE + threadIdx.x;
+        // if lhs_row, col ...
+        lhs[threadIdx.y][threadIdx.x] = a[lhs_row * k + lhs_col];
+
+        unsigned int rhs_row = (TILE * iter + threadIdx.y);
+        unsigned int rhs_col = blockIdx.x * TILE + threadIdx.x;
+        // if rhs_row, col ...
+        rhs[threadIdx.y][threadIdx.x] = b[rhs_row * w + rhs_col];
+
+        __syncthreads();
+
+        // perform multiplication and accumulate the result
+        for (unsigned int k_tile = 0; k_tile < TILE; ++k_tile) {
+            val += lhs[threadIdx.y][k_tile] * rhs[k_tile][threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+    
+    unsigned int x = blockDim.x * blockIdx.x + threadIdx.x;
+    unsigned int y = blockDim.y * blockIdx.y + threadIdx.y;
+    c[y * w + x] = val;
 }
 
 namespace cuda {
