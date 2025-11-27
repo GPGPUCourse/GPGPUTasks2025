@@ -21,8 +21,10 @@ __global__ void matrix_transpose_coalesced_via_local_memory(
     memory[threadIdx.y][threadIdx.x] = matrix[global_id];
     __syncthreads();
 
-    // If threads are placed in row-first order then coalesced
-    transposed_matrix[x * h + y] = memory[threadIdx.y][threadIdx.x];
+    unsigned int tr_x = blockIdx.x * blockDim.x + threadIdx.y;
+    unsigned int tr_y = blockIdx.y * blockDim.y + threadIdx.x;
+    
+    transposed_matrix[tr_x * h + tr_y] = memory[threadIdx.x][threadIdx.y];
 }
 
 namespace cuda {
