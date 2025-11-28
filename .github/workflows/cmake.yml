@@ -25,17 +25,17 @@ jobs:
     - name: Install OpenCL CPU driver
       run: sudo bash scripts/linux/install_opencl_cpu_driver.sh;
 
-#    - name: Install Vulkan CPU driver
-#      run: sudo bash scripts/linux/install_vulkan_cpu_driver.sh;
+    - name: Install Vulkan CPU driver
+      run: sudo bash scripts/linux/install_vulkan_cpu_driver.sh;
 
     - name: Show clinfo full output
       run: clinfo
 
-#    - name: Install CUDA SDK
-#      run: sudo bash scripts/linux/install_cuda_sdk.sh;
+    - name: Install CUDA SDK
+      run: sudo bash scripts/linux/install_cuda_sdk.sh;
 
-#    - name: Install Vulkan SDK
-#      run: sudo bash scripts/linux/install_vulkan_sdk.sh --no-validation-layers; # we don't compile validation layers on each CI run because it is too slow
+    - name: Install Vulkan SDK
+      run: sudo bash scripts/linux/install_vulkan_sdk.sh --no-validation-layers; # we don't compile validation layers on each CI run because it is too slow
 
     - name: Install dependencies (gtest and graphicsmagick)
       run: sudo bash scripts/linux/install_dependencies.sh;
@@ -46,11 +46,11 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --parallel $(nproc)
 
- #   - name: Make CUDA stubs visible (no driver on runner)
- #     run: |
- #       sudo ln -sf /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
- #                   /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
- #       echo "LD_LIBRARY_PATH=/usr/local/cuda/targets/x86_64-linux/lib/stubs:/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+    - name: Make CUDA stubs visible (no driver on runner)
+      run: |
+        sudo ln -sf /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
+                    /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/targets/x86_64-linux/lib/stubs:/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
     - name: Run libs/gpu unit-tests
       working-directory: ${{github.workspace}}/build
