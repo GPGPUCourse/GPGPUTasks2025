@@ -29,11 +29,88 @@ __device__ bool bvh_closest_hit(
     float& outV) // сюда нужно записать v рассчитанный в intersect_ray_triangle(..., t, u, v)
 {
     const int rootIndex = 0;
-    const int leafStart = (int)nfaces - 1;
+    const int leafStart = static_cast<int>(nfaces) - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    constexpr size_t STACK_SIZE = 128;
+    BVHNodeGPU const* stack[STACK_SIZE];
+    size_t stackTop = 0;
 
-    return false; // no intersections found
+    bool flag_ans = false;
+    float tBest = FLT_MAX;
+
+    const BVHNodeGPU* node = &nodes[rootIndex];
+    do {
+        const BVHNodeGPU* leftChild = &nodes[node->leftChildIndex];
+        const BVHNodeGPU* rightChild = &nodes[node->rightChildIndex];
+
+        float tNearL, tFarL;
+        float tNearR, tFarR;
+        const bool intersectL = intersect_ray_aabb(orig, dir, leftChild->aabb,
+            tMin, tBest, tNearL, tFarL);
+        const bool intersectR = intersect_ray_aabb(orig, dir, rightChild->aabb,
+            tMin, tBest, tNearR, tFarR);
+
+        if (intersectL && node->leftChildIndex >= leafStart) {
+            unsigned int faceId = leafTriIndices[(node->leftChildIndex) - leafStart];
+            const uint3 f = loadFace(faces, faceId);
+            const float3 a = loadVertex(vertices, f.x);
+            const float3 b = loadVertex(vertices, f.y);
+            const float3 c = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            const bool fl = intersect_ray_triangle(orig, dir, a, b, c, tMin, tBest,
+                false, t, u, v);
+
+            if (fl) {
+                outT = t;
+                outV = v;
+                outU = u;
+
+                tBest = t;
+                flag_ans = true;
+                outFaceId = faceId;
+            }
+        }
+        if (intersectR && node->rightChildIndex >= leafStart) {
+            unsigned int faceId = leafTriIndices[(node->rightChildIndex) - leafStart];
+            const uint3 f = loadFace(faces, faceId);
+            const float3 a = loadVertex(vertices, f.x);
+            const float3 b = loadVertex(vertices, f.y);
+            const float3 c = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            const bool fl = intersect_ray_triangle(orig, dir, a, b, c, tMin, tBest,
+                false, t, u, v);
+            if (fl) {
+                outT = t;
+                outV = v;
+                outU = u;
+
+                tBest = t;
+                flag_ans = true;
+                outFaceId = faceId;
+            }
+        }
+
+        if (!intersectL && !intersectR) {
+        } else {
+            if (intersectL && node->leftChildIndex < leafStart) {
+                stack[stackTop++] = &nodes[node->leftChildIndex];
+            }
+            if (intersectR && node->rightChildIndex < leafStart) {
+                stack[stackTop++] = &nodes[node->rightChildIndex];
+            }
+        }
+
+        if (stackTop > 0) {
+            stack[stackTop] = nullptr;
+            node = stack[--stackTop];
+        } else {
+            node = nullptr;
+        }
+    } while (node != nullptr);
+
+    return flag_ans; // no intersections found
 }
 
 // BVH traversal: any hit (for AO rays)
@@ -51,7 +128,73 @@ __device__ bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    constexpr size_t STACK_SIZE = 128;
+    BVHNodeGPU const* stack[STACK_SIZE];
+    size_t stackTop = 0;
+
+    const BVHNodeGPU* node = &nodes[rootIndex];
+    do {
+        const BVHNodeGPU* leftChild = &nodes[node->leftChildIndex];
+        const BVHNodeGPU* rightChild = &nodes[node->rightChildIndex];
+
+        float tNearL, tFarL;
+        float tNearR, tFarR;
+        const bool intersectL = intersect_ray_aabb_any(orig, dir, leftChild->aabb, tNearL, tFarL);
+        const bool intersectR = intersect_ray_aabb_any(orig, dir, rightChild->aabb, tNearR, tFarR);
+
+        if (intersectL && node->leftChildIndex >= leafStart) {
+            unsigned int faceId = leafTriIndices[(node->leftChildIndex) - leafStart];
+
+            if (faceId != ignore_face) {
+                const uint3 f = loadFace(faces, faceId);
+                const float3 a = loadVertex(vertices, f.x);
+                const float3 b = loadVertex(vertices, f.y);
+                const float3 c = loadVertex(vertices, f.z);
+
+                float t, u, v;
+                const bool fl = intersect_ray_triangle_any(orig, dir, a, b, c,
+                    false, t, u, v);
+
+                if (fl) {
+                    return true;
+                }
+            }
+        }
+        if (intersectR && node->rightChildIndex >= leafStart) {
+            unsigned int faceId = leafTriIndices[(node->rightChildIndex) - leafStart];
+
+            if (faceId != ignore_face) {
+                const uint3 f = loadFace(faces, faceId);
+                const float3 a = loadVertex(vertices, f.x);
+                const float3 b = loadVertex(vertices, f.y);
+                const float3 c = loadVertex(vertices, f.z);
+
+                float t, u, v;
+                const bool fl = intersect_ray_triangle_any(orig, dir, a, b, c,
+                    false, t, u, v);
+                if (fl) {
+                    return true;
+                }
+            }
+        }
+
+        if (!intersectL && !intersectR) {
+        } else {
+            if (intersectL && node->leftChildIndex < leafStart) {
+                stack[stackTop++] = &nodes[node->leftChildIndex];
+            }
+            if (intersectR && node->rightChildIndex < leafStart) {
+                stack[stackTop++] = &nodes[node->rightChildIndex];
+            }
+        }
+
+        if (stackTop > 0) {
+            stack[stackTop] = nullptr;
+            node = stack[--stackTop];
+        } else {
+            node = nullptr;
+        }
+    } while (node != nullptr);
 
     return false; // no intersections found
 }
