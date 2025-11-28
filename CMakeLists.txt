@@ -109,7 +109,15 @@ if (GPU_CUDA_SUPPORT)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
             src/kernels/cu/ray_tracing_render_brute_force.cu
-            src/kernels/cu/ray_tracing_render_using_lbvh.cu)
+            src/kernels/cu/ray_tracing_render_using_lbvh.cu
+            src/kernels/cu/merge_sort.cu
+            src/kernels/cu/morton_codes.cu
+            src/kernels/cu/min.cu
+            src/kernels/cu/max.cu
+            src/kernels/cu/centroids.cu
+            src/kernels/cu/make_lbvh.cu
+            src/kernels/cu/update_aabb.cu
+    )
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})

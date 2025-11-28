@@ -30,7 +30,6 @@ __device__ bool bvh_closest_hit(
 {
     const int rootIndex = 0;
     const int leafStart = static_cast<int>(nfaces) - 1;
-    // TODO implement BVH travering (with stack, don't use recursion)
 
     constexpr size_t STACK_SIZE = 128;
     BVHNodeGPU const* stack[STACK_SIZE];

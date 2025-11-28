@@ -52,6 +52,83 @@ size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
     return count;
 }
 
+std::tuple<float, float, float> get_min(const gpu::gpu_mem_32f& a, const gpu::gpu_mem_32f& b,
+    const gpu::gpu_mem_32f& c, const unsigned int n,
+    gpu::gpu_mem_32f& out, gpu::gpu_mem_32f& out2, gpu::gpu_mem_32f& out3,
+    gpu::gpu_mem_32f& out4, gpu::gpu_mem_32f& out5, gpu::gpu_mem_32f& out6) {
+    unsigned int sz = n;
+    bool fl = false;
+    do {
+        const unsigned int new_sz = (sz + 1) / 2;
+        gpu::WorkSize ws(GROUP_SIZE, new_sz);
+        if (!fl) {
+            cuda::min_array(ws, a, b, c, sz, out, out2, out3);
+        } else {
+            cuda::min_array(ws, out, out2, out3, sz, out4, out5, out6);
+            std::swap(out, out4);
+            std::swap(out2, out5);
+            std::swap(out3, out6);
+        }
+        sz = div_ceil(sz, static_cast<unsigned int>(GROUP_SIZE * 2));
+        fl = true;
+    } while (sz > 1);
+
+    float res_a, res_b, res_c;
+    out.readN(&res_a, 1);
+    out2.readN(&res_b, 1);
+    out3.readN(&res_c, 1);
+    return {res_a, res_b, res_c};
+}
+
+std::tuple<float, float, float> get_max(const gpu::gpu_mem_32f& a, const gpu::gpu_mem_32f& b,
+    const gpu::gpu_mem_32f& c, const unsigned int n,
+    gpu::gpu_mem_32f& out, gpu::gpu_mem_32f& out2, gpu::gpu_mem_32f& out3,
+    gpu::gpu_mem_32f& out4, gpu::gpu_mem_32f& out5, gpu::gpu_mem_32f& out6) {
+    unsigned int sz = n;
+    bool fl = false;
+    do {
+        const unsigned int new_sz = (sz + 1) / 2;
+        gpu::WorkSize ws(GROUP_SIZE, new_sz);
+        if (!fl) {
+            cuda::max_array(ws, a, b, c, sz, out, out2, out3);
+        } else {
+            cuda::max_array(ws, out, out2, out3, sz, out4, out5, out6);
+            std::swap(out, out4);
+            std::swap(out2, out5);
+            std::swap(out3, out6);
+        }
+        sz = div_ceil(sz, static_cast<unsigned int>(GROUP_SIZE * 2));
+        fl = true;
+    } while (sz > 1);
+
+    float res_a, res_b, res_c;
+    out.readN(&res_a, 1);
+    out2.readN(&res_b, 1);
+    out3.readN(&res_c, 1);
+    return {res_a, res_b, res_c};
+}
+
+void func_test(const std::vector<BVHNodeGPU> &nodes, const std::vector<BVHNodeGPU> &tr_nodes,
+    int n, int max_dp = 1, int i = 0, int dp = 0) {
+    if (max_dp != - 1 && dp >= max_dp) {
+        return;
+    }
+
+    rassert(nodes[i].leftChildIndex == tr_nodes[i].leftChildIndex, 4561728371, nodes[i].leftChildIndex,
+        tr_nodes[i].leftChildIndex);
+    rassert(nodes[i].rightChildIndex == tr_nodes[i].rightChildIndex, 4561728372, nodes[i].rightChildIndex,
+        tr_nodes[i].rightChildIndex);
+
+    if (nodes[i].leftChildIndex + 1 < n) {
+        // std::cout << i << " l-> " << nodes[i].leftChildIndex << std::endl;
+        func_test(nodes, tr_nodes, n, max_dp, nodes[i].leftChildIndex, dp + 1);
+    }
+    if (nodes[i].rightChildIndex + 1 < n) {
+        // std::cout << i << " r-> " << nodes[i].rightChildIndex << std::endl;
+        func_test(nodes, tr_nodes, n, max_dp, nodes[i].rightChildIndex, dp + 1);
+    }
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -67,7 +144,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -93,7 +170,7 @@ void run(int argc, char** argv)
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
 
     std::cout << "Using " << AO_SAMPLES << " ray samples for ambient occlusion" << std::endl;
-    for (std::string scene_path: scenes) {
+    for (const std::string& scene_path: scenes) {
         std::cout << "____________________________________________________________________________________________" << std::endl;
         timer total_t;
         if (scene_path == gnome_scene_path) {
@@ -205,9 +282,11 @@ void run(int argc, char** argv)
 
         double cpu_lbvh_time = 0.0;
         double rt_times_with_cpu_lbvh_sum = 0.0;
+
+        std::vector<BVHNodeGPU> lbvh_nodes_cpu;
+        std::vector<uint32_t> leaf_faces_indices_cpu;
+        if (true)
         {
-            std::vector<BVHNodeGPU> lbvh_nodes_cpu;
-            std::vector<uint32_t> leaf_faces_indices_cpu;
             timer cpu_lbvh_t;
             buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
             cpu_lbvh_time = cpu_lbvh_t.elapsed();
@@ -230,7 +309,7 @@ void run(int argc, char** argv)
                 timer t;
 
                 // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
@@ -290,15 +369,69 @@ void run(int argc, char** argv)
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
+
+        gpu::gpu_mem_32f centroids_x_gpu(nfaces);
+        gpu::gpu_mem_32f centroids_y_gpu(nfaces);
+        gpu::gpu_mem_32f centroids_z_gpu(nfaces);
+
+        gpu::gpu_mem_32u morton_codes_gpu(nfaces);
+        gpu::gpu_mem_32u indices_gpu(nfaces);
+        gpu::gpu_mem_32i indices_up_gpu(nfaces);
+
+        gpu::gpu_mem_32u buffer_1_gpu(nfaces);
+        gpu::gpu_mem_32u buffer_2_gpu(nfaces);
+        gpu::gpu_mem_32u buffer_3_gpu(nfaces);
+        gpu::gpu_mem_32u buffer_4_gpu(nfaces);
+
+        gpu::gpu_mem_32f out_gpu(nfaces);
+        gpu::gpu_mem_32f out_gpu2(nfaces);
+        gpu::gpu_mem_32f out_gpu3(nfaces);
+        gpu::gpu_mem_32f out_gpu4(nfaces);
+        gpu::gpu_mem_32f out_gpu5(nfaces);
+        gpu::gpu_mem_32f out_gpu6(nfaces);
+
+        gpu::shared_device_buffer_typed<BVHNodeGPU> bvh_gpu(nfaces * 2);
 
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                gpu::WorkSize ws(GROUP_SIZE, nfaces);
+                cuda::centroid(ws, vertices_gpu, faces_gpu, nfaces, centroids_x_gpu,
+                    centroids_y_gpu, centroids_z_gpu);
 
+                auto [mn_x, mn_y, mn_z] = get_min(centroids_x_gpu, centroids_y_gpu, centroids_z_gpu,
+                    nfaces, out_gpu, out_gpu2, out_gpu3, out_gpu4,
+                    out_gpu5, out_gpu6);
+
+                auto [mx_x, mx_y, mx_z] = get_max(centroids_x_gpu, centroids_y_gpu, centroids_z_gpu,
+                    nfaces, out_gpu, out_gpu2, out_gpu3, out_gpu4,
+                    out_gpu5, out_gpu6);
+
+                cuda::morton_code(ws, centroids_x_gpu, centroids_y_gpu, centroids_z_gpu,
+                    morton_codes_gpu, indices_gpu, nfaces, mn_x, mn_y, mn_z, mx_x, mx_y, mx_z);
+
+                for (unsigned int k = 1; k < nfaces; k <<= 1) {
+                    if (k == 1) {
+                        cuda::merge_sort(ws, indices_gpu, morton_codes_gpu,
+                            buffer_2_gpu, buffer_1_gpu, k, nfaces);
+                    } else {
+                        cuda::merge_sort(ws, buffer_1_gpu, buffer_2_gpu,
+                            buffer_4_gpu, buffer_3_gpu, k, nfaces);
+                        std::swap(buffer_1_gpu, buffer_3_gpu);
+                        std::swap(buffer_2_gpu, buffer_4_gpu);
+                    }
+                }
+
+                std::swap(morton_codes_gpu, buffer_2_gpu);
+                std::swap(indices_gpu, buffer_1_gpu);
+
+                cuda::make_lbvh(ws, morton_codes_gpu, indices_gpu, vertices_gpu, faces_gpu,
+                    nfaces, bvh_gpu, indices_up_gpu);
+
+                cuda::update_aabb(ws, bvh_gpu, indices_up_gpu, nfaces);
                 gpu_lbvh_times.push_back(t.elapsed());
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
@@ -316,7 +449,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                cuda::ray_tracing_render_using_lbvh(
+                        gpu::WorkSize(16, 16, width, height),
+                        vertices_gpu, faces_gpu,
+                        bvh_gpu, indices_gpu,
+                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                        camera_gpu, nfaces);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
