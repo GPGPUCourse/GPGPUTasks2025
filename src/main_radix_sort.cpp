@@ -93,6 +93,9 @@ void run(int argc, char** argv)
     gpu::WorkSize ws(GROUP_SIZE, n);
     input_gpu.writeN(as.data(), n);
 
+    gpu::gpu_mem_32u* buf_src;
+    gpu::gpu_mem_32u* buf_dst;
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
@@ -100,20 +103,22 @@ void run(int argc, char** argv)
 
         if (context.type() == gpu::Context::TypeOpenCL) {
 
-            input_gpu.copyToN(buf3_gpu, n);
+//            input_gpu.copyToN(buf3_gpu, n);
 
+            buf_src = &input_gpu;
             for (unsigned bit_to_sort = 0; bit_to_sort < 32; ++bit_to_sort) {
 
                 ocl_radixSort01LocalCounting.exec(
                     ws,
-                    buf3_gpu,
+                    *buf_src, // buf3_gpu
                     prefix_sum_accum,
                     n,
                     bit_to_sort
                     );
 
-                prefix_sum_accum.copyToN(buf1_gpu, n);
+//                prefix_sum_accum.copyToN(buf1_gpu, n);
 
+                buf_dst = &prefix_sum_accum;
                 for (
                     unsigned int l = n, nl = (n + 1) / 2, deg = 0;
                     l > 1;
@@ -122,30 +127,36 @@ void run(int argc, char** argv)
 
                     ocl_radixSort02GlobalPrefixesScanSumReduction.exec(
                         gpu::WorkSize(GROUP_SIZE, nl),
-                        buf1_gpu,
+                        *buf_dst, // buf1_gpu
                         buf2_gpu,
                         l
                         );
 
                     ocl_radixSort03GlobalPrefixesScanAccumulation.exec(
                         ws,
-                        buf1_gpu,
+                        *buf_dst, // buf1_gpu
                         prefix_sum_accum,
                         n,
                         deg
                         );
-                    std::swap(buf1_gpu, buf2_gpu);
+                    if (l == n) {
+                        buf_dst = &buf1_gpu;
+                    }
+                    std::swap(*buf_dst, buf2_gpu);
                 }
 
                 ocl_radixSort04Scatter.exec(
                     ws,
-                    buf3_gpu,
+                    *buf_src, // buf3_gpu
                     prefix_sum_accum,
                     buf4_gpu,
                     n,
                     bit_to_sort
                     );
-                std::swap(buf3_gpu, buf4_gpu);
+                if (!bit_to_sort) {
+                    buf_src = &buf3_gpu;
+                }
+                std::swap(*buf_src, buf4_gpu);
             }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             continue;
@@ -164,7 +175,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buf3_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = (*buf_src).readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
