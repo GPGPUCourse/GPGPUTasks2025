@@ -15,7 +15,15 @@ __global__ void prefix_sum_02_prefix_accumulation(
     unsigned int n,
     unsigned int pow2)
 {
-    // TODO
+    unsigned int k = 1 << pow2;
+    unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    // A bit of code divergence in one warp only
+    if (i < k) {
+        prefix_sum_accum[i] = pow2_sum[i];
+    } else {
+        prefix_sum_accum[i] = pow2_sum[i] + pow2_sum[i - k];
+    }
 }
 
 namespace cuda {
