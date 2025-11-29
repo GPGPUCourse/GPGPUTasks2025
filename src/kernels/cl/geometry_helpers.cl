@@ -10,11 +10,15 @@ static inline int common_bits_from(__global const uint *arr, int n, int i, int j
     {
         return -1;
     }
+    if (arr[i] == arr[j])
+    {
+        return 32 + clz((uint)j ^ (uint)i);
+    }
     return clz(arr[i] ^ arr[j]);
 }
 
 // From CPU implementation
-static inline uint expandBits(uint v)
+static inline int expandBits(uint v)
 {
 
     v = (v * 0x00010001u) & 0xFF0000FFu;

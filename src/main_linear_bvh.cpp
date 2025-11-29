@@ -167,6 +167,8 @@ void run(int argc, char** argv)
             } 
 
         }
+        std::cout << "cMin: (" << cMin.x << ", " << cMin.y << ", " << cMin.z << ")\n";
+        std::cout << "cMax: (" << cMax.x << ", " << cMax.y << ", " << cMax.z << ")\n";
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
         timer pcie_writing_t;
@@ -184,10 +186,10 @@ void run(int argc, char** argv)
         double brute_force_total_time = 0.0;
         image32i brute_force_framebuffer_face_ids;
         image32f brute_force_framebuffer_ambient_occlusion;
-        const bool has_brute_force = (nfaces < 1000);
+        const bool has_brute_force = false;
         if (has_brute_force) {
             std::vector<double> brute_force_times;
-            for (int iter = 0; iter < 1; ++iter) {
+            for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
@@ -197,7 +199,6 @@ void run(int argc, char** argv)
                         vertices_gpu, faces_gpu,
                         framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
                         camera_gpu.clmem(), nfaces);
-                    // std::cout << "finish ray tracing\n";
                 } else if (context.type() == gpu::Context::TypeCUDA) {
                     cuda::ray_tracing_render_brute_force(
                         gpu::WorkSize(16, 16, width, height),
@@ -261,7 +262,7 @@ void run(int argc, char** argv)
             cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
 
             std::vector<double> rt_times_with_cpu_lbvh;
-            for (int iter = 0; iter < 1; ++iter) {
+            for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
@@ -354,14 +355,13 @@ void run(int argc, char** argv)
             
             
             std::vector<double> gpu_lbvh_times;
-            for (int iter = 0; iter < 1; ++iter) {
+            for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
                 used_gpu.fill(0);
                 ocl_build_lbvh.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
                     morton_codes_gpu, nfaces,
                     lbvh_nodes_gpu.clmem());
-                std::cout << "finish build lbvh\n";
                 ocl_build_aabb_leaves.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
                     vertices_gpu, faces_gpu, sorted_indices_gpu, nfaces,
                     lbvh_nodes_gpu.clmem());
@@ -380,7 +380,6 @@ void run(int argc, char** argv)
                     changed.readN(&output, 1);
                     has_changed = output > 0;
                 }
-                std::cout << "finish build aabb\n";
                 gpu_lbvh_times.push_back(t.elapsed());
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
@@ -395,7 +394,7 @@ void run(int argc, char** argv)
             cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
 
             std::vector<double> gpu_lbvh_rt_times;
-            for (int iter = 0; iter < 1; ++iter) {
+            for (int iter = 0; iter < niters; ++iter) {
                 timer t;
                 ocl_rt_with_lbvh.exec(
                     gpu::WorkSize(16, 16, width, height),
