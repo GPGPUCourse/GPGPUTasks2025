@@ -30,15 +30,18 @@ static inline bool bvh_closest_hit(
 {
     const uint leafStart = (uint)nfaces - 1;
 
-    uint stack[64];
+    uint stack[256];
     stack[0] = 0;
 
     int stack_index = 1;
     const uint INVALID = 0xFFFFFFFF;
     while (stack_index > 0)
     {
+        // printf("stack index: %d", stack_index);
+        rassert(stack_index < 256, 12);
         stack_index--;
         uint node_index = stack[stack_index];
+        rassert(node_index < 2 * nfaces, 12);
         if (node_index >= leafStart)
         {
             uint triIndex = leafTriIndices[node_index - leafStart];
@@ -92,14 +95,17 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const uint leafStart = (uint)nfaces - 1;
 
-    uint stack[64];
+    uint stack[256];
     stack[0] = rootIndex;
     int stack_index = 1;
     const uint INVALID = 0xFFFFFFFF;
     while (stack_index > 0)
     {
+        // printf("stack index: %d", stack_index);
+        rassert(stack_index < 256, 12);
         stack_index--;
         uint node_index = stack[stack_index];
+        rassert(node_index < 2 * nfaces, 12);
         if (node_index >= leafStart)
         {
             uint triIndex = leafTriIndices[node_index - leafStart];

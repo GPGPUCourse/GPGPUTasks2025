@@ -33,7 +33,7 @@ build_lbvh(
     {
         lmax *= 2;
     }
-    uint l = 0;
+    int l = 0;
     for (int t = lmax / 2; t > 0; t /= 2)
     {
         if (common_bits_from(mortons_codes, nfaces, index, index + (l + t) * direction) > dmin)
@@ -45,7 +45,7 @@ build_lbvh(
     rassert(j < nfaces, 12345);
     int dnode = common_bits_from(mortons_codes, nfaces, index, j);
     int s = 0;
-    for (uint w = 2; ((l + w - 1) / w) > 0; w *= 2)
+    for (int w = 2; ((l + w - 1) / w) > 0; w *= 2)
     {
         uint t = ((l + w - 1) / w);
         if (common_bits_from(mortons_codes, nfaces, index, index + (s + t) * direction) > dnode)

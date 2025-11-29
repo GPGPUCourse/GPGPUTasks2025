@@ -32,16 +32,23 @@ build_aabb(__global const uint *used,
     }
     uint left = lbvh[index].leftChildIndex;
     uint right = lbvh[index].rightChildIndex;
-    if (left < nfaces && right < nfaces)
+    if (left < nfaces)
     {
-        if (!used[left] || !used[right])
+        if (!used[left])
         {
             return;
         }
     }
+
+    if (right < nfaces)
+    {
+        if (!used[right])
+        {
+            return;
+        }
+    }
+
     atomic_add(changed, 1);
-    rassert(left < nfaces, 4311);
-    rassert(right < nfaces, 4313);
     rassert(index < nfaces, 4312);
     now_used[index] = 1;
     AABBGPU left_aabb = lbvh[left].aabb;

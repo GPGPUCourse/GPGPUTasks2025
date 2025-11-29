@@ -4,7 +4,7 @@
 
 #include "../shared_structs/aabb_gpu_shared.h"
 
-static inline int common_bits_from(__global const uint *arr, uint n, int i, int j)
+static inline int common_bits_from(__global const uint *arr, int n, int i, int j)
 {
     if (i < 0 || j < 0 || i >= n || j >= n)
     {
