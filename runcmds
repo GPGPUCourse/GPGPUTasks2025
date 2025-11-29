@@ -1,0 +1,8 @@
+from build:
+    cd build
+    cmake ..
+    cmake --build . --config Release -j8
+
+    ./build/Release/enumDevices.exe
+    ./Release/enumDevices.exe
+    clang-format -i src/main.cpp
