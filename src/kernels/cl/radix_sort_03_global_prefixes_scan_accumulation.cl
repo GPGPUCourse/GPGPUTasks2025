@@ -1,5 +1,5 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
@@ -7,17 +7,36 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
-    __global const uint* counts,   // [numGroups * 2]: {zeros[g], ones[g]}
-    __global       uint* offsets,  // [numGroups * 2]: {zeroOffset[g], oneOffset[g]} -> mutate oneOffset by adding totalZeros
+    __global const uint* counts,
+    __global uint* offsets,
     unsigned int numGroups,
     unsigned int unused)
 {
-    uint totalZeros = 0u;
-    for (uint g = 0u; g < numGroups; ++g) {
-        totalZeros += counts[g * 2 + 0];
+    uint total_counts[16];
+    for (uint i = 0; i < 16; ++i) {
+        total_counts[i] = 0;
     }
 
+    // Calculate total counts per bucket
     for (uint g = 0u; g < numGroups; ++g) {
-        offsets[g * 2 + 1] += totalZeros;
+        for (uint i = 0; i < 16; ++i) {
+            total_counts[i] += counts[g * 16 + i];
+        }
+    }
+
+    // Calculate global offsets for each bucket
+    uint prefix_sum = 0;
+    for (uint i = 0; i < 16; ++i) {
+        uint count = total_counts[i];
+        total_counts[i] = prefix_sum; // Reuse array to store global offset
+        prefix_sum += count;
+    }
+
+    // Add global bucket offsets
+    for (uint g = 0u; g < numGroups; ++g) {
+        for (uint i = 0; i < 16; ++i) {
+            offsets[g * 16 + i] += total_counts[i];
+        }
     }
 }
+
