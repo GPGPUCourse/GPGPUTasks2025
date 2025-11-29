@@ -228,9 +228,11 @@ void run(int argc, char** argv)
 
         double cpu_lbvh_time = 0.0;
         double rt_times_with_cpu_lbvh_sum = 0.0;
+        image32i cpu_lbvh_framebuffer_face_ids(width, height, 1);
+        image32f cpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
+        std::vector<BVHNodeGPU> lbvh_nodes_cpu;
+        std::vector<uint32_t> leaf_faces_indices_cpu;
         {
-            std::vector<BVHNodeGPU> lbvh_nodes_cpu;
-            std::vector<uint32_t> leaf_faces_indices_cpu;
             timer cpu_lbvh_t;
             buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
             cpu_lbvh_time = cpu_lbvh_t.elapsed();
@@ -287,8 +289,6 @@ void run(int argc, char** argv)
             gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
 
             timer pcie_reading_t;
-            image32i cpu_lbvh_framebuffer_face_ids(width, height, 1);
-            image32f cpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
             framebuffer_face_id_gpu.readN(cpu_lbvh_framebuffer_face_ids.ptr(), width * height);
             framebuffer_ambient_occlusion_gpu.readN(cpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
             pcie_reading_time += pcie_reading_t.elapsed();
@@ -340,6 +340,7 @@ void run(int argc, char** argv)
                         gpu::WorkSize(GROUP_SIZE, div_ceil(bboxCount, (uint)BOX_BLOCK_SIZE)),
                         inBbox->clmem(), outBbox->clmem(), bboxCount);
                     std::swap(inBbox, outBbox);
+                    static_assert(BOX_BLOCK_SIZE > 1);
                     bboxCount = div_ceil(bboxCount, (uint)BOX_BLOCK_SIZE);
                 }
 
@@ -370,7 +371,7 @@ void run(int argc, char** argv)
                 flags_2.fill(0);
                 gpu::gpu_mem_32u* in_flags = &flags_1;
                 gpu::gpu_mem_32u* out_flags = &flags_2;
-                for (size_t i = 0; i < 32; ++i) {
+                while (true) {
                     ocl_lbvh_build_internals_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces - 1), lbvh_nodes_gpu.clmem(), *in_flags, *out_flags, nfaces);
                     uint endFlag = false;
                     out_flags->readN(&endFlag, 1);
@@ -425,6 +426,11 @@ void run(int argc, char** argv)
             if (has_brute_force) {
                 unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
                 unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
+                rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
+                rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
+            } else {
+                unsigned int count_ao_errors = countDiffs(cpu_lbvh_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
+                unsigned int count_face_id_errors = countDiffs(cpu_lbvh_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
                 rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
                 rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
             }

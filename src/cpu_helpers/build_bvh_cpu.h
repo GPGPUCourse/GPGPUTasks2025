@@ -238,7 +238,7 @@ inline void buildLBVH_CPU(
     }
 
     // 3) Sort primitives by Morton code
-    std::sort(prims.begin(), prims.end(),
+    std::stable_sort(prims.begin(), prims.end(),
         [](const Prim& a, const Prim& b) {
             return a.morton < b.morton;
         });
