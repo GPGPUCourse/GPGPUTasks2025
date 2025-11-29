@@ -15,11 +15,13 @@
 
 #include "cpu_helpers/build_bvh_cpu.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 
 // Edge-preserving bilateral-like denoise guided by face id and AO similarity
 static image32f denoiseAO(const image32f& ao, const image32i& faceIds)
@@ -287,7 +289,7 @@ void run(int argc, char** argv)
             timer cpu_lbvh_t;
             buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
             cpu_lbvh_time = cpu_lbvh_t.elapsed();
-            double build_mtris_per_sec = nfaces * 1e-6f / cpu_lbvh_time;
+            double build_mtris_per_sec = (double)nfaces * 1e-6 / cpu_lbvh_time;
             std::cout << "CPU build LBVH in " << cpu_lbvh_time << " sec" << std::endl;
             std::cout << "CPU LBVH build performance: " << build_mtris_per_sec << " MTris/s" << std::endl;
 
@@ -312,6 +314,9 @@ void run(int argc, char** argv)
                         lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
                         framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
                         camera_gpu.clmem(), nfaces);
+                    // Explicitly synchronize by reading a single pixel to ensure kernel completion
+                    int dummy;
+                    framebuffer_face_id_gpu.readN(&dummy, 1, 0);
                 } else if (context.type() == gpu::Context::TypeCUDA) {
                     cuda::ray_tracing_render_using_lbvh(
                         gpu::WorkSize(16, 16, width, height),
@@ -334,7 +339,8 @@ void run(int argc, char** argv)
                 rt_times_with_cpu_lbvh.push_back(t.elapsed());
             }
             rt_times_with_cpu_lbvh_sum = stats::sum(rt_times_with_cpu_lbvh);
-            double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(rt_times_with_cpu_lbvh);
+            double median_time = stats::median(rt_times_with_cpu_lbvh);
+            double mrays_per_sec = (double)(width * height * AO_SAMPLES) * 1e-6 / median_time;
             std::cout << "GPU with CPU LBVH ray tracing frame render times (in seconds) - " << stats::valuesStatsLine(rt_times_with_cpu_lbvh) << std::endl;
             std::cout << "GPU with CPU LBVH ray tracing performance: " << mrays_per_sec << " MRays/s" << std::endl;
             gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
@@ -392,6 +398,13 @@ void run(int argc, char** argv)
             point3f cMax { -std::numeric_limits<float>::infinity(),
                 -std::numeric_limits<float>::infinity(),
                 -std::numeric_limits<float>::infinity() };
+            AABBGPU scene_bounds;
+            scene_bounds.min_x = +std::numeric_limits<float>::infinity();
+            scene_bounds.min_y = +std::numeric_limits<float>::infinity();
+            scene_bounds.min_z = +std::numeric_limits<float>::infinity();
+            scene_bounds.max_x = -std::numeric_limits<float>::infinity();
+            scene_bounds.max_y = -std::numeric_limits<float>::infinity();
+            scene_bounds.max_z = -std::numeric_limits<float>::infinity();
             for (size_t fi = 0; fi < nfaces; ++fi) {
                 const point3u& f = scene.faces[fi];
                 const point3f& v0 = scene.vertices[f.x];
@@ -407,6 +420,13 @@ void run(int argc, char** argv)
                 cMax.x = std::max(cMax.x, c.x);
                 cMax.y = std::max(cMax.y, c.y);
                 cMax.z = std::max(cMax.z, c.z);
+
+                scene_bounds.min_x = std::min(scene_bounds.min_x, std::min(std::min(v0.x, v1.x), v2.x));
+                scene_bounds.min_y = std::min(scene_bounds.min_y, std::min(std::min(v0.y, v1.y), v2.y));
+                scene_bounds.min_z = std::min(scene_bounds.min_z, std::min(std::min(v0.z, v1.z), v2.z));
+                scene_bounds.max_x = std::max(scene_bounds.max_x, std::max(std::max(v0.x, v1.x), v2.x));
+                scene_bounds.max_y = std::max(scene_bounds.max_y, std::max(std::max(v0.y, v1.y), v2.y));
+                scene_bounds.max_z = std::max(scene_bounds.max_z, std::max(std::max(v0.z, v1.z), v2.z));
             }
 
             std::vector<double> gpu_lbvh_times;
@@ -467,10 +487,12 @@ void run(int argc, char** argv)
                         nfaces);
 
                     // 6. Propagate AABB bottom-up iteratively until root ready or max depth
-                    const int max_iters = (int)std::ceil(std::log2((double)nfaces)) + 8;
+                    const int max_iters = std::max<int>(64, (int)std::ceil(std::log2((double)nfaces)) + 8);
+                    const int hard_limit = std::max(max_iters, 128);
                     bool use_tmp_as_current = false; // false -> ready_flags_gpu is current
                     uint root_ready = 0;
-                    for (int it = 0; it < max_iters; ++it) {
+                    int propagate_iters = 0;
+                    for (; propagate_iters < hard_limit; ++propagate_iters) {
                         auto& ready_in = use_tmp_as_current ? ready_flags_tmp_gpu : ready_flags_gpu;
                         auto& ready_out = use_tmp_as_current ? ready_flags_gpu : ready_flags_tmp_gpu;
                         ready_in.copyToN(ready_out, numNodes); // preserve readiness for leaves already set
@@ -495,7 +517,7 @@ void run(int argc, char** argv)
                 gpu_lbvh_times.push_back(t.elapsed());
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
-            double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
+            double build_mtris_per_sec = (double)nfaces * 1e-6 / stats::median(gpu_lbvh_times);
             std::cout << "GPU LBVH build times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_times) << std::endl;
             std::cout << "GPU LBVH build performance: " << build_mtris_per_sec << " MTris/s" << std::endl;
             gpu_lbvh_perfs_mtris_per_sec.push_back(build_mtris_per_sec);
@@ -538,7 +560,8 @@ void run(int argc, char** argv)
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
             rt_times_with_gpu_lbvh_sum = stats::sum(gpu_lbvh_rt_times);
-            double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(gpu_lbvh_rt_times);
+            double median_time = stats::median(gpu_lbvh_rt_times);
+            double mrays_per_sec = (double)(width * height * AO_SAMPLES) * 1e-6 / median_time;
             std::cout << "GPU with GPU LBVH ray tracing frame render times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_rt_times) << std::endl;
             std::cout << "GPU with GPU LBVH ray tracing performance: " << mrays_per_sec << " MRays/s" << std::endl;
             gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
