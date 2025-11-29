@@ -42,32 +42,34 @@ build_lbvh(
         }
     }
     int j = index + l * direction;
-    rassert(j < nfaces, 12345);
+    rassert(j >= 0 && j < nfaces, 12345);
     int dnode = common_bits_from(mortons_codes, nfaces, index, j);
     int s = 0;
-    for (int w = 2; ((l + w - 1) / w) > 0; w *= 2)
+    for (int t = l >> 1; t > 0; t >>= 1)
     {
-        uint t = ((l + w - 1) / w);
         if (common_bits_from(mortons_codes, nfaces, index, index + (s + t) * direction) > dnode)
         {
             s += t;
         }
     }
     int y = index + s * direction + min(direction, 0);
-    rassert(y < nfaces, 1234);
+    rassert(y >= 0 && y < nfaces, 1234);
     int left, right;
-    if (min(index, j) == y)
+    int min_val = min(index, j);
+    int max_val = max(index, j);
+
+    if (min_val == y)
     {
-        left = (nfaces - 1) + y;
+        left = (nfaces - 1) + min_val;
     }
     else
     {
         left = y;
     }
 
-    if (max(index, j) == y + 1)
+    if (max_val == y + 1)
     {
-        right = (nfaces - 1) + y + 1;
+        right = (nfaces - 1) + max_val;
     }
     else
     {
