@@ -1,12 +1,12 @@
 #include <libgpu/context.h>
-#include <libgpu/work_size.h>
 #include <libgpu/shared_device_buffer.h>
+#include <libgpu/work_size.h>
 
 #include <libgpu/cuda/cu/common.cu>
 
-#include "../shared_structs/camera_gpu_shared.h"
-#include "../shared_structs/bvh_node_gpu_shared.h"
 #include "../defines.h"
+#include "../shared_structs/bvh_node_gpu_shared.h"
+#include "../shared_structs/camera_gpu_shared.h"
 #include "helpers/rassert.cu"
 
 #include "camera_helpers.cu"
@@ -31,9 +31,55 @@ __device__ bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    float bestT = FLT_MAX;
+    bool hit = false;
+    int stack[BVH_STACK_SIZE];
+    int sp = 0;
 
-    return false; // no intersections found
+    stack[sp++] = rootIndex;
+    while (sp > 0) {
+        const int nodeIdx = stack[--sp];
+        const BVHNodeGPU& node = nodes[nodeIdx];
+
+        float tNear, tFar;
+        if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, bestT, tNear, tFar)) {
+            continue;
+        }
+
+        if (nodeIdx < leafStart) {
+            // Внутренний узел
+            const int left = (int)node.leftChildIndex;
+            const int right = (int)node.rightChildIndex;
+
+            if (sp < BVH_STACK_SIZE)
+                stack[sp++] = left;
+            if (sp < BVH_STACK_SIZE)
+                stack[sp++] = right;
+
+            continue;
+        }
+
+        // Лист
+        const int leafIdx = nodeIdx - leafStart;
+        const unsigned int triIdx = leafTriIndices[leafIdx];
+
+        const uint3 face = loadFace(faces, triIdx);
+        const float3 v0 = loadVertex(vertices, face.x);
+        const float3 v1 = loadVertex(vertices, face.y);
+        const float3 v2 = loadVertex(vertices, face.z);
+
+        float t, u, v;
+        if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, bestT, false, t, u, v)) {
+            hit = true;
+            bestT = t;
+            outT = t;
+            outFaceId = (int)triIdx;
+            outU = u;
+            outV = v;
+        }
+    }
+
+    return hit;
 }
 
 // BVH traversal: any hit (for AO rays)
@@ -51,15 +97,62 @@ __device__ bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    const float tMin = 1e-4;
 
-    return false; // no intersections found
+    float bestT = FLT_MAX;
+    int stack[BVH_STACK_SIZE];
+    int sp = 0;
+
+    stack[sp++] = rootIndex;
+    while (sp > 0) {
+        const int nodeIdx = stack[--sp];
+        const BVHNodeGPU& node = nodes[nodeIdx];
+
+        float tNear;
+        float tFar;
+        if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, bestT, tNear, tFar)) {
+            continue;
+        }
+
+        if (nodeIdx < leafStart) {
+            // Внутренний узел
+            const int left = (int)node.leftChildIndex;
+            const int right = (int)node.rightChildIndex;
+
+            if (sp < BVH_STACK_SIZE)
+                stack[sp++] = left;
+            if (sp < BVH_STACK_SIZE)
+                stack[sp++] = right;
+
+            continue;
+        }
+
+        // Лист
+        const int leafIdx = nodeIdx - leafStart;
+        const unsigned int triIdx = leafTriIndices[leafIdx];
+
+        if ((int)triIdx == ignore_face)
+            continue;
+
+        const uint3 face = loadFace(faces, triIdx);
+        const float3 v0 = loadVertex(vertices, face.x);
+        const float3 v1 = loadVertex(vertices, face.y);
+        const float3 v2 = loadVertex(vertices, face.z);
+
+        float t, u, v;
+        if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, bestT, false, t, u, v)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // + helper: build tangent basis for a given normal
-__device__ inline void make_basis(const float3& n, float3& t, float3& b) {
+__device__ inline void make_basis(const float3& n, float3& t, float3& b)
+{
     // pick a non-parallel vector
-    float3 up = (fabsf(n.z) < 0.999f) ? make_float3(0.f,0.f,1.f) : make_float3(0.f,1.f,0.f);
+    float3 up = (fabsf(n.z) < 0.999f) ? make_float3(0.f, 0.f, 1.f) : make_float3(0.f, 1.f, 0.f);
     t = normalize_f3(cross_f3(up, n));
     b = cross_f3(n, t);
 }
@@ -71,9 +164,8 @@ __global__ void ray_tracing_render_using_lbvh(
     const unsigned int* leafTriIndices,
     int* framebuffer_face_id,
     float* framebuffer_ambient_occlusion,
-    CameraViewGPU *camera,
-    unsigned int nfaces
-)
+    CameraViewGPU* camera,
+    unsigned int nfaces)
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -85,10 +177,10 @@ __global__ void ray_tracing_render_using_lbvh(
     float3 ray_origin, ray_direction;
     make_primary_ray(*camera, i + 0.5f, j + 0.5f, ray_origin, ray_direction);
 
-    float tMin  = 1e-6f;
+    float tMin = 1e-6f;
     float tBest = FLT_MAX;
-    float uBest=0, vBest=0;
-    int   faceIdBest = -1;
+    float uBest = 0, vBest = 0;
+    int faceIdBest = -1;
 
     // Use BVH traversal instead of brute-force loop
     bool hit = bvh_closest_hit(
@@ -103,8 +195,7 @@ __global__ void ray_tracing_render_using_lbvh(
         tBest,
         faceIdBest,
         uBest,
-        vBest
-    );
+        vBest);
 
     const unsigned int idx = j * camera->K.width + i;
     framebuffer_face_id[idx] = faceIdBest;
@@ -116,22 +207,22 @@ __global__ void ray_tracing_render_using_lbvh(
         float3 b = loadVertex(vertices, f.y);
         float3 c = loadVertex(vertices, f.z);
 
-        float3 e1 = {b.x - a.x, b.y - a.y, b.z - a.z};
-        float3 e2 = {c.x - a.x, c.y - a.y, c.z - a.z};
-        float3 n  = normalize_f3(cross_f3(e1, e2));
+        float3 e1 = { b.x - a.x, b.y - a.y, b.z - a.z };
+        float3 e2 = { c.x - a.x, c.y - a.y, c.z - a.z };
+        float3 n = normalize_f3(cross_f3(e1, e2));
 
         // ensure hemisphere is "outside" relative to the camera ray
-        if (n.x*ray_direction.x + n.y*ray_direction.y + n.z*ray_direction.z > 0.0f)
+        if (n.x * ray_direction.x + n.y * ray_direction.y + n.z * ray_direction.z > 0.0f)
             n = make_float3(-n.x, -n.y, -n.z);
 
-        float3 P  = {ray_origin.x + tBest*ray_direction.x,
-            ray_origin.y + tBest*ray_direction.y,
-            ray_origin.z + tBest*ray_direction.z};
+        float3 P = { ray_origin.x + tBest * ray_direction.x,
+            ray_origin.y + tBest * ray_direction.y,
+            ray_origin.z + tBest * ray_direction.z };
 
         float scale = fmaxf(fmaxf(length_f3(e1), length_f3(e2)),
-            length_f3(make_float3(c.x-a.x, c.y-a.y, c.z-a.z)));
-        float eps   = 1e-3f * fmaxf(1.0f, scale);
-        float3 Po   = {P.x + n.x*eps, P.y + n.y*eps, P.z + n.z*eps};
+            length_f3(make_float3(c.x - a.x, c.y - a.y, c.z - a.z)));
+        float eps = 1e-3f * fmaxf(1.0f, scale);
+        float3 Po = { P.x + n.x * eps, P.y + n.y * eps, P.z + n.z * eps };
 
         // build tangent basis
         float3 T, B;
@@ -149,22 +240,21 @@ __global__ void ray_tracing_render_using_lbvh(
             // uniform hemisphere sampling (solid angle)
             float u1 = random01(rng);
             float u2 = random01(rng);
-            float z  = u1;                          // z in [0,1]
-            float phi = 6.28318530718f * u2;        // 2*pi*u2
-            float r  = sqrtf(fmaxf(0.f, 1.f - z*z));
+            float z = u1; // z in [0,1]
+            float phi = 6.28318530718f * u2; // 2*pi*u2
+            float r = sqrtf(fmaxf(0.f, 1.f - z * z));
             float3 d_local = make_float3(r * cosf(phi), r * sinf(phi), z);
 
             // transform to world space
             float3 d = make_float3(
-                T.x*d_local.x + B.x*d_local.y + n.x*d_local.z,
-                T.y*d_local.x + B.y*d_local.y + n.y*d_local.z,
-                T.z*d_local.x + B.z*d_local.y + n.z*d_local.z
-            );
+                T.x * d_local.x + B.x * d_local.y + n.x * d_local.z,
+                T.y * d_local.x + B.y * d_local.y + n.y * d_local.z,
+                T.z * d_local.x + B.z * d_local.y + n.z * d_local.z);
 
             if (any_hit_from(Po, d,
-                             vertices, faces,
-                             bvhNodes, leafTriIndices,
-                             nfaces, faceIdBest))
+                    vertices, faces,
+                    bvhNodes, leafTriIndices,
+                    nfaces, faceIdBest))
                 ++hits;
         }
         ao = 1.0f - (float)hits / (float)AO_SAMPLES; // [0,1]
@@ -172,13 +262,12 @@ __global__ void ray_tracing_render_using_lbvh(
     framebuffer_ambient_occlusion[idx] = ao;
 }
 
-
 namespace cuda {
-void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
-    const gpu::gpu_mem_32f &vertices, const gpu::gpu_mem_32u &faces,
-    const gpu::shared_device_buffer_typed<BVHNodeGPU> &bvhNodes, const gpu::gpu_mem_32u &leafTriIndices,
-    gpu::gpu_mem_32i &framebuffer_face_id,
-    gpu::gpu_mem_32f &framebuffer_ambient_occlusion,
+void ray_tracing_render_using_lbvh(const gpu::WorkSize& workSize,
+    const gpu::gpu_mem_32f& vertices, const gpu::gpu_mem_32u& faces,
+    const gpu::shared_device_buffer_typed<BVHNodeGPU>& bvhNodes, const gpu::gpu_mem_32u& leafTriIndices,
+    gpu::gpu_mem_32i& framebuffer_face_id,
+    gpu::gpu_mem_32f& framebuffer_ambient_occlusion,
     gpu::shared_device_buffer_typed<CameraViewGPU> camera,
     unsigned int nfaces)
 {
@@ -190,8 +279,7 @@ void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
         bvhNodes.cuptr(), leafTriIndices.cuptr(),
         framebuffer_face_id.cuptr(), framebuffer_ambient_occlusion.cuptr(),
         camera.cuptr(),
-        nfaces
-        );
+        nfaces);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
