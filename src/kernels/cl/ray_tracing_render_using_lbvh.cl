@@ -31,8 +31,84 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stack_head = 0;
 
+    int node = rootIndex;
+    float t_best = FLT_MAX;
+    float u_best = 0.0f;
+    float v_best = 0.0f;
+    int face_id_best = -1;
+
+    do {
+        const BVHNodeGPU n = nodes[node];
+        const uint left_index  = n.leftChildIndex;;
+        const uint right_index = n.rightChildIndex;
+
+        float t_near_left, t_far_left;
+        bool overlap_left = intersect_ray_aabb(
+            orig, dir, nodes[left_index].aabb, tMin, t_best, &t_near_left, &t_far_left);
+
+        float t_near_right, t_far_right;
+        bool overlap_right = intersect_ray_aabb(
+            orig, dir, nodes[right_index].aabb, tMin, t_best, &t_near_right, &t_far_right);
+
+        if (overlap_left && (int)left_index >= leafStart) {
+            const uint tri_idx = leafTriIndices[(int)left_index - leafStart];
+            uint3 f = loadFace(faces, tri_idx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, t_best, false, &t, &u, &v)) {
+                t_best = t;
+                u_best = u;
+                v_best = v;
+                face_id_best = (int)tri_idx;
+            }
+
+            overlap_left = false;            
+        } 
+        if (overlap_right && (int)right_index >= leafStart) {
+            const uint tri_idx = leafTriIndices[(int)right_index - leafStart];
+            uint3 f = loadFace(faces, tri_idx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, t_best, false, &t, &u, &v)) {
+                t_best = t;
+                u_best = u;
+                v_best = v;
+                face_id_best = (int)tri_idx;
+            }
+
+            overlap_right = false;            
+        }
+
+        const bool traverse_left = overlap_left && (int)left_index < leafStart;
+        const bool traverse_right = overlap_right && (int)right_index < leafStart;
+
+        if (! (traverse_left || traverse_right)) {
+            node = (stack_head > 0) ? stack[--stack_head] : -1;
+        } else {
+            bool left_first = traverse_left && (!traverse_right || t_near_left < t_near_right);
+            node = (int)(left_first ? left_index : right_index);
+            if (traverse_left && traverse_right) {
+                stack[stack_head++] = (int)(left_first ? right_index : left_index);
+            }
+        }
+    } while (node >= 0);
+
+    if (face_id_best >= 0) {
+        *outT = t_best;
+        *outU = u_best;
+            *outV = v_best;
+            *outFaceId = face_id_best;
+            return true;
+        }
     return false;
 }
 
@@ -50,7 +126,71 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+   int stack[64];
+   int stack_head = 0;
+
+   int node = rootIndex;
+
+    do {
+        BVHNodeGPU n = nodes[node];
+        const uint left_index  = n.leftChildIndex;;
+        const uint right_index = n.rightChildIndex;
+
+        float t_near_left, t_far_left;
+        bool overlap_left = intersect_ray_aabb_any(
+            orig, dir, nodes[left_index].aabb, &t_near_left, &t_far_left);
+
+        float t_near_right, t_far_right;
+        bool overlap_right = intersect_ray_aabb_any(
+            orig, dir, nodes[right_index].aabb, &t_near_right, &t_far_right);
+
+        if (overlap_left && (int)left_index >= leafStart) {
+            const uint tri_idx = leafTriIndices[(int)left_index - leafStart];
+
+        if ((int)tri_idx != ignore_face) {
+                uint3 f = loadFace(faces, tri_idx);
+                float3 v0 = loadVertex(vertices, f.x);
+                float3 v1 = loadVertex(vertices, f.y);
+                float3 v2 = loadVertex(vertices, f.z);
+
+                float t, u, v;
+                if (intersect_ray_triangle_any(orig, dir, v0, v1, v2, false, &t, &u, &v)) {
+                    return true;
+                }
+            }
+            overlap_left = false;            
+        }
+
+        if (overlap_right && (int)right_index >= leafStart) {
+            const uint tri_idx = leafTriIndices[(int)right_index - leafStart];
+            if ((int)tri_idx != ignore_face) {
+                uint3 f = loadFace(faces, tri_idx);
+                float3 v0 = loadVertex(vertices, f.x);
+                float3 v1 = loadVertex(vertices, f.y);
+                float3 v2 = loadVertex(vertices, f.z);
+
+                float t, u, v;
+                if (intersect_ray_triangle_any(orig, dir, v0, v1, v2, false, &t, &u, &v)) {
+                    return true;
+                }
+            }
+            overlap_right = false;
+        }
+
+        const bool traverse_left = overlap_left && (int)left_index < leafStart;
+        const bool traverse_right = overlap_right && (int)right_index < leafStart;
+
+        if (! (traverse_left || traverse_right)) {
+            node = (stack_head > 0) ? stack[--stack_head] : -1;
+        } else {
+            bool left_first = traverse_left && (!traverse_right || t_near_left < t_near_right);
+            node = (int)(left_first ? left_index : right_index);
+            if (traverse_left && traverse_right) {
+                stack[stack_head++] = (int)(left_first ? right_index : left_index);
+            }
+        }
+
+    } while (node >= 0);
 
     return false;
 }
