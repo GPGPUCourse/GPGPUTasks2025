@@ -26,6 +26,13 @@ GPU_STRUCT_BEGIN(BVHNodeGPU)
     GPUC_UINT rightChildIndex;
 GPU_STRUCT_END(BVHNodeGPU)
 
+// Per-triangle info
+GPU_STRUCT_BEGIN(Prim)
+    GPUC_UINT triIndex;
+    GPUC_UINT morton;
+    AABBGPU  aabb;
+GPU_STRUCT_END(Prim)
+
 /* ---------------- Host-only layout checks ---------------- */
 #if !defined(__OPENCL_VERSION__)
   /* These static_asserts are ignored in OpenCL C.
