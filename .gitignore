@@ -6,3 +6,4 @@ data**
 results**
 cmake-build*
 .vs
+.cache
