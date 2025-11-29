@@ -13,6 +13,8 @@
 #include "geometry_helpers.cu"
 #include "random_helpers.cu"
 
+#define STACK_SIZE 128
+
 // BVH traversal: closest hit along ray
 __device__ bool bvh_closest_hit(
     const float3& orig,
@@ -31,9 +33,66 @@ __device__ bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[STACK_SIZE];
+    int stackSize = 1;
+    stack[0] = rootIndex;
 
-    return false; // no intersections found
+    float tMinStack[STACK_SIZE];
+    float tMaxStack[STACK_SIZE];
+
+    tMinStack[0] = tMin;
+    tMaxStack[0] = FLT_MAX;
+
+    float bestT = FLT_MAX;
+    float t, u, v;
+
+    while (stackSize > 0) {
+        stackSize--;
+        int nodeIndex = stack[stackSize];
+        BVHNodeGPU node = nodes[nodeIndex];
+
+        float currentTMin = tMinStack[stackSize];
+        float currentTMax = tMaxStack[stackSize];
+
+        if (nodeIndex >= leafStart) {
+            int triIndex = leafTriIndices[nodeIndex - leafStart];
+            uint3 face = loadFace(faces, triIndex);
+            float3 a = loadVertex(vertices, face.x);
+            float3 b = loadVertex(vertices, face.y);
+            float3 c = loadVertex(vertices, face.z);
+            
+            bool triangleHit = intersect_ray_triangle(orig, dir, a, b, c, currentTMin, currentTMax, false, t, u, v);
+
+            if (triangleHit) {
+                if (t < bestT) {
+                    bestT = t;
+                    outFaceId = triIndex;
+                    outU = u;
+                    outV = v;
+                    outT = t;
+                }
+            }
+        } else {
+            float tHitNear, tHitFar;
+            bool hit = intersect_ray_aabb(orig, dir, node.aabb, currentTMin, currentTMax, tHitNear, tHitFar);
+
+            if (hit) {
+                currentTMin = tHitNear;
+                currentTMax = tHitFar;
+
+                tMinStack[stackSize] = 0.0;
+                tMaxStack[stackSize] = FLT_MAX;
+                tMinStack[stackSize + 1] = 0.0;
+                tMaxStack[stackSize + 1] = FLT_MAX;
+
+                stack[stackSize] = node.leftChildIndex;
+                stack[stackSize + 1] = node.rightChildIndex;
+                stackSize += 2;
+            }
+        }
+    }
+
+    return bestT < FLT_MAX;
 }
 
 // BVH traversal: any hit (for AO rays)
@@ -51,7 +110,61 @@ __device__ bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[STACK_SIZE];
+    int stackSize = 1;
+    stack[0] = rootIndex;
+
+    float tMinStack[STACK_SIZE];
+    float tMaxStack[STACK_SIZE];
+
+    tMinStack[0] = 0.0;
+    tMaxStack[0] = FLT_MAX;
+
+    while (stackSize > 0) {
+        stackSize--;
+        int nodeIndex = stack[stackSize];
+        BVHNodeGPU node = nodes[nodeIndex];
+
+        float currentTMin = tMinStack[stackSize];
+        float currentTMax = tMaxStack[stackSize];
+
+        if (nodeIndex >= leafStart) {
+            int triIndex = leafTriIndices[nodeIndex - leafStart];
+
+            if (triIndex == ignore_face) {
+                continue;
+            }
+
+            uint3 face = loadFace(faces, triIndex);
+            float3 a = loadVertex(vertices, face.x);
+            float3 b = loadVertex(vertices, face.y);
+            float3 c = loadVertex(vertices, face.z);
+
+            float t, u, v;
+            bool triangleHit = intersect_ray_triangle(orig, dir, a, b, c, currentTMin, currentTMax, false, t, u, v);
+
+            if (triangleHit) {
+                return true;
+            }
+        } else {
+            float tHitNear, tHitFar;
+            bool hit = intersect_ray_aabb(orig, dir, node.aabb, currentTMin, currentTMax, tHitNear, tHitFar);
+
+            if (hit) {
+                currentTMin = tHitNear;
+                currentTMax = tHitFar;
+
+                tMinStack[stackSize] = 0.0;
+                tMaxStack[stackSize] = FLT_MAX;
+                tMinStack[stackSize + 1] = 0.0;
+                tMaxStack[stackSize + 1] = FLT_MAX;
+
+                stack[stackSize] = node.leftChildIndex;
+                stack[stackSize + 1] = node.rightChildIndex;
+                stackSize += 2;
+            }
+        }
+    }
 
     return false; // no intersections found
 }
