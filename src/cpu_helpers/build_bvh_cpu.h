@@ -127,7 +127,8 @@ inline void buildLBVH_CPU(
     const std::vector<point3f>& vertices,
     const std::vector<point3u>& faces,
     std::vector<BVHNodeGPU>&    outNodes,
-    std::vector<uint32_t>&      outLeafTriIndices)
+    std::vector<uint32_t>&      outLeafTriIndices,
+    std::vector<PrimGPU>& outPrims)
 {
     const size_t N = faces.size();
     outNodes.clear();
@@ -242,6 +243,14 @@ inline void buildLBVH_CPU(
         [](const Prim& a, const Prim& b) {
             return a.morton < b.morton;
         });
+
+    // Debug: Output cpu built prims for GPU lbvh construction
+    for (auto prim : prims) {
+        PrimGPU primGPU;
+        primGPU.mortonCode = prim.morton;
+        primGPU.faceIndex = prim.triIndex;
+        outPrims.push_back(primGPU);
+    }
 
     // 4) Prepare arrays
     const size_t numNodes = 2 * N - 1;

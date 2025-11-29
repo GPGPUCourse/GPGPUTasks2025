@@ -3,6 +3,10 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/calculate_prims.h"
+#include "cl/generated_kernels/merge_sort_prims.h"
+#include "cl/generated_kernels/build_lbvh.h"
+#include "cl/generated_kernels/bottom_up_aabb.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -55,6 +59,28 @@ const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getCalculatePrims()
+{
+    return opencl_binaries_calculate_prims;
+}
+
+const ProgramBinaries& getMergeSortPrims()
+{
+    return opencl_binaries_merge_sort_prims;
+}
+
+const ProgramBinaries& getBuildLBVH()
+{
+    return opencl_binaries_build_lbvh;
+}
+
+const ProgramBinaries& getBottomUpAABB()
+{
+    return opencl_binaries_bottom_up_aabb;
+}
+
+
 } // namespace ocl
 
 namespace avk2 {

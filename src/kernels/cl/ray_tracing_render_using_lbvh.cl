@@ -13,6 +13,8 @@
 #include "geometry_helpers.cl"
 #include "random_helpers.cl"
 
+#define MAX_STACK_SIZE 32
+
 // BVH traversal: closest hit along ray
 static inline bool bvh_closest_hit(
     const float3              orig,
@@ -30,8 +32,102 @@ static inline bool bvh_closest_hit(
 {
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
+    const int nodesCount = leafStart + nfaces;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    uint stack[MAX_STACK_SIZE];
+    uint stack_ptr = 0;
+
+    float best_t = FLT_MAX;
+    int best_face_id = -1;
+    float best_u = 0;
+    float best_v = 0;
+    float hit_near_left, hit_far_left, hit_near_right, hit_far_right;
+
+    int node = rootIndex;
+
+    while (node >= 0) {
+        bool go_left = true;
+        bool go_right = true;
+        uint left_child_index = nodes[node].leftChildIndex;
+        uint right_child_index = nodes[node].rightChildIndex;
+
+        bool intersects_left = left_child_index < nodesCount ? intersect_ray_aabb(orig, dir, nodes[left_child_index].aabb, tMin, FLT_MAX, &hit_near_left, &hit_far_left) : false;
+        bool intersects_right = right_child_index < nodesCount ? intersect_ray_aabb(orig, dir, nodes[right_child_index].aabb, tMin, FLT_MAX, &hit_near_right, &hit_far_right) : false;
+
+        if (intersects_left && hit_near_left <= best_t) {
+            if (left_child_index >= leafStart) {
+                const uint faceId = leafTriIndices[left_child_index - leafStart];
+                float t, u, v;
+                const uint3 face = loadFace(faces, faceId);
+                float3 v0 = loadVertex(vertices, face.x);
+                float3 v1 = loadVertex(vertices, face.y);
+                float3 v2 = loadVertex(vertices, face.z);
+                if (intersect_ray_triangle(orig, dir,
+                                           v0, v1, v2,
+                                           tMin, best_t,
+                                           false,
+                                           &t, &u, &v)) {
+                    best_t       = t;
+                    best_face_id = (int) faceId;
+                    best_u       = u;
+                    best_v       = v;
+                }
+                go_left = false;
+            }
+        } else {
+            go_left = false;
+        }
+
+        if (intersects_right && hit_near_right <= best_t) {
+            if (right_child_index >= leafStart) {
+                const uint faceId = leafTriIndices[right_child_index - leafStart];
+                float t, u, v;
+                const uint3 face = loadFace(faces, faceId);
+                float3 v0 = loadVertex(vertices, face.x);
+                float3 v1 = loadVertex(vertices, face.y);
+                float3 v2 = loadVertex(vertices, face.z);
+                if (intersect_ray_triangle(orig, dir,
+                                           v0, v1, v2,
+                                           tMin, best_t,
+                                           false,
+                                           &t, &u, &v)) {
+                    best_t       = t;
+                    best_face_id = (int) faceId;
+                    best_u       = u;
+                    best_v       = v;
+                }
+                go_right = false;
+            }
+        } else {
+            go_right = false;
+        }
+
+        if (go_left && go_right) {
+            rassert(stack_ptr < MAX_STACK_SIZE, 33643536456);
+            if (hit_near_left < hit_near_right) {
+                node = left_child_index;
+                stack[stack_ptr++] = right_child_index;
+            } else {
+                node = right_child_index;
+                stack[stack_ptr++] = left_child_index;
+            }
+        } else if (go_left) {
+            node = left_child_index;
+        } else if (go_right) {
+            node = right_child_index;
+        } else {
+            if (stack_ptr <= 0) node = -1;
+            else node = stack[--stack_ptr];
+        }
+    }
+
+    if (best_face_id >= 0) {
+        *outT = best_t;
+        *outFaceId = best_face_id;
+        *outU = best_u;
+        *outV = best_v;
+        return true;
+    }
 
     return false;
 }
@@ -49,8 +145,87 @@ static inline bool any_hit_from(
 {
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
+    const int nodesCount = leafStart + nfaces;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    uint stack[MAX_STACK_SIZE];
+    uint stack_ptr = 0;
+
+    float hit_near_left, hit_far_left, hit_near_right, hit_far_right;
+
+    int node = rootIndex;
+
+    while (node >= 0) {
+        bool go_left = true;
+        bool go_right = true;
+        uint left_child_index = nodes[node].leftChildIndex;
+        uint right_child_index = nodes[node].rightChildIndex;
+
+        bool intersects_left = left_child_index < nodesCount ?
+            intersect_ray_aabb_any(orig, dir, nodes[left_child_index].aabb, &hit_near_left, &hit_far_left) :
+            false;
+        bool intersects_right = right_child_index < nodesCount ?
+            intersect_ray_aabb_any(orig, dir, nodes[right_child_index].aabb, &hit_near_right, &hit_far_right) :
+            false;
+
+        if (intersects_left) {
+            if (left_child_index >= leafStart && leafTriIndices[left_child_index - leafStart] != ignore_face) {
+                float t, u, v;
+                const uint3 face = loadFace(faces, leafTriIndices[left_child_index - leafStart]);
+                bool hit_left = intersect_ray_triangle_any(
+                    orig,
+                    dir,
+                    loadVertex(vertices, face.x),
+                    loadVertex(vertices, face.y),
+                    loadVertex(vertices, face.z),
+                    false,
+                    &t, &u, &v);
+                if (hit_left) return true;
+                go_left = false;
+            }
+        } else {
+            go_left = false;
+        }
+
+        if (intersects_right) {
+            if (right_child_index >= leafStart) {
+                const faceId = leafTriIndices[right_child_index - leafStart];
+                if (faceId != ignore_face) {
+                    float t, u, v;
+                    const uint3 face = loadFace(faces, leafTriIndices[right_child_index - leafStart]);
+                    bool hit_right = intersect_ray_triangle_any(
+                        orig,
+                        dir,
+                        loadVertex(vertices, face.x),
+                        loadVertex(vertices, face.y),
+                        loadVertex(vertices, face.z),
+                        false,
+                        &t, &u, &v);
+                    if (hit_right) return true;
+                }
+                go_right = false;
+            }
+        } else {
+            go_right = false;
+        }
+
+        if (go_left && go_right) {
+            rassert(stack_ptr < MAX_STACK_SIZE, 33643536456);
+            if (hit_near_left < hit_near_right) {
+                node = left_child_index;
+                stack[stack_ptr++] = right_child_index;
+            } else {
+                node = right_child_index;
+                stack[stack_ptr++] = left_child_index;
+            }
+        } else if (go_left) {
+            node = left_child_index;
+        } else if (go_right) {
+            node = right_child_index;
+        } else {
+            if (stack_ptr <= 0) node = -1;
+            else node = stack[--stack_ptr];
+        }
+    }
 
     return false;
 }
@@ -82,7 +257,7 @@ __kernel void ray_tracing_render_using_lbvh(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    rassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 786435342);
+    rassert(camera->magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 786435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 
