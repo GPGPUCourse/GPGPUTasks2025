@@ -4,6 +4,12 @@
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
 
+#include "cl/generated_kernels/lbvh_build.h"
+#include "cl/generated_kernels/radix_sort_01_local_counting.h"
+#include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
+#include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
+#include "cl/generated_kernels/fill_buffer_with_zeros.h"
+
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_using_lbvh_comp.h"
@@ -54,6 +60,31 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
+}
+
+const ProgramBinaries& getLBVHBuild()
+{
+    return opencl_binaries_lbvh_build;
+}
+
+const ProgramBinaries& getRadixSort01()
+{
+    return opencl_binaries_radix_sort_01_local_counting;
+}
+
+const ProgramBinaries& getRadixSort02()
+{
+    return opencl_binaries_radix_sort_02_global_prefixes_scan_sum_reduction;
+}
+
+const ProgramBinaries& getRadixSort03()
+{
+    return opencl_binaries_radix_sort_03_global_prefixes_scan_accumulation;
+}
+
+const ProgramBinaries& getFillBufferWithZeros()
+{
+    return opencl_binaries_fill_buffer_with_zeros;
 }
 } // namespace ocl
 

@@ -31,9 +31,64 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = rootIndex;
 
-    return false;
+    bool hitAny = false;
+
+    while (stackPtr > 0) {
+        int nodeIdx = stack[--stackPtr];
+        
+        if (nodeIdx >= leafStart) {
+            uint triIdx = leafTriIndices[nodeIdx - leafStart];
+            
+            uint3 f = loadFace(faces, triIdx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+            
+            float t, u, v;
+            // Use current *outT as tMax to find closer hits
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, *outT, false, &t, &u, &v)) {
+                 *outT = t;
+                 *outFaceId = (int)triIdx;
+                 *outU = u;
+                 *outV = v;
+                 hitAny = true;
+            }
+        } else {
+            __global const BVHNodeGPU* node = &nodes[nodeIdx];
+            int leftIdx = node->leftChildIndex;
+            int rightIdx = node->rightChildIndex;
+            
+            __global const BVHNodeGPU* leftNode = &nodes[leftIdx];
+            __global const BVHNodeGPU* rightNode = &nodes[rightIdx];
+            
+            float tEntryL, tExitL;
+            bool hitL = intersect_ray_aabb(orig, dir, leftNode->aabb, tMin, *outT, &tEntryL, &tExitL);
+            
+            float tEntryR, tExitR;
+            bool hitR = intersect_ray_aabb(orig, dir, rightNode->aabb, tMin, *outT, &tEntryR, &tExitR);
+            
+            if (hitL && hitR) {
+                // Push farther first
+                if (tEntryL < tEntryR) {
+                    stack[stackPtr++] = rightIdx;
+                    stack[stackPtr++] = leftIdx;
+                } else {
+                    stack[stackPtr++] = leftIdx;
+                    stack[stackPtr++] = rightIdx;
+                }
+            } else if (hitL) {
+                stack[stackPtr++] = leftIdx;
+            } else if (hitR) {
+                stack[stackPtr++] = rightIdx;
+            }
+        }
+    }
+
+    return hitAny;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -49,8 +104,60 @@ static inline bool any_hit_from(
 {
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
+    
+    const float tMin = 1e-4f; // slightly larger eps for shadow rays to avoid self-intersection
+    const float tMax = FLT_MAX;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = rootIndex;
+
+    while (stackPtr > 0) {
+        int nodeIdx = stack[--stackPtr];
+        
+        if (nodeIdx >= leafStart) {
+            uint triIdx = leafTriIndices[nodeIdx - leafStart];
+            if ((int)triIdx == ignore_face) continue;
+            
+            uint3 f = loadFace(faces, triIdx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+            
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, tMax, false, &t, &u, &v)) {
+                 return true;
+            }
+        } else {
+            __global const BVHNodeGPU* node = &nodes[nodeIdx];
+            int leftIdx = node->leftChildIndex;
+            int rightIdx = node->rightChildIndex;
+            
+            __global const BVHNodeGPU* leftNode = &nodes[leftIdx];
+            __global const BVHNodeGPU* rightNode = &nodes[rightIdx];
+            
+            float tEntryL, tExitL;
+            bool hitL = intersect_ray_aabb(orig, dir, leftNode->aabb, tMin, tMax, &tEntryL, &tExitL);
+            
+            float tEntryR, tExitR;
+            bool hitR = intersect_ray_aabb(orig, dir, rightNode->aabb, tMin, tMax, &tEntryR, &tExitR);
+            
+            // Visiting closer nodes first might find a hit sooner
+            if (hitL && hitR) {
+                if (tEntryL < tEntryR) {
+                    stack[stackPtr++] = rightIdx;
+                    stack[stackPtr++] = leftIdx;
+                } else {
+                    stack[stackPtr++] = leftIdx;
+                    stack[stackPtr++] = rightIdx;
+                }
+            } else if (hitL) {
+                stack[stackPtr++] = leftIdx;
+            } else if (hitR) {
+                stack[stackPtr++] = rightIdx;
+            }
+        }
+    }
 
     return false;
 }
