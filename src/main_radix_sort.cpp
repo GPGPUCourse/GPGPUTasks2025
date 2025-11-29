@@ -55,8 +55,9 @@ void run(int argc, char** argv)
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
-        as[i] = r.next(0, max_value);
+        as[i] = r.next(0, 10);
     }
+    std::cout << " " << std::endl;
     std::cout << "n=" << n << " max_value=" << max_value << std::endl;
 
     {
@@ -98,7 +99,8 @@ void run(int argc, char** argv)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
     buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
+    buffer4_gpu.fill(0);
+
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -108,14 +110,33 @@ void run(int argc, char** argv)
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
+        gpu::gpu_mem_32u sum_accum_gpu(1);
+        sum_accum_gpu.fill(0);
+        unsigned int ones_count = 0;
+        buffer_output_gpu.writeN(as.data(), n);
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            for (int i = 0; i < 32; ++i) {
+                // конвертим массив в массив масок нужных индексов
+                buffer_output_gpu.copyToN(buffer1_gpu, n);
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, n, i);
+                // насчитываем массив префикс сумм
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer2_gpu, n, -1);
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer3_gpu, n, -1);
+                unsigned int current_n = n;
+                int pow2 = 0;
+                while (current_n > 1) {
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer3_gpu, n, pow2);
+                    int new_n = (current_n + 1) / 2;
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, new_n), buffer1_gpu, buffer2_gpu, current_n);
+                    pow2 += 1;
+                    current_n = new_n;
+                    buffer1_gpu.swap(buffer2_gpu);
+                }
+                // применяем скаттер
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, n), buffer4_gpu, n, -1);
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output_gpu, buffer3_gpu, buffer4_gpu, i, n);
+                buffer_output_gpu.swap(buffer4_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
