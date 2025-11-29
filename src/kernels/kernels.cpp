@@ -7,6 +7,7 @@
 #include "cl/generated_kernels/merge_sort_prims.h"
 #include "cl/generated_kernels/build_lbvh.h"
 #include "cl/generated_kernels/bottom_up_aabb.h"
+#include "cl/generated_kernels/denoise.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -80,6 +81,10 @@ const ProgramBinaries& getBottomUpAABB()
     return opencl_binaries_bottom_up_aabb;
 }
 
+const ProgramBinaries& getDenoise()
+{
+    return opencl_binaries_denoise;
+}
 
 } // namespace ocl
 

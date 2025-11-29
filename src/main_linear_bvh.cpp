@@ -69,12 +69,13 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_merge_sort_prims(ocl::getMergeSortPrims());
     ocl::KernelSource ocl_build_lbvh(ocl::getBuildLBVH());
     ocl::KernelSource ocl_bottom_up_aabb(ocl::getBottomUpAABB());
+    ocl::KernelSource ocl_denoise(ocl::getDenoise());
 
     const std::string gnome_scene_path = "data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
         gnome_scene_path,
-        // "data/powerplant/powerplant.obj",
-        // "data/san-miguel/san-miguel.obj",
+        "data/powerplant/powerplant.obj",
+        "data/san-miguel/san-miguel.obj",
     };
 
     const int niters = 1; // при отладке удобно запускать одну итерацию
@@ -125,6 +126,9 @@ void run(int argc, char** argv)
         // Аллоцируем фрейм-буферы (то есть картинки в которые сохранится результат рендеринга)
         gpu::gpu_mem_32i framebuffer_face_id_gpu(width * height);
         gpu::gpu_mem_32f framebuffer_ambient_occlusion_gpu(width * height);
+        gpu::gpu_mem_32f framebuffer_denoised_gpu(width * height);
+        gpu::gpu_mem_32f depth_buffer(width * height);
+        gpu::gpu_mem_32f normal_buffer(width * height * 3);
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
         timer pcie_writing_t;
@@ -142,7 +146,7 @@ void run(int argc, char** argv)
         double brute_force_total_time = 0.0;
         image32i brute_force_framebuffer_face_ids;
         image32f brute_force_framebuffer_ambient_occlusion;
-        const bool has_brute_force = false; // (nfaces < 1000);
+        const bool has_brute_force = (nfaces < 1000);
         if (has_brute_force) {
             std::vector<double> brute_force_times;
             for (int iter = 0; iter < niters; ++iter) {
@@ -199,6 +203,9 @@ void run(int argc, char** argv)
             timer cleaning_framebuffers_t;
             framebuffer_face_id_gpu.fill(NO_FACE_ID);
             framebuffer_ambient_occlusion_gpu.fill(NO_AMBIENT_OCCLUSION);
+            framebuffer_denoised_gpu.fill(NO_AMBIENT_OCCLUSION);
+            depth_buffer.fill(NO_AMBIENT_OCCLUSION);
+            normal_buffer.fill(NO_AMBIENT_OCCLUSION);
             cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
 
             std::vector<double> rt_times_with_cpu_lbvh;
@@ -210,6 +217,7 @@ void run(int argc, char** argv)
                     vertices_gpu, faces_gpu,
                     lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
                     framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    depth_buffer, normal_buffer,
                     camera_gpu.clmem(), nfaces);
 
                 rt_times_with_cpu_lbvh.push_back(t.elapsed());
@@ -309,6 +317,9 @@ void run(int argc, char** argv)
             timer cleaning_framebuffers_t;
             framebuffer_face_id_gpu.fill(NO_FACE_ID);
             framebuffer_ambient_occlusion_gpu.fill(NO_AMBIENT_OCCLUSION);
+            framebuffer_denoised_gpu.fill(NO_AMBIENT_OCCLUSION);
+            depth_buffer.fill(NO_AMBIENT_OCCLUSION);
+            normal_buffer.fill(NO_AMBIENT_OCCLUSION);
             cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
 
             std::vector<double> gpu_lbvh_rt_times;
@@ -320,7 +331,13 @@ void run(int argc, char** argv)
                     vertices_gpu, faces_gpu,
                     lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
                     framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    depth_buffer, normal_buffer,
                     camera_gpu.clmem(), nfaces);
+
+                ocl_denoise.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    framebuffer_ambient_occlusion_gpu, framebuffer_denoised_gpu,
+                    depth_buffer, normal_buffer, camera_gpu.clmem());
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
@@ -333,13 +350,16 @@ void run(int argc, char** argv)
             timer pcie_reading_t;
             image32i gpu_lbvh_framebuffer_face_ids(width, height, 1);
             image32f gpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
+            image32f gpu_lbvh_framebuffer_denoised(width, height, 1);
             framebuffer_face_id_gpu.readN(gpu_lbvh_framebuffer_face_ids.ptr(), width * height);
             framebuffer_ambient_occlusion_gpu.readN(gpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
+            framebuffer_denoised_gpu.readN(gpu_lbvh_framebuffer_denoised.ptr(), width * height);
             pcie_reading_time += pcie_reading_t.elapsed();
 
             timer gpu_lbvh_images_saving_t;
             debug_io::dumpImage(results_dir + "/framebuffer_face_ids_with_gpu_lbvh.bmp", debug_io::randomMapping(gpu_lbvh_framebuffer_face_ids, NO_FACE_ID));
             debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_gpu_lbvh.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion));
+            debug_io::dumpImage(results_dir + "/framebuffer_denoised_with_gpu_lbvh.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_denoised));
             images_saving_time += gpu_lbvh_images_saving_t.elapsed();
             if (has_brute_force) {
                 unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);

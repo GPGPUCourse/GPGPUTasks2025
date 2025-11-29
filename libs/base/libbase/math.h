@@ -19,7 +19,7 @@ TargetT narrow_cast(SourceT value)
 	TargetT casted = value;
 
 	bool is_different_sign = (value < (SourceT) 0) != (casted < (TargetT) 0);
-	rassert((SourceT) casted == value && !is_different_sign, 452134143211);
+	rassert((SourceT) casted == value && !is_different_sign, 452134143211, value);
 
 	return casted;
 }

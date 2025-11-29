@@ -33,6 +33,7 @@ const ProgramBinaries& getCalculatePrims();
 const ProgramBinaries& getMergeSortPrims();
 const ProgramBinaries& getBuildLBVH();
 const ProgramBinaries& getBottomUpAABB();
+const ProgramBinaries& getDenoise();
 }
 
 namespace avk2 {

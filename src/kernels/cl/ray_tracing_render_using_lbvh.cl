@@ -251,6 +251,8 @@ __kernel void ray_tracing_render_using_lbvh(
     __global const uint*       leafTriIndices,
     __global int*              framebuffer_face_id,
     __global float*            framebuffer_ambient_occlusion,
+    __global float*            depth_buffer,
+    __global float*            normal_buffer,
     __global const CameraViewGPU* camera,
     uint                       nfaces)
 {
