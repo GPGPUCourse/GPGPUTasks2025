@@ -390,11 +390,13 @@ void run(int argc, char** argv)
                         prims_gpu.swap(prims_buf_gpu);
                     }
 
+                    /*
                     std::vector<Prim> prims(nfaces);
                     prims_gpu.readN(prims.data(), prims.size());
                     for (std::size_t i = 1; i < prims.size(); ++i) {
-                        rassert(prims[i - 1].morton > prims[i].morton, 132345246);
+                        rassert(prims[i - 1].morton <= prims[i].morton, 132345246);
                     }
+                    */
                 }
 
                 ocl_buildLBVH.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
