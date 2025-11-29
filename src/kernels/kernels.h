@@ -28,6 +28,10 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+const ProgramBinaries& getMergeSortForLBVH();
+const ProgramBinaries& getComputeCentroids();
+const ProgramBinaries& getComputeMortonCode();
+const ProgramBinaries& getBuildBvhGpu();
 }
 
 namespace avk2 {

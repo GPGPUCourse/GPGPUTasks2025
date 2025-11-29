@@ -267,3 +267,18 @@ __kernel void ray_tracing_render_using_lbvh(
 
     framebuffer_ambient_occlusion[idx] = ao;
 }
+
+//__kernel void lbvh_construction(
+//    __global const float*      vertices,
+//    __global const uint*       faces,
+//    __global const BVHNodeGPU* bvhNodes,
+//    __global const uint*       leafTriIndices,
+//    uint                       nfaces)
+//{
+//    if (nfaces == 0) {
+//        return;
+//    }
+//    const uint i = get_global_id(0);
+//    const uint j = get_global_id(1);
+//
+//}

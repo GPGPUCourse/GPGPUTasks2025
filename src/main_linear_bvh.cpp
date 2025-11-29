@@ -77,6 +77,10 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_compute_centroids(ocl::getComputeCentroids());
+    ocl::KernelSource ocl_compute_morton_code(ocl::getComputeMortonCode());
+    ocl::KernelSource ocl_merge_sort_lbvh(ocl::getMergeSortForLBVH());
+    ocl::KernelSource ocl_build_bvh_gpu(ocl::getBuildBvhGpu());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -286,16 +290,65 @@ void run(int argc, char** argv)
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
-
+        bool gpu_lbvg_gpu_rt_done = true;
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
+            gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(2 * nfaces - 1);
+            gpu::gpu_mem_32u triangle_indices(nfaces);
+            gpu::gpu_mem_32f bounds_gpu(6);
+            std::vector<float> start_bounds = {10000, 10000, 10000, 0, 0, 0};
+            gpu::gpu_mem_32f centroids_gpu(nfaces * 3);
+            gpu::gpu_mem_32u input_gpu(nfaces * 2);
+            gpu::gpu_mem_32u buffer_output_gpu(nfaces * 2);
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                gpu::WorkSize workSize(GROUP_SIZE, nfaces);
+                bounds_gpu.writeN(start_bounds.data(), 6);
+                gpu::gpu_mem_32u buffer1_gpu(nfaces * 2), buffer2_gpu(nfaces * 2);
 
+                ocl_compute_centroids.exec(workSize, faces_gpu, vertices_gpu, centroids_gpu, bounds_gpu, nfaces);
+                ocl_compute_morton_code.exec(workSize, centroids_gpu, bounds_gpu, input_gpu, nfaces);
+
+                auto input_buffer_ptr = &buffer1_gpu;
+                auto output_buffer_ptr = &buffer2_gpu;
+                int chunk_size = 1;
+                ocl_merge_sort_lbvh.exec(workSize, input_gpu, *input_buffer_ptr, nfaces, chunk_size);
+                chunk_size *= 2;
+                while (chunk_size * 2 < nfaces) {
+                    ocl_merge_sort_lbvh.exec(workSize, *input_buffer_ptr, *output_buffer_ptr, nfaces, chunk_size);
+                    chunk_size *= 2;
+                    std::swap(input_buffer_ptr, output_buffer_ptr);
+                }
+                ocl_merge_sort_lbvh.exec(workSize, *input_buffer_ptr, buffer_output_gpu, nfaces, chunk_size);
+                gpu::WorkSize bvhWorkSize(GROUP_SIZE, 2 * nfaces - 1);
+                ocl_build_bvh_gpu.exec(bvhWorkSize, buffer_output_gpu, faces_gpu, vertices_gpu, triangle_indices, lbvh_nodes_gpu.clmem(), nfaces);
                 gpu_lbvh_times.push_back(t.elapsed());
+            }
+            std::vector<BVHNodeGPU> tree(2 * nfaces - 1);
+            lbvh_nodes_gpu.readN(tree.data(), tree.size());
+            std::vector<uint32_t> indices(nfaces);
+            triangle_indices.readN(indices.data(), indices.size());
+            std::vector<uint32_t> morton(2 * nfaces);
+            input_gpu.readN(morton.data(), morton.size());
+            std::vector<uint32_t> sorted_morton(2 * nfaces);
+            buffer_output_gpu.readN(sorted_morton.data(), sorted_morton.size());
+            std::vector<BVHNodeGPU> lbvh_nodes_cpu;
+            std::vector<uint32_t> leaf_faces_indices_cpu;
+            timer cpu_lbvh_t;
+            buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
+            std::cout << morton[2 * 624] << ' ' << morton[2 * 275] << ' ';
+            std::cout << "Not sorted gpu" << std::endl;
+            std::cout << "GPU" << std::endl;
+            for (int i = 0; i < 20; ++i) {
+                std::cout << sorted_morton[i] << ' ';
+            }
+            std::cout << "GPU" << std::endl;
+            for (int i = 0; i < leaf_faces_indices_cpu.size(); ++i) {
+                rassert(leaf_faces_indices_cpu[i] == indices[i], 11);
+            }
+            for (int i = 0; i < tree.size(); ++i) {
+                rassert(tree[i].rightChildIndex == lbvh_nodes_cpu[i].rightChildIndex, 10);
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
             double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
@@ -312,7 +365,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu.clmem(), triangle_indices,
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
