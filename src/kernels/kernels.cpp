@@ -3,7 +3,12 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
-
+#include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/compute_mortons.h"
+#include "cl/generated_kernels/fill_indices.h"
+#include "cl/generated_kernels/build_lbvh.h"
+#include "cl/generated_kernels/build_aabb_leaves.h"
+#include "cl/generated_kernels/build_aabb.h"
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_using_lbvh_comp.h"
@@ -55,6 +60,32 @@ const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getMergeSort()
+{
+    return opencl_binaries_merge_sort;
+}
+
+const ProgramBinaries& getComputeMortons() {
+    return opencl_binaries_compute_mortons;
+}
+
+const ProgramBinaries& getFillIndices() {
+    return opencl_binaries_fill_indices;
+}
+
+const ProgramBinaries& getBuildLBVH() {
+    return opencl_binaries_build_lbvh;
+}
+
+const ProgramBinaries& getBuildAABBLeaves() {
+    return opencl_binaries_build_aabb_leaves;
+}
+
+const ProgramBinaries& getBuildAABB() {
+    return opencl_binaries_build_aabb;
+}
+
 } // namespace ocl
 
 namespace avk2 {
