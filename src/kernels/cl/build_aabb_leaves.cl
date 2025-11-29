@@ -26,7 +26,10 @@ build_aabb_leaves(__global const float *vertices,
         return;
     }
 
-    uint3 f = loadFace(faces, indices[index]);
+    uint i = indices[index];
+    rassert(i < nfaces, 5678);
+
+    uint3 f = loadFace(faces, i);
     float3 v0 = loadVertex(vertices, f.x);
     float3 v1 = loadVertex(vertices, f.y);
     float3 v2 = loadVertex(vertices, f.z);

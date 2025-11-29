@@ -21,7 +21,7 @@ build_aabb(__global const uint *used,
            __global BVHNodeGPU *lbvh)
 {
     const uint index = get_global_id(0);
-    if (index >= nfaces)
+    if (index >= nfaces - 1)
     {
         return;
     }
@@ -32,7 +32,13 @@ build_aabb(__global const uint *used,
     }
     uint left = lbvh[index].leftChildIndex;
     uint right = lbvh[index].rightChildIndex;
-    if (left < nfaces)
+
+    if (left >= 2 * nfaces - 1 || right >= 2 * nfaces - 1)
+    {
+        return;
+    }
+
+    if (left < nfaces - 1)
     {
         if (!used[left])
         {
@@ -40,7 +46,7 @@ build_aabb(__global const uint *used,
         }
     }
 
-    if (right < nfaces)
+    if (right < nfaces - 1)
     {
         if (!used[right])
         {
