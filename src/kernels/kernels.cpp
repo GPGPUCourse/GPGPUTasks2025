@@ -5,6 +5,10 @@
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
 
 #include "cl/generated_kernels/lbvh_build.h"
+#include "cl/generated_kernels/radix_sort_01_local_counting.h"
+#include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
+#include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
+#include "cl/generated_kernels/fill_buffer_with_zeros.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"

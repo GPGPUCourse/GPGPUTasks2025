@@ -65,7 +65,11 @@ set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/ray_tracing_render_brute_force.cl
         src/kernels/cl/ray_tracing_render_using_lbvh.cl
-        src/kernels/cl/lbvh_build.cl)
+        src/kernels/cl/lbvh_build.cl
+        src/kernels/cl/radix_sort_01_local_counting.cl
+        src/kernels/cl/radix_sort_02_global_prefixes_scan_sum_reduction.cl
+        src/kernels/cl/radix_sort_03_global_prefixes_scan_accumulation.cl
+        src/kernels/cl/fill_buffer_with_zeros.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl src/kernels/cl/camera_helpers.cl src/kernels/cl/geometry_helpers.cl src/kernels/cl/random_helpers.cl src/kernels/shared_structs/aabb_gpu_shared.h src/kernels/shared_structs/bvh_node_gpu_shared.h src/kernels/shared_structs/camera_gpu_shared.h src/kernels/shared_structs/morton_code_gpu_shared.h src/kernels/shared_structs/struct_helpers.h)
 set(OPENCL_DEFINES)
