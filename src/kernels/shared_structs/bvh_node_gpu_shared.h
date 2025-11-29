@@ -26,6 +26,17 @@ GPU_STRUCT_BEGIN(BVHNodeGPU)
     GPUC_UINT rightChildIndex;
 GPU_STRUCT_END(BVHNodeGPU)
 
+// POD AABB struct with identical layout in C++ / CUDA / OpenCL / Vulkan C-like code.
+// Uses only scalar floats to avoid float3/vector alignment differences.
+GPU_STRUCT_BEGIN(BVHPrimGPU)
+    AABBGPU  aabb;
+    GPUC_UINT triIndex;
+    GPUC_UINT morton;
+    float  centroidX;
+    float  centroidY;
+    float  centroidZ;
+GPU_STRUCT_END(BVHPrimGPU)
+
 /* ---------------- Host-only layout checks ---------------- */
 #if !defined(__OPENCL_VERSION__)
   /* These static_asserts are ignored in OpenCL C.
@@ -34,6 +45,7 @@ GPU_STRUCT_END(BVHNodeGPU)
     static_assert(sizeof(GPUC_UINT) == 4, "GPUC_UINT must be 32-bit");
 
     static_assert(sizeof(BVHNodeGPU) == sizeof(AABBGPU) + 2*4, "BVHNodeGPU size mismatch");
+    static_assert(sizeof(BVHPrimGPU) == sizeof(AABBGPU) + 5*4, "BVHPrimGPU size mismatch");
   #endif
 #endif
 

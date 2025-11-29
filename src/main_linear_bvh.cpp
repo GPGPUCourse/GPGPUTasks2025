@@ -77,6 +77,27 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_lbvh_init_prims_find_min_max(ocl::getLBVHInitPrimsFindMinMax());
+    ocl::KernelSource ocl_lbvh_reduce_min_max(ocl::getLBVHReduceMinMax());
+    ocl::KernelSource ocl_lbvh_morton(ocl::getLBVHMorton());
+    ocl::KernelSource ocl_merge_sort(ocl::getMergeSort());
+    ocl::KernelSource ocl_merge_sort_big(ocl::getMergeSortBig());
+    ocl::KernelSource ocl_merge_sort_small(ocl::getMergeSortSmall());
+    ocl::KernelSource ocl_lbvh_build_leaves(ocl::getLBVHBuildLeaves());
+    ocl::KernelSource ocl_lbvh_build_internals(ocl::getLBVHBuildInternals());
+    ocl::KernelSource ocl_lbvh_build_internals_aabb(ocl::getLBVHBuildInternalsAABB());
+
+    ocl_rt_brute_force.precompile();
+    ocl_rt_with_lbvh.precompile();
+    ocl_lbvh_init_prims_find_min_max.precompile();
+    ocl_lbvh_reduce_min_max.precompile();
+    ocl_lbvh_morton.precompile();
+    ocl_merge_sort.precompile();
+    ocl_merge_sort_big.precompile();
+    ocl_merge_sort_small.precompile();
+    ocl_lbvh_build_leaves.precompile();
+    ocl_lbvh_build_internals.precompile();
+    ocl_lbvh_build_internals_aabb.precompile();
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -183,7 +204,9 @@ void run(int argc, char** argv)
                 brute_force_times.push_back(t.elapsed());
             }
             brute_force_total_time = stats::sum(brute_force_times);
+            double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(brute_force_times);
             std::cout << "GPU brute force ray tracing frame render times (in seconds) - " << stats::valuesStatsLine(brute_force_times) << std::endl;
+            std::cout << "GPU brute force ray tracing performance: " << mrays_per_sec << " MRays/s" << std::endl;
 
             // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
             timer pcie_reading_t;
@@ -205,9 +228,11 @@ void run(int argc, char** argv)
 
         double cpu_lbvh_time = 0.0;
         double rt_times_with_cpu_lbvh_sum = 0.0;
+        image32i cpu_lbvh_framebuffer_face_ids(width, height, 1);
+        image32f cpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
+        std::vector<BVHNodeGPU> lbvh_nodes_cpu;
+        std::vector<uint32_t> leaf_faces_indices_cpu;
         {
-            std::vector<BVHNodeGPU> lbvh_nodes_cpu;
-            std::vector<uint32_t> leaf_faces_indices_cpu;
             timer cpu_lbvh_t;
             buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
             cpu_lbvh_time = cpu_lbvh_t.elapsed();
@@ -228,9 +253,6 @@ void run(int argc, char** argv)
             std::vector<double> rt_times_with_cpu_lbvh;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
-
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
@@ -267,8 +289,6 @@ void run(int argc, char** argv)
             gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
 
             timer pcie_reading_t;
-            image32i cpu_lbvh_framebuffer_face_ids(width, height, 1);
-            image32f cpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
             framebuffer_face_id_gpu.readN(cpu_lbvh_framebuffer_face_ids.ptr(), width * height);
             framebuffer_ambient_occlusion_gpu.readN(cpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
             pcie_reading_time += pcie_reading_t.elapsed();
@@ -288,17 +308,78 @@ void run(int argc, char** argv)
         double gpu_lbvh_time_sum = 0.0;
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
-        // TODO постройте LBVH на GPU
-        // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
+            gpu::shared_device_buffer_typed<BVHPrimGPU> lbvh_prims_1_gpu(nfaces);
+            gpu::shared_device_buffer_typed<BVHPrimGPU> lbvh_prims_2_gpu(nfaces);
+
+            gpu::shared_device_buffer_typed<AABBGPU> aabb_min_max_1_gpu(div_ceil(nfaces, (uint)BOX_BLOCK_SIZE));
+            gpu::shared_device_buffer_typed<AABBGPU> aabb_min_max_2_gpu(div_ceil(nfaces, (uint)BOX_BLOCK_SIZE));
+
+            gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(nfaces * 2 - 1);
+            gpu::gpu_mem_32u leaf_faces_indices_gpu(nfaces);
+            gpu::gpu_mem_32u sorted_codes_gpu(nfaces);
+            gpu::gpu_mem_32u flags_1(nfaces);
+            gpu::gpu_mem_32u flags_2(nfaces);
+
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                ocl_lbvh_init_prims_find_min_max.exec(
+                    gpu::WorkSize(GROUP_SIZE, div_ceil(nfaces, (uint)BOX_BLOCK_SIZE)),
+                    vertices_gpu, faces_gpu,
+                    lbvh_prims_1_gpu.clmem(), aabb_min_max_1_gpu.clmem(),nfaces);
 
+                uint bboxCount = div_ceil(nfaces, (uint)BOX_BLOCK_SIZE);
+                gpu::shared_device_buffer_typed<AABBGPU>* inBbox = &aabb_min_max_1_gpu;
+                gpu::shared_device_buffer_typed<AABBGPU>* outBbox = &aabb_min_max_2_gpu;
+                while (bboxCount != 1) {
+                    ocl_lbvh_reduce_min_max.exec(
+                        gpu::WorkSize(GROUP_SIZE, div_ceil(bboxCount, (uint)BOX_BLOCK_SIZE)),
+                        inBbox->clmem(), outBbox->clmem(), bboxCount);
+                    std::swap(inBbox, outBbox);
+                    static_assert(BOX_BLOCK_SIZE > 1);
+                    bboxCount = div_ceil(bboxCount, (uint)BOX_BLOCK_SIZE);
+                }
+
+                ocl_lbvh_morton.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(nfaces, (uint)BOX_BLOCK_SIZE)), lbvh_prims_1_gpu.clmem(), inBbox->clmem(), nfaces);
+
+                gpu::shared_device_buffer_typed<BVHPrimGPU> *inMergeSort = &lbvh_prims_1_gpu;
+                gpu::shared_device_buffer_typed<BVHPrimGPU> *outMergeSort = &lbvh_prims_2_gpu;
+                ocl_merge_sort_small.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(nfaces, (uint)SMALL_BLOCK_SIZE)), inMergeSort->clmem(), outMergeSort->clmem(), nfaces);
+                std::swap(inMergeSort, outMergeSort);
+                uint32_t pow = SMALL_BLOCK_POW + GROUP_SIZE_POW;
+                int i = (SMALL_BLOCK_SIZE * GROUP_SIZE);
+                for (; i < BIG_BLOCK_SIZE * GROUP_SIZE && i < nfaces; i <<= 1) {
+                    ocl_merge_sort.exec(gpu::WorkSize(GROUP_SIZE, nfaces), inMergeSort->clmem(), outMergeSort->clmem(), pow, nfaces);
+                    std::swap(inMergeSort, outMergeSort);
+                    ++pow;
+                }
+                for (; i < nfaces; i <<= 1) {
+                    ocl_merge_sort_big.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(nfaces, (uint)BIG_BLOCK_SIZE)), inMergeSort->clmem(), outMergeSort->clmem(), pow, nfaces);
+                    std::swap(inMergeSort, outMergeSort);
+                    ++pow;
+                }
+
+                ocl_lbvh_build_leaves.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(nfaces, (uint)BOX_BLOCK_SIZE)), inMergeSort->clmem(), lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(), sorted_codes_gpu.clmem(), nfaces);
+
+                ocl_lbvh_build_internals.exec(gpu::WorkSize(GROUP_SIZE, div_ceil(nfaces, (uint)BOX_BLOCK_SIZE)), lbvh_nodes_gpu.clmem(), sorted_codes_gpu.clmem(), nfaces);
+
+                flags_1.fill(0);
+                flags_2.fill(0);
+                gpu::gpu_mem_32u* in_flags = &flags_1;
+                gpu::gpu_mem_32u* out_flags = &flags_2;
+                while (true) {
+                    ocl_lbvh_build_internals_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces - 1), lbvh_nodes_gpu.clmem(), *in_flags, *out_flags, nfaces);
+                    uint endFlag = false;
+                    out_flags->readN(&endFlag, 1);
+                    if (endFlag) {
+                        break;
+                    }
+                    std::swap(in_flags, out_flags);
+                }
                 gpu_lbvh_times.push_back(t.elapsed());
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
@@ -316,7 +397,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
@@ -340,6 +426,11 @@ void run(int argc, char** argv)
             if (has_brute_force) {
                 unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
                 unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
+                rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
+                rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
+            } else {
+                unsigned int count_ao_errors = countDiffs(cpu_lbvh_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
+                unsigned int count_face_id_errors = countDiffs(cpu_lbvh_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
                 rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
                 rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
             }

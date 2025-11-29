@@ -1,6 +1,15 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/lbvh_init_prims_find_min_max.h"
+#include "cl/generated_kernels/lbvh_build_internals.h"
+#include "cl/generated_kernels/lbvh_build_internals_aabb.h"
+#include "cl/generated_kernels/lbvh_build_leaves.h"
+#include "cl/generated_kernels/lbvh_morton.h"
+#include "cl/generated_kernels/lbvh_reduce_min_max.h"
+#include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/merge_sort_big.h"
+#include "cl/generated_kernels/merge_sort_small.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
 
@@ -55,6 +64,49 @@ const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getLBVHInitPrimsFindMinMax()
+{
+    return opencl_binaries_lbvh_init_prims_find_min_max;
+}
+
+const ProgramBinaries& getLBVHReduceMinMax()
+{
+    return opencl_binaries_lbvh_reduce_min_max;
+}
+
+const ProgramBinaries& getLBVHMorton()
+{
+    return opencl_binaries_lbvh_morton;
+}
+
+const ProgramBinaries& getMergeSort()
+{
+    return opencl_binaries_merge_sort;
+}
+
+const ProgramBinaries& getMergeSortBig()
+{
+    return opencl_binaries_merge_sort_big;
+}
+
+const ProgramBinaries& getMergeSortSmall()
+{
+    return opencl_binaries_merge_sort_small;
+}
+
+const ProgramBinaries& getLBVHBuildLeaves() {
+    return opencl_binaries_lbvh_build_leaves;
+}
+
+const ProgramBinaries& getLBVHBuildInternals() {
+    return opencl_binaries_lbvh_build_internals;
+}
+
+const ProgramBinaries& getLBVHBuildInternalsAABB() {
+    return opencl_binaries_lbvh_build_internals_aabb;
+}
+
 } // namespace ocl
 
 namespace avk2 {
