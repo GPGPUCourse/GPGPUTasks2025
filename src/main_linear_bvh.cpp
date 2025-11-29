@@ -14,6 +14,7 @@
 #include "io/scene_reader.h"
 
 #include "cpu_helpers/build_bvh_cpu.h"
+#include "./kernels/shared_structs/bvh_node_gpu_shared.h"
 
 #include <filesystem>
 #include <fstream>
@@ -76,10 +77,9 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
-    ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH(), "ray_tracing_render_using_lbvh");
     ocl::KernelSource ocl_mergeSort(ocl::getRTWithLBVH(), "merge_sort");
     ocl::KernelSource ocl_smallMergeSort(ocl::getRTWithLBVH(), "small_merge_sort");
-    ocl::KernelSource ocl_preBuildLBVH(ocl::getRTWithLBVH(), "pre_build_lbvh");
     ocl::KernelSource ocl_buildLBVH(ocl::getRTWithLBVH(), "build_lbvh");
     ocl::KernelSource ocl_postBuildLBVH(ocl::getRTWithLBVH(), "post_build_lbvh");
 
@@ -301,15 +301,84 @@ void run(int argc, char** argv)
             gpu::gpu_mem_32u leaf_faces_indices_gpu(nfaces);
             gpu::shared_device_buffer_typed<Prim> prims_gpu(nfaces);
 
+            std::vector<Prim> prims(nfaces);
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                ocl_preBuildLBVH.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
-                    vertices_gpu,
-                    faces_gpu,
-                    prims_gpu.clmem(),
-                    nfaces);
+                {
+                    // 1) Compute per-triangle AABB and centroids
+                    point3f cMin{+std::numeric_limits<float>::infinity(),
+                        +std::numeric_limits<float>::infinity(),
+                        +std::numeric_limits<float>::infinity()};
+                    point3f cMax{-std::numeric_limits<float>::infinity(),
+                        -std::numeric_limits<float>::infinity(),
+                        -std::numeric_limits<float>::infinity()};
 
+                    for (unsigned int i = 0; i < nfaces; ++i) {
+                        const point3u& f = scene.faces[i];
+                        const point3f& v0 = scene.vertices[f.x];
+                        const point3f& v1 = scene.vertices[f.y];
+                        const point3f& v2 = scene.vertices[f.z];
+
+                        // Triangle AABB
+                        AABBGPU aabb;
+                        aabb.min_x = std::min({v0.x, v1.x, v2.x});
+                        aabb.min_y = std::min({v0.y, v1.y, v2.y});
+                        aabb.min_z = std::min({v0.z, v1.z, v2.z});
+                        aabb.max_x = std::max({v0.x, v1.x, v2.x});
+                        aabb.max_y = std::max({v0.y, v1.y, v2.y});
+                        aabb.max_z = std::max({v0.z, v1.z, v2.z});
+
+                        // Centroid
+                        point3f c;
+                        c.x = (v0.x + v1.x + v2.x) * (1.0f / 3.0f);
+                        c.y = (v0.y + v1.y + v2.y) * (1.0f / 3.0f);
+                        c.z = (v0.z + v1.z + v2.z) * (1.0f / 3.0f);
+
+                        prims[i].triIndex = i;
+                        prims[i].aabb     = aabb;
+
+                        // Update centroid bounds
+                        cMin.x = std::min(cMin.x, c.x);
+                        cMin.y = std::min(cMin.y, c.y);
+                        cMin.z = std::min(cMin.z, c.z);
+                        cMax.x = std::max(cMax.x, c.x);
+                        cMax.y = std::max(cMax.y, c.y);
+                        cMax.z = std::max(cMax.z, c.z);
+                    }
+
+                    // 2) Compute Morton codes for centroids (normalized to [0,1]^3)
+                    const float eps = 1e-9f;
+                    const float dx = std::max(cMax.x - cMin.x, eps);
+                    const float dy = std::max(cMax.y - cMin.y, eps);
+                    const float dz = std::max(cMax.z - cMin.z, eps);
+
+                    for (unsigned int i = 0; i < nfaces; ++i) {
+                        const point3u& f = scene.faces[i];
+                        const point3f& v0 = scene.vertices[f.x];
+                        const point3f& v1 = scene.vertices[f.y];
+                        const point3f& v2 = scene.vertices[f.z];
+
+                        // Centroid
+                        point3f c;
+                        c.x = (v0.x + v1.x + v2.x) * (1.0f / 3.0f);
+                        c.y = (v0.y + v1.y + v2.y) * (1.0f / 3.0f);
+                        c.z = (v0.z + v1.z + v2.z) * (1.0f / 3.0f);
+
+                        float nx = (c.x - cMin.x) / dx;
+                        float ny = (c.y - cMin.y) / dy;
+                        float nz = (c.z - cMin.z) / dz;
+
+                        // Clamp to [0,1]
+                        nx = std::min(std::max(nx, 0.0f), 1.0f);
+                        ny = std::min(std::max(ny, 0.0f), 1.0f);
+                        nz = std::min(std::max(nz, 0.0f), 1.0f);
+
+                        prims[i].morton = morton3D(nx, ny, nz);
+                    }
+
+                    prims_gpu.writeN(prims.data(), prims.size());
+                }
                 { // Сортируем треугольники по коду Мортона используя merge sort
                     gpu::shared_device_buffer_typed<Prim> prims_buf_gpu(nfaces);
 
@@ -319,6 +388,12 @@ void run(int argc, char** argv)
                     for (unsigned int i = PIVOT; (1u << (i - 1)) < nfaces; ++i) { 
                         ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, nfaces), prims_gpu.clmem(), prims_buf_gpu.clmem(), i, nfaces);
                         prims_gpu.swap(prims_buf_gpu);
+                    }
+
+                    std::vector<Prim> prims(nfaces);
+                    prims_gpu.readN(prims.data(), prims.size());
+                    for (std::size_t i = 1; i < prims.size(); ++i) {
+                        rassert(prims[i - 1].morton > prims[i].morton, 132345246);
                     }
                 }
 
