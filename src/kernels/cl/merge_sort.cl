@@ -1,48 +1,28 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-inline uint upper_bound_le(
+inline uint upper_bound_cmp(
     __global const uint* arr,
-                   uint left,
-                   uint right,
-                   uint a
-    ) {
-    uint l = left, r = right;
-    uint mid, val;
-    while (l < r) {
-        mid = l + ((r - l) >> 1);
-        val = arr[mid];
-        if (val <= a) {
-            l = mid + 1;
-        } else {
-            r = mid;
-        }
-    }
-    return l;
-}
+                   uint l,
+                   uint r,
+                   uint val,
+                   bool in) {
 
-inline uint upper_bound_lt(
-    __global const uint* arr,
-    uint left,
-    uint right,
-    uint a
-) {
-    uint l = left, r = right;
-    uint mid, val;
+    uint mid, v;
     while (l < r) {
         mid = l + ((r - l) >> 1);
-        val = arr[mid];
-        if (val < a) {
+        v = arr[mid];
+        if (in ? (v <= val) : (v < val))
             l = mid + 1;
-        } else {
+        else
             r = mid;
-        }
     }
     return l;
+
 }
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
@@ -52,35 +32,35 @@ __kernel void merge_sort(
              const uint n,
                    uint pow) {
 
-    const uint id = get_global_id(0);
-    if (id < n) {
-        const uint block_id = id >> pow;
-        const uint a = last_layer[id];
-        uint l_inclusive, r_exclusive, offset;
-        if (block_id & 1u) { // odd <- '<='
-            l_inclusive = (1u << pow) * (block_id - 1u);
-            r_exclusive = l_inclusive + (1u << pow);
-            // TODO find how many in [l_inclusive;r_exclusive) less or equal than last_layer[id]
+    uint id = get_global_id(0);
+    if (id >= n) return;
 
-            uint pos = upper_bound_le(last_layer, l_inclusive, r_exclusive, a);
-            uint count_le = pos - l_inclusive;
-            new_layer[l_inclusive + id - r_exclusive + count_le] = a;
-        } else { // even -> '<'
-            l_inclusive = (1u << pow) * (block_id + 1u);
-            if (l_inclusive + 1 >= n) { // handle bad n
-                new_layer[id] = last_layer[id];
-                return;
-            }
-            r_exclusive = l_inclusive + (1u << pow);
-            if (r_exclusive > n) { // whether out of bounds
-                r_exclusive = n;
-            }
-            // TODO find how many in [l_inclusive;r_exclusive) greater than last_layer[id]
+    uint val = last_layer[id];
+    uint block_size = 1u << pow;
+    uint block_id   = id >> pow;
+    uint pos_in_block = id & (block_size - 1u);
 
-            uint pos = upper_bound_lt(last_layer, l_inclusive, r_exclusive, a);
-            uint count_lt = pos - l_inclusive;
-            new_layer[id + count_lt] = a;
+    uint l_start, r_start, l_end, r_end;
+    uint cnt, pos;
 
+    if (block_id & 1u) {
+        l_start = block_size * (block_id - 1u);
+        l_end   = l_start + block_size;
+
+        pos = upper_bound_cmp(last_layer, l_start, l_end, val, true);
+        cnt = pos - l_start;
+    } else {
+        l_start = block_size * block_id;
+        r_start = block_size + l_start;
+        if (r_start >= n) {
+            new_layer[id] = val;
+            return;
         }
+        r_end = r_start + block_size;
+        if (r_end > n) r_end = n;
+
+        pos = upper_bound_cmp(last_layer, r_start, r_end, val, false);
+        cnt = pos - r_start;
     }
+    new_layer[l_start + cnt + pos_in_block] = val;
 }

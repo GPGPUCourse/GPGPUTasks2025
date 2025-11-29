@@ -41,7 +41,6 @@ void run(int argc, char** argv)
     FastRandom r;
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    n = 3;
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
@@ -87,11 +86,6 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u* start = &input_gpu;
     gpu::gpu_mem_32u* end = &buffer2_gpu;
 
-    std::cout << "before: " << std::endl;
-    for (unsigned int i: as) {
-        std::cout << i << ' ';
-    }
-    std::cout << std::endl;
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -113,11 +107,7 @@ void run(int argc, char** argv)
                     start = &buffer1_gpu;
                 }
                 std::swap(start, end);
-                if (pow == 1) {
-                    break;
-                }
                 ++pow;
-
             }
 
         } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -139,11 +129,11 @@ void run(int argc, char** argv)
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = (*start).readVector();
 
-    std::cout << "after: " << std::endl;
-    for (unsigned int i : gpu_sorted) {
-        std::cout << i << ' ';
-    }
-    std::cout << std::endl;
+//    std::cout << "after: " << std::endl;
+//    for (unsigned int i : gpu_sorted) {
+//        std::cout << i << ' ';
+//    }
+//    std::cout << std::endl;
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
