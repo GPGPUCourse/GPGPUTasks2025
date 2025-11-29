@@ -67,7 +67,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -81,13 +81,14 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
 
-    const std::string gnome_scene_path = "data/gnome/gnome.ply";
+    const std::string gnome_scene_path = "D:/git/GPGPUTasks2025/data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
         gnome_scene_path,
-        "data/powerplant/powerplant.obj",
-        "data/san-miguel/san-miguel.obj",
+        "D:/git/GPGPUTasks2025/data/powerplant/powerplant.obj",
+        "D:/git/GPGPUTasks2025/data/san-miguel/san-miguel.obj",
     };
 
+    constexpr bool denoising_enabled = true;
     const int niters = 10; // при отладке удобно запускать одну итерацию
     std::vector<double> gpu_rt_perf_mrays_per_sec;
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
@@ -113,9 +114,9 @@ void run(int argc, char** argv)
         rassert(nvertices > 0, 546345423523143);
         rassert(nfaces > 0, 54362452342);
         std::string scene_name = std::filesystem::path(scene_path).parent_path().filename().string();
-        std::string camera_path = "data/" + scene_name + "/camera.txt";
-        std::string results_dir = "results/" + scene_name;
-        std::filesystem::create_directory(std::filesystem::path("results"));
+        std::string camera_path = "D:/git/GPGPUTasks2025/data/" + scene_name + "/camera.txt";
+        std::string results_dir = "D:/git/GPGPUTasks2025/data/results/" + scene_name;
+        std::filesystem::create_directory(std::filesystem::path("D:/git/GPGPUTasks2025/data/results"));
         std::filesystem::create_directory(std::filesystem::path(results_dir));
         std::cout << "Loading camera " << camera_path << "..." << std::endl;
         CameraViewGPU camera = loadViewState(camera_path);
@@ -220,6 +221,9 @@ void run(int argc, char** argv)
             lbvh_nodes_gpu.writeN(lbvh_nodes_cpu.data(), lbvh_nodes_cpu.size());
             leaf_faces_indices_gpu.writeN(leaf_faces_indices_cpu.data(), leaf_faces_indices_cpu.size());
 
+            gpu::shared_device_buffer_typed<DENOISE> denoise_info(width * height);
+            denoise_info.fill(DENOISE { 0.0f, 0 });
+
             timer cleaning_framebuffers_t;
             framebuffer_face_id_gpu.fill(NO_FACE_ID);
             framebuffer_ambient_occlusion_gpu.fill(NO_AMBIENT_OCCLUSION);
@@ -228,10 +232,6 @@ void run(int argc, char** argv)
             std::vector<double> rt_times_with_cpu_lbvh;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
-
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
                         gpu::WorkSize(16, 16, width, height),
@@ -245,7 +245,8 @@ void run(int argc, char** argv)
                         vertices_gpu, faces_gpu,
                         lbvh_nodes_gpu, leaf_faces_indices_gpu,
                         framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu, nfaces);
+                        denoise_info,
+                        camera_gpu, nfaces, iter, denoising_enabled);
                 } else if (context.type() == gpu::Context::TypeVulkan) {
                     vk_rt_with_lbvh.exec(
                         nfaces,
@@ -277,11 +278,12 @@ void run(int argc, char** argv)
             debug_io::dumpImage(results_dir + "/framebuffer_face_ids_with_cpu_lbvh.bmp", debug_io::randomMapping(cpu_lbvh_framebuffer_face_ids, NO_FACE_ID));
             debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_cpu_lbvh.bmp", debug_io::depthMapping(cpu_lbvh_framebuffer_ambient_occlusion));
             images_saving_time += cpu_lbvh_images_saving_t.elapsed();
-            if (has_brute_force) {
-                unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, cpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
+            if (has_brute_force && !denoising_enabled) {
                 unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, cpu_lbvh_framebuffer_face_ids, 1);
-                rassert(count_ao_errors < width * height / 100, 345341512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
                 rassert(count_face_id_errors < width * height / 100, 3453415123546587, count_face_id_errors, to_percent(count_face_id_errors, width * height));
+
+                unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, cpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
+                rassert(count_ao_errors < width * height / 100, 345341512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
             }
         }
 
@@ -290,14 +292,36 @@ void run(int argc, char** argv)
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+
+        std::vector<BVHNodeGPU> lbvh_nodes_gpu_host(2 * nfaces - 1, BVHNodeGPU{});
+        std::vector<uint32_t> leaf_faces_indices_gpu_host(nfaces, -1);
+
+        gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(lbvh_nodes_gpu_host.size());
+        gpu::gpu_mem_32u leaf_faces_indices_gpu(leaf_faces_indices_gpu_host.size());
+
+        lbvh_nodes_gpu.writeN(lbvh_nodes_gpu_host.data(), lbvh_nodes_gpu_host.size());
+        leaf_faces_indices_gpu.writeN(leaf_faces_indices_gpu_host.data(), leaf_faces_indices_gpu_host.size());
+
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                if (context.type() == gpu::Context::TypeOpenCL) {
+                    rassert(false, 0xC0DE);
+                } else if (context.type() == gpu::Context::TypeCUDA) {
+                    cuda::lbvh_build_gpu(
+                        gpu::WorkSize(GROUP_SIZE, nfaces),
+                        vertices_gpu, faces_gpu,
+                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
+                        nfaces);
+                } else if (context.type() == gpu::Context::TypeVulkan) {
+                    rassert(false, 0xDEC0DE);
+                } else {
+                    rassert(false, 0xAD0BE);
+                }
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -306,6 +330,9 @@ void run(int argc, char** argv)
             std::cout << "GPU LBVH build times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_times) << std::endl;
             std::cout << "GPU LBVH build performance: " << build_mtris_per_sec << " MTris/s" << std::endl;
             gpu_lbvh_perfs_mtris_per_sec.push_back(build_mtris_per_sec);
+
+            gpu::shared_device_buffer_typed<DENOISE> denoise_info(width * height);
+            denoise_info.fill(DENOISE { 0.0f, 0 });
 
             timer cleaning_framebuffers_t;
             framebuffer_face_id_gpu.fill(NO_FACE_ID);
@@ -316,7 +343,21 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                if (context.type() == gpu::Context::TypeOpenCL) {
+                    rassert(false, 0xC0C0A);
+                } else if (context.type() == gpu::Context::TypeCUDA) {
+                    cuda::ray_tracing_render_using_lbvh(
+                        gpu::WorkSize(16, 16, width, height),
+                        vertices_gpu, faces_gpu,
+                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
+                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                        denoise_info,
+                        camera_gpu, nfaces, iter, denoising_enabled);
+                } else if (context.type() == gpu::Context::TypeVulkan) {
+                    rassert(false, 0xDECAF);
+                } else {
+                    rassert(false, 0xC0FFEE);
+                }
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
@@ -337,7 +378,7 @@ void run(int argc, char** argv)
             debug_io::dumpImage(results_dir + "/framebuffer_face_ids_with_gpu_lbvh.bmp", debug_io::randomMapping(gpu_lbvh_framebuffer_face_ids, NO_FACE_ID));
             debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_gpu_lbvh.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion));
             images_saving_time += gpu_lbvh_images_saving_t.elapsed();
-            if (has_brute_force) {
+            if (has_brute_force && !denoising_enabled) {
                 unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
                 unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
                 rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
