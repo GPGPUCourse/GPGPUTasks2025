@@ -28,6 +28,13 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+
+// LBVH Build and Radix Sort
+const ProgramBinaries& getLBVHBuild();
+const ProgramBinaries& getRadixSort01();
+const ProgramBinaries& getRadixSort02();
+const ProgramBinaries& getRadixSort03();
+const ProgramBinaries& getFillBufferWithZeros();
 }
 
 namespace avk2 {

@@ -17,6 +17,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 // Считает сколько непустых пикселей
 template<typename T>
@@ -50,6 +51,39 @@ size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
         }
     }
     return count;
+}
+
+unsigned int align_up(unsigned int n, unsigned int alignment) {
+    return (n + alignment - 1) / alignment * alignment;
+}
+
+void validate_tree(const std::vector<int>& parents, const std::vector<BVHNodeGPU>& nodes, int nfaces) {
+    int num_nodes = nodes.size();
+    int root = 0;
+    if (parents[root] != -1) {
+        std::cerr << "ERROR: Root (0) parent is " << parents[root] << ", expected -1" << std::endl;
+    }
+    
+    for (int i = 0; i < num_nodes; ++i) {
+        int curr = i;
+        int steps = 0;
+        while (curr != -1 && steps < num_nodes + 10) {
+            curr = parents[curr];
+            steps++;
+        }
+        if (steps >= num_nodes) {
+            std::cerr << "ERROR: Cycle detected starting from node " << i << std::endl;
+            curr = i;
+            for(int k=0; k<20; ++k) {
+                std::cerr << curr << " -> ";
+                curr = parents[curr];
+            }
+            std::cerr << "..." << std::endl;
+            throw std::runtime_error("Tree validation failed: cycle detected");
+        }
+    }
+    
+    std::cout << "Tree topology validation passed." << std::endl;
 }
 
 void run(int argc, char** argv)
@@ -228,10 +262,6 @@ void run(int argc, char** argv)
             std::vector<double> rt_times_with_cpu_lbvh;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
-
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
                         gpu::WorkSize(16, 16, width, height),
@@ -288,16 +318,120 @@ void run(int argc, char** argv)
         double gpu_lbvh_time_sum = 0.0;
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
-        // TODO постройте LBVH на GPU
-        // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        // GPU LBVH Build
+        bool gpu_lbvg_gpu_rt_done = true;
+
+        // Pre-compute scene AABB for GPU LBVH
+        float min_x = std::numeric_limits<float>::infinity();
+        float min_y = std::numeric_limits<float>::infinity();
+        float min_z = std::numeric_limits<float>::infinity();
+        float max_x = -std::numeric_limits<float>::infinity();
+        float max_y = -std::numeric_limits<float>::infinity();
+        float max_z = -std::numeric_limits<float>::infinity();
+        for (const auto& v : scene.vertices) {
+            min_x = std::min(min_x, v.x);
+            min_y = std::min(min_y, v.y);
+            min_z = std::min(min_z, v.z);
+            max_x = std::max(max_x, v.x);
+            max_y = std::max(max_y, v.y);
+            max_z = std::max(max_z, v.z);
+        }
+        gpu::gpu_mem_32f scene_min_gpu(3);
+        gpu::gpu_mem_32f scene_max_gpu(3);
+        std::vector<float> min_vec = {min_x, min_y, min_z};
+        std::vector<float> max_vec = {max_x, max_y, max_z};
+        scene_min_gpu.writeN(min_vec.data(), 3);
+        scene_max_gpu.writeN(max_vec.data(), 3);
+
+        // Load kernels
+        ocl::KernelSource kernel_compute_morton(ocl::getLBVHBuild(), "compute_morton_codes");
+        ocl::KernelSource kernel_scatter(ocl::getLBVHBuild(), "radix_sort_scatter_payload");
+        ocl::KernelSource kernel_init_leaves(ocl::getLBVHBuild(), "init_leaves");
+        ocl::KernelSource kernel_build_internal(ocl::getLBVHBuild(), "build_internal_nodes");
+        ocl::KernelSource kernel_compute_aabbs(ocl::getLBVHBuild(), "compute_aabbs");
+        
+        ocl::KernelSource ocl_radix_sort_01(ocl::getRadixSort01(), "radix_sort_01_local_counting");
+        ocl::KernelSource ocl_radix_sort_02(ocl::getRadixSort02(), "radix_sort_02_global_prefixes_scan_sum_reduction");
+        ocl::KernelSource ocl_radix_sort_03(ocl::getRadixSort03(), "radix_sort_03_global_prefixes_scan_accumulation");
+        ocl::KernelSource ocl_fill_zeros(ocl::getFillBufferWithZeros(), "fill_buffer_with_zeros");
+
+        // Buffers for build
+        gpu::gpu_mem_32u morton_codes_gpu(nfaces);
+        gpu::gpu_mem_32u indices_gpu(nfaces);
+        gpu::gpu_mem_32u sorted_morton_codes_gpu(nfaces);
+        gpu::gpu_mem_32u sorted_indices_gpu(nfaces);
+        
+        // Buffers for Radix Sort
+        unsigned int work_group_size = 256;
+        unsigned int global_work_size = align_up(nfaces, work_group_size);
+        unsigned int num_work_groups = global_work_size / work_group_size;
+        gpu::gpu_mem_32u radix_counts_gpu(num_work_groups * 16);
+        gpu::gpu_mem_32u radix_offsets_gpu(num_work_groups * 16);
+        
+        // Buffers for hierarchy
+        unsigned int num_nodes = 2 * nfaces - 1;
+        gpu::shared_device_buffer_typed<BVHNodeGPU> gpu_bvh_nodes(num_nodes);
+        gpu::gpu_mem_32i parents_gpu(num_nodes);
+        gpu::gpu_mem_32i counters_gpu(num_nodes);
 
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                if (context.type() == gpu::Context::TypeOpenCL) {
+                    // 1. Compute Morton Codes
+                    kernel_compute_morton.exec( 
+                        gpu::WorkSize(work_group_size, nfaces), 
+                        vertices_gpu, faces_gpu, scene_min_gpu, scene_max_gpu, 
+                        morton_codes_gpu, indices_gpu, nfaces);
+
+                    // 2. Radix Sort (Key=morton, Value=index)
+                    gpu::gpu_mem_32u* src_keys = &morton_codes_gpu;
+                    gpu::gpu_mem_32u* src_vals = &indices_gpu;
+                    gpu::gpu_mem_32u* dst_keys = &sorted_morton_codes_gpu;
+                    gpu::gpu_mem_32u* dst_vals = &sorted_indices_gpu;
+
+                    for (unsigned int bit = 0; bit < 30; bit += 4) {
+                        ocl_fill_zeros.exec(gpu::WorkSize(256, num_work_groups * 16), radix_counts_gpu, num_work_groups * 16);
+                        ocl_radix_sort_01.exec(gpu::WorkSize(work_group_size, nfaces), *src_keys, radix_counts_gpu, nfaces, bit);
+                        
+                        ocl_radix_sort_02.exec(gpu::WorkSize(1, 1), radix_counts_gpu, radix_offsets_gpu, num_work_groups);
+                        ocl_radix_sort_03.exec(gpu::WorkSize(1, 1), radix_counts_gpu, radix_offsets_gpu, num_work_groups, 0);
+                        
+                        kernel_scatter.exec(
+                            gpu::WorkSize(work_group_size, nfaces),
+                            *src_keys, *src_vals, radix_offsets_gpu, *dst_keys, *dst_vals, nfaces, bit);
+                        
+                        std::swap(src_keys, dst_keys);
+                        std::swap(src_vals, dst_vals);
+                    }
+                    // Result is in *src_keys (morton_codes_gpu) and *src_vals (indices_gpu)
+
+                    // 3. Build Hierarchy
+                    kernel_init_leaves.exec(
+                        gpu::WorkSize(work_group_size, nfaces),
+                        *src_vals, vertices_gpu, faces_gpu, gpu_bvh_nodes.clmem(), nfaces);
+                    
+                    kernel_build_internal.exec(
+                        gpu::WorkSize(work_group_size, nfaces - 1), 
+                        *src_keys, gpu_bvh_nodes.clmem(), parents_gpu, nfaces);
+                    
+                    // Validation
+                    std::vector<int> parents_cpu(num_nodes);
+                    std::vector<BVHNodeGPU> nodes_cpu(num_nodes);
+                    parents_gpu.readN(parents_cpu.data(), num_nodes);
+                    gpu_bvh_nodes.readN(nodes_cpu.data(), num_nodes);
+                    validate_tree(parents_cpu, nodes_cpu, nfaces);
+
+                    // 3.3 Compute AABBs
+                    ocl_fill_zeros.exec(gpu::WorkSize(256, num_nodes), counters_gpu, num_nodes);
+                    kernel_compute_aabbs.exec(
+                        gpu::WorkSize(work_group_size, nfaces),
+                        gpu_bvh_nodes.clmem(), parents_gpu, counters_gpu, nfaces);
+                } else {
+                    throw std::runtime_error("GPU LBVH build only implemented for OpenCL");
+                }
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -316,7 +450,16 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                if (context.type() == gpu::Context::TypeOpenCL) {
+                     ocl_rt_with_lbvh.exec(
+                        gpu::WorkSize(16, 16, width, height),
+                        vertices_gpu, faces_gpu,
+                        gpu_bvh_nodes.clmem(), indices_gpu,
+                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                        camera_gpu.clmem(), nfaces);
+                } else {
+                    throw std::runtime_error("GPU RT with LBVH only implemented for OpenCL");
+                }
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
