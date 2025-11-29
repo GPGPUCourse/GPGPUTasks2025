@@ -186,7 +186,18 @@ SceneGeometry loadOBJ(const std::string &path)
             float x = parseFloat(p);
             float y = parseFloat(p);
             float z = parseFloat(p);
-            scene.vertices.emplace_back(point3f{x,y,z});
+            if (scene.vertices.empty()) {
+                scene.min = point3f(x, y, z);
+                scene.max = point3f(x, y, z);
+            } else {
+                scene.min.x = std::min(x, scene.min.x);
+                scene.min.y = std::min(y, scene.min.y);
+                scene.min.z = std::min(z, scene.min.z);
+                scene.max.x = std::max(x, scene.max.x);
+                scene.max.y = std::max(y, scene.max.y);
+                scene.max.z = std::max(z, scene.max.z);
+            }
+            scene.vertices.emplace_back(x,y,z);
             continue;
         }
 
@@ -403,10 +414,21 @@ SceneGeometry loadPLY(const std::string &path)
                 double val = 0.0; vs >> val; rassert(!vs.fail(), 3201);
                 scalars.push_back(val);
             }
-            scene.vertices[static_cast<size_t>(i)] =
+            scene.vertices[i] =
                 point3f{ float(scalars[size_t(xPos)]),
                          float(scalars[size_t(yPos)]),
                          float(scalars[size_t(zPos)]) };
+            if (i == 0) {
+                scene.min = scene.vertices[i];
+                scene.max = scene.vertices[i];
+            } else {
+                scene.min.x = std::min(scene.min.x, scene.vertices[i].x);
+                scene.min.y = std::min(scene.min.y, scene.vertices[i].y);
+                scene.min.z = std::min(scene.min.z, scene.vertices[i].z);
+                scene.max.x = std::max(scene.max.x, scene.vertices[i].x);
+                scene.max.y = std::max(scene.max.y, scene.vertices[i].y);
+                scene.max.z = std::max(scene.max.z, scene.vertices[i].z);
+            }
         }
 
         // Identify face indices list

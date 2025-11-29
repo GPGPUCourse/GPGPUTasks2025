@@ -24,7 +24,14 @@ GPU_STRUCT_BEGIN(BVHNodeGPU)
     AABBGPU aabb;
     GPUC_UINT leftChildIndex;
     GPUC_UINT rightChildIndex;
+    GPUC_UINT parentIndex;
 GPU_STRUCT_END(BVHNodeGPU)
+
+// Primitive face on gpu
+GPU_STRUCT_BEGIN(PrimGPU)
+    GPUC_UINT faceIndex;
+    GPUC_UINT mortonCode;
+GPU_STRUCT_END(PrimGPU)
 
 /* ---------------- Host-only layout checks ---------------- */
 #if !defined(__OPENCL_VERSION__)
@@ -33,7 +40,7 @@ GPU_STRUCT_END(BVHNodeGPU)
   #if defined(__cplusplus)
     static_assert(sizeof(GPUC_UINT) == 4, "GPUC_UINT must be 32-bit");
 
-    static_assert(sizeof(BVHNodeGPU) == sizeof(AABBGPU) + 2*4, "BVHNodeGPU size mismatch");
+    static_assert(sizeof(BVHNodeGPU) == sizeof(AABBGPU) + 3*4, "BVHNodeGPU size mismatch");
   #endif
 #endif
 
