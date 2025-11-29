@@ -81,11 +81,11 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
 
-    const std::string gnome_scene_path = "../data/gnome/gnome.ply";
+    const std::string gnome_scene_path = "data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
         gnome_scene_path,
-        "../data/powerplant/powerplant.obj",
-        "../data/san-miguel/san-miguel.obj",
+        "data/powerplant/powerplant.obj",
+        "data/san-miguel/san-miguel.obj",
     };
 
     const int niters = 10; // при отладке удобно запускать одну итерацию
@@ -113,7 +113,7 @@ void run(int argc, char** argv)
         rassert(nvertices > 0, 546345423523143);
         rassert(nfaces > 0, 54362452342);
         std::string scene_name = std::filesystem::path(scene_path).parent_path().filename().string();
-        std::string camera_path = "../data/" + scene_name + "/camera.txt";
+        std::string camera_path = "data/" + scene_name + "/camera.txt";
         std::string results_dir = "results/" + scene_name;
         std::filesystem::create_directory(std::filesystem::path("results"));
         std::filesystem::create_directory(std::filesystem::path(results_dir));
