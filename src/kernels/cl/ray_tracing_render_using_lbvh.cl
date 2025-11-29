@@ -512,7 +512,7 @@ __kernel void post_build_lbvh(
 {
     const uint index = get_global_id(0);
 
-    if (index >= N) {
+    if (index >= N - 1) {
         return;
     }
 
