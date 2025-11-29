@@ -103,6 +103,10 @@ static inline bool any_hit_from(
         if (node_index >= leafStart)
         {
             uint triIndex = leafTriIndices[node_index - leafStart];
+            if ((int)triIndex == ignore_face)
+            {
+                continue;
+            }
             uint3 f = loadFace(faces, triIndex);
             float3 v0 = loadVertex(vertices, f.x);
             float3 v1 = loadVertex(vertices, f.y);

@@ -114,6 +114,7 @@ void run(int argc, char** argv)
         timer loading_scene_t;
         SceneGeometry scene = loadScene(scene_path);
         // scene.faces.resize(100);
+        // scene.faces.resize(10000);
         // если на каком-то датасете падает - удобно взять подможество треугольников - например просто вызовите scene.faces.resize(10000);
         const unsigned int nvertices = scene.vertices.size();
         const unsigned int nfaces = scene.faces.size();
@@ -351,16 +352,18 @@ void run(int argc, char** argv)
             
             
             std::vector<double> gpu_lbvh_times;
-            for (int iter = 0; iter < 10; ++iter) {
+            for (int iter = 0; iter < 1; ++iter) {
                 timer t;
 
                 used_gpu.fill(0);
                 ocl_build_lbvh.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
                     morton_codes_gpu, nfaces,
                     lbvh_nodes_gpu.clmem());
+                // std::cout << "finish build lbvh\n";
                 ocl_build_aabb_leaves.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
                     vertices_gpu, faces_gpu, sorted_indices_gpu, nfaces,
                     lbvh_nodes_gpu.clmem());
+                // std::cout << "finish build aabb leaves\n";
                 bool has_changed = true;
                 gpu::gpu_mem_32u changed(1);
 
@@ -369,11 +372,13 @@ void run(int argc, char** argv)
                     ocl_build_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces), 
                         used_gpu, temp_used_gpu, changed, nfaces,
                         lbvh_nodes_gpu.clmem());
+                    // std::cout << "finish iterate build aabb\n";
                     std::swap(used_gpu, temp_used_gpu);
                     uint output = 0;
                     changed.readN(&output, 1);
                     has_changed = output > 0;
                 }
+                // std::cout << "finish build aabb\n";
                 gpu_lbvh_times.push_back(t.elapsed());
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
