@@ -1,0 +1,35 @@
+---
+Checks:          "-*, \
+                  performance-no-automatic-move,\
+                  performance-move-const-arg, \
+                  performance-inefficient-vector-operation, \
+                  bugprone-unused-raii,bugprone-use-after-move, \
+                  bugprone-bool-pointer-implicit-conversion, \
+                  performance-implicit-conversion-in-loop, \
+                  readability-implicit-bool-conversion, \
+                  bugprone-misplaced-widening-cast, \
+                  bugprone-move-forwarding-reference, \
+                  bugprone-bool-pointer-implicit-conversion, \
+                  bugprone-string-constructor, \
+                  bugprone-string-integer-assignment, \
+                  performance-no-automatic-move, \
+                  readability-make-member-function-const, \
+                  readability-avoid-const-params-in-decls, \
+                  performance-unnecessary-value-param, \
+                  performance-unnecessary-copy-initialization, \
+                  range-loop-construct, \
+                  modernize-use-nullptr, \
+                  readability-container-size-empty, \
+                  modernize-use-using"
+WarningsAsErrors: '*'
+CheckOptions:
+  - key:             performance-move-const-arg.CheckTriviallyCopyableMove
+    value:           '0'
+  - key:             performance-no-automatic-move.AllowedTypes
+    value:           ''
+  - key:             readability-implicit-bool-conversion.AllowIntegerConditions
+    value:           '1'
+  - key:             readability-implicit-bool-conversion.AllowPointerConditions
+    value:           '1'
+
+...
