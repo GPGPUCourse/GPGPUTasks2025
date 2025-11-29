@@ -188,7 +188,7 @@ static inline bool any_hit_from(
 
         if (intersects_right) {
             if (right_child_index >= leafStart) {
-                const faceId = leafTriIndices[right_child_index - leafStart];
+                const uint faceId = leafTriIndices[right_child_index - leafStart];
                 if (faceId != ignore_face) {
                     float t, u, v;
                     const uint3 face = loadFace(faces, leafTriIndices[right_child_index - leafStart]);
