@@ -80,7 +80,7 @@ void run(int argc, char** argv)
                 struct {
                     unsigned int w;
                     unsigned int h;
-                } params = {w, h};
+                } params = { w, h };
                 if (algorithm == "01 naive transpose (non-coalesced)") {
                     vk_matrix01TransposeNaive.exec(params, gpu::WorkSize(1, 1, w, h), input_matrix_gpu, output_matrix_gpu);
                 } else if (algorithm == "02 transpose via local memory (coalesced)") {
