@@ -94,7 +94,7 @@ void run(int argc, char** argv)
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     gpu::WorkSize workSize(GROUP_SIZE, n);
-    for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         if (context.type() == gpu::Context::TypeOpenCL) {
