@@ -147,7 +147,6 @@ __device__ bool any_hit_from(
         const int left_child = cur_node->leftChildIndex;
         bool left_child_intersected = false;
 
-        // Fix: Check for valid child index before treating as leaf
         if (left_child != 0xFFFFFFFFu && left_child >= leafStart) // is leaf, so it's a triangle
         {
             const bool triangle_intersection = fn_treat_leaf(left_child);
@@ -162,7 +161,6 @@ __device__ bool any_hit_from(
         const int right_child = cur_node->rightChildIndex;
         bool right_child_intersected = false;
 
-        // Fix: Check for valid child index before treating as leaf
         if (right_child != 0xFFFFFFFFu && right_child >= leafStart) // is leaf, so it's a triangle
         {
             const bool triangle_intersection = fn_treat_leaf(right_child);
@@ -186,7 +184,7 @@ __device__ bool any_hit_from(
 
     } while (cur_node);
 
-    return false; // no intersections found;
+    return false; // no intersections found
 }
 
 // + helper: build tangent basis for a given normal
