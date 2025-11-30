@@ -7,15 +7,19 @@
 #include <libbase/point.h>
 
 #include <algorithm>
-#include <cstdint>
-#include <vector>
-#include <limits>
 #include <cmath>
+#include <cstdint>
+#include <limits>
+#include <vector>
+
+// Костыль, так как сборка почему-то сломалась после добавления кернела
+#define GPUC_UINT uint32_t
 
 // count leading zeros for 32-bit unsigned
 static inline int clz32(uint32_t x)
 {
-    if (x == 0u) return 32;
+    if (x == 0u)
+        return 32;
 #if defined(_MSC_VER)
     unsigned long idx;
     _BitScanReverse(&idx, x);
@@ -29,7 +33,8 @@ static inline int clz32(uint32_t x)
 // Uses index as a tiebreaker when codes are equal (like Karras 2013).
 static inline int common_prefix(const std::vector<MortonCode>& codes, int N, int i, int j)
 {
-    if (j < 0 || j >= N) return -1;
+    if (j < 0 || j >= N)
+        return -1;
 
     MortonCode ci = codes[static_cast<size_t>(i)];
     MortonCode cj = codes[static_cast<size_t>(j)];
@@ -72,13 +77,13 @@ static inline void determine_range(const std::vector<uint32_t>& codes, int N, in
 
     int j = i + l * d;
     outFirst = std::min(i, j);
-    outLast  = std::max(i, j);
+    outLast = std::max(i, j);
 }
 
 // Find split position inside range [first, last] using the same
 // prefix metric as determine_range (code + index tie-break)
 static inline int find_split(const std::vector<uint32_t>& codes,
-                             int first, int last)
+    int first, int last)
 {
     const int N = static_cast<int>(codes.size());
 
@@ -94,7 +99,7 @@ static inline int find_split(const std::vector<uint32_t>& codes,
     int commonPrefix = delta(first, last);
 
     int split = first;
-    int step  = last - first;
+    int step = last - first;
 
     // Binary search for the last index < last where
     // prefix(first, i) > prefix(first, last)
@@ -126,8 +131,8 @@ static inline int find_split(const std::vector<uint32_t>& codes,
 inline void buildLBVH_CPU(
     const std::vector<point3f>& vertices,
     const std::vector<point3u>& faces,
-    std::vector<BVHNodeGPU>&    outNodes,
-    std::vector<uint32_t>&      outLeafTriIndices)
+    std::vector<BVHNodeGPU>& outNodes,
+    std::vector<uint32_t>& outLeafTriIndices)
 {
     const size_t N = faces.size();
     outNodes.clear();
@@ -148,17 +153,17 @@ inline void buildLBVH_CPU(
         const point3f& v2 = vertices[f.z];
 
         AABBGPU aabb;
-        aabb.min_x = std::min({v0.x, v1.x, v2.x});
-        aabb.min_y = std::min({v0.y, v1.y, v2.y});
-        aabb.min_z = std::min({v0.z, v1.z, v2.z});
-        aabb.max_x = std::max({v0.x, v1.x, v2.x});
-        aabb.max_y = std::max({v0.y, v1.y, v2.y});
-        aabb.max_z = std::max({v0.z, v1.z, v2.z});
+        aabb.min_x = std::min({ v0.x, v1.x, v2.x });
+        aabb.min_y = std::min({ v0.y, v1.y, v2.y });
+        aabb.min_z = std::min({ v0.z, v1.z, v2.z });
+        aabb.max_x = std::max({ v0.x, v1.x, v2.x });
+        aabb.max_y = std::max({ v0.y, v1.y, v2.y });
+        aabb.max_z = std::max({ v0.z, v1.z, v2.z });
 
         BVHNodeGPU& node = outNodes[0];
         node.aabb = aabb;
         // Leaf: no children (user can detect leaf via index and N)
-        node.leftChildIndex  = std::numeric_limits<GPUC_UINT>::max();
+        node.leftChildIndex = std::numeric_limits<GPUC_UINT>::max();
         node.rightChildIndex = std::numeric_limits<GPUC_UINT>::max();
 
         outLeafTriIndices[0] = 0;
@@ -169,19 +174,19 @@ inline void buildLBVH_CPU(
     struct Prim {
         uint32_t triIndex;
         uint32_t morton;
-        AABBGPU  aabb;
-        point3f  centroid;
+        AABBGPU aabb;
+        point3f centroid;
     };
 
     std::vector<Prim> prims(N);
 
     // 1) Compute per-triangle AABB and centroids
-    point3f cMin{+std::numeric_limits<float>::infinity(),
+    point3f cMin { +std::numeric_limits<float>::infinity(),
         +std::numeric_limits<float>::infinity(),
-        +std::numeric_limits<float>::infinity()};
-    point3f cMax{-std::numeric_limits<float>::infinity(),
+        +std::numeric_limits<float>::infinity() };
+    point3f cMax { -std::numeric_limits<float>::infinity(),
         -std::numeric_limits<float>::infinity(),
-        -std::numeric_limits<float>::infinity()};
+        -std::numeric_limits<float>::infinity() };
 
     for (size_t i = 0; i < N; ++i) {
         const point3u& f = faces[i];
@@ -191,12 +196,12 @@ inline void buildLBVH_CPU(
 
         // Triangle AABB
         AABBGPU aabb;
-        aabb.min_x = std::min({v0.x, v1.x, v2.x});
-        aabb.min_y = std::min({v0.y, v1.y, v2.y});
-        aabb.min_z = std::min({v0.z, v1.z, v2.z});
-        aabb.max_x = std::max({v0.x, v1.x, v2.x});
-        aabb.max_y = std::max({v0.y, v1.y, v2.y});
-        aabb.max_z = std::max({v0.z, v1.z, v2.z});
+        aabb.min_x = std::min({ v0.x, v1.x, v2.x });
+        aabb.min_y = std::min({ v0.y, v1.y, v2.y });
+        aabb.min_z = std::min({ v0.z, v1.z, v2.z });
+        aabb.max_x = std::max({ v0.x, v1.x, v2.x });
+        aabb.max_y = std::max({ v0.y, v1.y, v2.y });
+        aabb.max_z = std::max({ v0.z, v1.z, v2.z });
 
         // Centroid
         point3f c;
@@ -205,7 +210,7 @@ inline void buildLBVH_CPU(
         c.z = (v0.z + v1.z + v2.z) * (1.0f / 3.0f);
 
         prims[i].triIndex = static_cast<uint32_t>(i);
-        prims[i].aabb     = aabb;
+        prims[i].aabb = aabb;
         prims[i].centroid = c;
 
         // Update centroid bounds
@@ -262,7 +267,7 @@ inline void buildLBVH_CPU(
         BVHNodeGPU& leaf = outNodes[leafIndex];
 
         leaf.aabb = prims[i].aabb;
-        leaf.leftChildIndex  = INVALID;
+        leaf.leftChildIndex = INVALID;
         leaf.rightChildIndex = INVALID;
     }
 
@@ -293,12 +298,12 @@ inline void buildLBVH_CPU(
         }
 
         BVHNodeGPU& node = outNodes[static_cast<size_t>(i)];
-        node.leftChildIndex  = static_cast<GPUC_UINT>(leftIndex);
+        node.leftChildIndex = static_cast<GPUC_UINT>(leftIndex);
         node.rightChildIndex = static_cast<GPUC_UINT>(rightIndex);
     }
 
     // 7.1) Enumerating bottom-up traversal order for internal nodes to build AABB
-    std::vector<int> traversalOrder = {0}; // starting with root node
+    std::vector<int> traversalOrder = { 0 }; // starting with root node
     std::set<int> alreadyVisited;
     size_t next = 0;
     while (next < traversalOrder.size()) {
@@ -306,21 +311,21 @@ inline void buildLBVH_CPU(
         rassert(alreadyVisited.count(i) == 0, 452341233412, i, next);
         alreadyVisited.insert(i);
         BVHNodeGPU& node = outNodes[static_cast<size_t>(i)];
-        if (node.leftChildIndex != INVALID && node.leftChildIndex < N-1) { // ensuring it is not a leaf
+        if (node.leftChildIndex != INVALID && node.leftChildIndex < N - 1) { // ensuring it is not a leaf
             traversalOrder.push_back(node.leftChildIndex);
         }
-        if (node.rightChildIndex != INVALID && node.rightChildIndex < N-1) {
+        if (node.rightChildIndex != INVALID && node.rightChildIndex < N - 1) {
             traversalOrder.push_back(node.rightChildIndex);
         }
     }
-    rassert(traversalOrder.size() == N-1, 354623412341, traversalOrder.size(), N);
+    rassert(traversalOrder.size() == N - 1, 354623412341, traversalOrder.size(), N);
 
     // 7.2) AABB propagation for internal nodes in the bottom-up traversal order
     for (int j = traversalOrder.size() - 1; j >= 0; --j) {
         int i = traversalOrder[j];
         rassert(i < outNodes.size(), 45123413211);
         BVHNodeGPU& node = outNodes[static_cast<size_t>(i)];
-        const BVHNodeGPU& left  = outNodes[static_cast<size_t>(node.leftChildIndex)];
+        const BVHNodeGPU& left = outNodes[static_cast<size_t>(node.leftChildIndex)];
         const BVHNodeGPU& right = outNodes[static_cast<size_t>(node.rightChildIndex)];
 
         AABBGPU aabb;
