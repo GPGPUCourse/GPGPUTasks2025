@@ -31,9 +31,76 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    // iterative traversal stack
+    const int MAX_STACK = 64;
+    int stack[MAX_STACK];
+    int sp = 0;
+    stack[sp++] = rootIndex;
 
-    return false;
+    bool hit = false;
+    float bestT = FLT_MAX;
+    *outFaceId = -1;
+    *outT = FLT_MAX;
+    *outU = 0.0f;
+    *outV = 0.0f;
+
+    while (sp > 0) {
+        int nodeIndex = stack[--sp];
+        BVHNodeGPU node = nodes[nodeIndex];
+
+        float tNear, tFar;
+        if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, bestT, &tNear, &tFar))
+            continue;
+
+        if (nodeIndex >= leafStart) {
+            uint triIndex = leafTriIndices[nodeIndex - leafStart];
+
+            float t, u, v;
+            uint3  f = loadFace(faces, triIndex);
+            float3 a = loadVertex(vertices, f.x);
+            float3 b = loadVertex(vertices, f.y);
+            float3 c = loadVertex(vertices, f.z);
+
+            if (intersect_ray_triangle(orig, dir,
+                                       a, b, c,
+                                       tMin, bestT,
+                                       false,
+                                       &t, &u, &v))
+            {
+                hit = true;
+                bestT = t;
+                *outT = t;
+                *outFaceId = (int)triIndex;
+                *outU = u;
+                *outV = v;
+            }
+        } else {
+            int left  = (int)node.leftChildIndex;
+            int right = (int)node.rightChildIndex;
+
+            float nearL, farL;
+            float nearR, farR;
+            bool hitL = intersect_ray_aabb(orig, dir, nodes[left].aabb, tMin, bestT, &nearL, &farL);
+            bool hitR = intersect_ray_aabb(orig, dir, nodes[right].aabb, tMin, bestT, &nearR, &farR);
+
+            if (hitL && hitR) {
+                // push farther first so nearer gets processed first
+                if (nearL > nearR) {
+                    stack[sp++] = left;
+                    stack[sp++] = right;
+                } else {
+                    stack[sp++] = right;
+                    stack[sp++] = left;
+                }
+            } else if (hitL) {
+                stack[sp++] = left;
+            } else if (hitR) {
+                stack[sp++] = right;
+            }
+        }
+    }
+
+    return hit;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -50,7 +117,65 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    const int MAX_STACK = 64;
+    int stack[MAX_STACK];
+    int sp = 0;
+    stack[sp++] = rootIndex;
+
+    const float tMin = 1e-4f;
+    const float tMax = FLT_MAX;
+
+    while (sp > 0) {
+        int nodeIndex = stack[--sp];
+        BVHNodeGPU node = nodes[nodeIndex];
+
+        float tNear, tFar;
+        if (!intersect_ray_aabb(orig, dir, node.aabb, tMin, tMax, &tNear, &tFar))
+            continue;
+
+        if (nodeIndex >= leafStart) {
+            uint triIndex = leafTriIndices[nodeIndex - leafStart];
+            if ((int)triIndex == ignore_face)
+                continue;
+
+            uint3  f = loadFace(faces, triIndex);
+            float3 a = loadVertex(vertices, f.x);
+            float3 b = loadVertex(vertices, f.y);
+            float3 c = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir,
+                                       a, b, c,
+                                       tMin, tMax,
+                                       false,
+                                       &t, &u, &v))
+            {
+                return true;
+            }
+        } else {
+            int left  = (int)node.leftChildIndex;
+            int right = (int)node.rightChildIndex;
+
+            float nearL, farL;
+            float nearR, farR;
+            bool hitL = intersect_ray_aabb(orig, dir, nodes[left].aabb, tMin, tMax, &nearL, &farL);
+            bool hitR = intersect_ray_aabb(orig, dir, nodes[right].aabb, tMin, tMax, &nearR, &farR);
+
+            if (hitL && hitR) {
+                if (nearL > nearR) {
+                    stack[sp++] = left;
+                    stack[sp++] = right;
+                } else {
+                    stack[sp++] = right;
+                    stack[sp++] = left;
+                }
+            } else if (hitL) {
+                stack[sp++] = left;
+            } else if (hitR) {
+                stack[sp++] = right;
+            }
+        }
+    }
 
     return false;
 }
