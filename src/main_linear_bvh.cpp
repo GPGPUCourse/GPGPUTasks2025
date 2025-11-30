@@ -10,7 +10,6 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
-#include "kernels/shared_structs/centroid_gpu_shared.h"
 
 #include "io/camera_reader.h"
 #include "io/scene_reader.h"
@@ -117,8 +116,6 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
 
-    ocl::KernelSource ocl_compute_centroids(ocl::getComputeCentroids());
-    ocl::KernelSource ocl_reduce_centroids(ocl::getReduceCentroids());
     ocl::KernelSource ocl_compute_morton_codes(ocl::getComputeMortonCodes());
     ocl::KernelSource ocl_build_lbvh_skeleton(ocl::getBuildLVBHSkeleton());
     ocl::KernelSource ocl_fill_with_value(ocl::getFillWithValue());
@@ -299,15 +296,6 @@ void run(int argc, char** argv)
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
         {
-            std::vector<BVHNodeGPU> lbvh_nodes_cpu;
-            std::vector<uint32_t> leaf_faces_indices_cpu;
-            buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
-
-            const unsigned int ngroups = (nfaces + GROUP_SIZE - 1) / GROUP_SIZE;
-            gpu::shared_device_buffer_typed<CentroidGPU> centroids(nfaces);
-            gpu::shared_device_buffer_typed<CentroidGPU> groupMin(ngroups);
-            gpu::shared_device_buffer_typed<CentroidGPU> groupMax(ngroups);
-
             gpu::gpu_mem_32u morton_codes(nfaces);
             gpu::gpu_mem_32u morton_codes_sorted(nfaces);
 
@@ -323,16 +311,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                ocl_compute_centroids.exec(gpu::WorkSize(GROUP_SIZE, nfaces),
-                    vertices_gpu, faces_gpu,
-                    centroids.clmem(), groupMin.clmem(), groupMax.clmem(), nfaces);
-
-                ocl_reduce_centroids.exec(gpu::WorkSize(GROUP_SIZE, GROUP_SIZE),
-                    groupMin.clmem(), groupMax.clmem(), ngroups);
-
                 ocl_compute_morton_codes.exec(gpu::WorkSize(GROUP_SIZE, nfaces),
-                    centroids.clmem(), groupMin.clmem(), groupMax.clmem(),
-                    morton_codes, nfaces);
+                    vertices_gpu, faces_gpu,
+                    morton_codes,
+                    scene.min.x, scene.min.y, scene.min.z,
+                    scene.max.x, scene.max.y, scene.max.z,
+                    nfaces);
 
                 radix_sort(
                     nfaces,

@@ -2,7 +2,6 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/build_lbvh_skeleton.h"
-#include "cl/generated_kernels/compute_centroids.h"
 #include "cl/generated_kernels/compute_morton_codes.h"
 #include "cl/generated_kernels/fill_index.h"
 #include "cl/generated_kernels/fill_with_value.h"
@@ -13,7 +12,6 @@
 #include "cl/generated_kernels/radix_sort_scatter.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
-#include "cl/generated_kernels/reduce_centroids.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -65,14 +63,6 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
-}
-const ProgramBinaries& getComputeCentroids()
-{
-    return opencl_binaries_compute_centroids;
-}
-const ProgramBinaries& getReduceCentroids()
-{
-    return opencl_binaries_reduce_centroids;
 }
 const ProgramBinaries& getComputeMortonCodes()
 {

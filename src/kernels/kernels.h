@@ -29,8 +29,6 @@ const ProgramBinaries& getAplusB();
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
 
-const ProgramBinaries& getComputeCentroids();
-const ProgramBinaries& getReduceCentroids();
 const ProgramBinaries& getComputeMortonCodes();
 const ProgramBinaries& getBuildLVBHSkeleton();
 const ProgramBinaries& getFillWithValue();

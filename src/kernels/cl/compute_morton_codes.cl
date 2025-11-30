@@ -6,7 +6,6 @@
 #include "../shared_structs/camera_gpu_shared.h"
 
 #include "camera_helpers.cl"
-#include "centroids_helpers.cl"
 #include "geometry_helpers.cl"
 #include "random_helpers.cl"
 
@@ -38,10 +37,11 @@ static inline uint morton3D(float x, float y, float z)
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
 compute_morton_codes(
-    __global const CentroidGPU* centroids,
-    __global const CentroidGPU* minCentroid,
-    __global const CentroidGPU* maxCentroid,
+    __global const float* vertices,
+    __global const uint* faces,
     __global uint* morton_codes,
+    float minX, float minY, float minZ,
+    float maxX, float maxY, float maxZ,
     uint nfaces)
 {
     const uint index = get_global_id(0);
@@ -49,22 +49,28 @@ compute_morton_codes(
         return;
     }
 
-    float3 c = loadCentroid(centroids, index);
-    float3 cMin = loadCentroid(minCentroid, 0);
-    float3 cMax = loadCentroid(maxCentroid, 0);
+    uint3 face = loadFace(faces, index);
+    float3 v0 = loadVertex(vertices, face.x);
+    float3 v1 = loadVertex(vertices, face.y);
+    float3 v2 = loadVertex(vertices, face.z);
+
+    const float inv3 = 1.0f / 3.0f;
+    float cX = (v0.x + v1.x + v2.x) * inv3;
+    float cY = (v0.y + v1.y + v2.y) * inv3;
+    float cZ = (v0.z + v1.z + v2.z) * inv3;
 
     const float eps = 1e-9f;
-    float dx = max(cMax.x - cMin.x, eps);
-    float dy = max(cMax.y - cMin.y, eps);
-    float dz = max(cMax.z - cMin.z, eps);
+    float dx = max(maxX - minX, eps);
+    float dy = max(maxY - minY, eps);
+    float dz = max(maxZ - minZ, eps);
 
-    float nx = (c.x - cMin.x) / dx;
-    float ny = (c.y - cMin.y) / dy;
-    float nz = (c.z - cMin.z) / dz;
+    float nx = (cX - minX) / dx;
+    float ny = (cY - minY) / dy;
+    float nz = (cZ - minZ) / dz;
 
-    nx = min(max(nx, 0.0f), 1.0f);
-    ny = min(max(ny, 0.0f), 1.0f);
-    nz = min(max(nz, 0.0f), 1.0f);
+    nx = clamp(nx, 0.0f, 1.0f);
+    ny = clamp(ny, 0.0f, 1.0f);
+    nz = clamp(nz, 0.0f, 1.0f);
 
     morton_codes[index] = morton3D(nx, ny, nz);
 }
