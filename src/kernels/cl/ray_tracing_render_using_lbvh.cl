@@ -322,3 +322,268 @@ __kernel void ray_tracing_render_using_lbvh(
 
     framebuffer_ambient_occlusion[idx] = ao;
 }
+
+/* ===================== LBVH BUILDING KERNELS ===================== */
+
+// Morton helpers (10 bits per axis -> 30-bit code)
+static inline uint expandBits(uint v)
+{
+    v = (v * 0x00010001u) & 0xFF0000FFu;
+    v = (v * 0x00000101u) & 0x0F00F00Fu;
+    v = (v * 0x00000011u) & 0xC30C30C3u;
+    v = (v * 0x00000005u) & 0x49249249u;
+    return v;
+}
+
+static inline uint morton3D(float x, float y, float z)
+{
+    uint ix = clamp((int)(x * 1024.0f), 0, 1023);
+    uint iy = clamp((int)(y * 1024.0f), 0, 1023);
+    uint iz = clamp((int)(z * 1024.0f), 0, 1023);
+
+    uint xx = expandBits(ix);
+    uint yy = expandBits(iy);
+    uint zz = expandBits(iz);
+    return (xx << 2) | (yy << 1) | zz;
+}
+
+// Kernel: compute Morton codes (padded length -> sentinel values)
+__kernel void build_morton_codes(
+    __global const float* vertices,
+    __global const uint*  faces,
+    uint                  nfaces,
+    float                 min_x,
+    float                 min_y,
+    float                 min_z,
+    float                 max_x,
+    float                 max_y,
+    float                 max_z,
+    uint                  padded_length,
+    __global uint*        morton_codes,
+    __global uint*        tri_indices)
+{
+    uint idx = get_global_id(0);
+    if (idx >= padded_length)
+        return;
+
+    if (idx >= nfaces) {
+        morton_codes[idx] = 0xFFFFFFFFu;
+        tri_indices[idx]  = 0u;
+        return;
+    }
+
+    uint3 f = loadFace(faces, idx);
+    float3 v0 = loadVertex(vertices, f.x);
+    float3 v1 = loadVertex(vertices, f.y);
+    float3 v2 = loadVertex(vertices, f.z);
+
+    float3 c = (float3)((v0.x + v1.x + v2.x) * (1.0f / 3.0f),
+                        (v0.y + v1.y + v2.y) * (1.0f / 3.0f),
+                        (v0.z + v1.z + v2.z) * (1.0f / 3.0f));
+
+    float dx = fmax(max_x - min_x, 1e-9f);
+    float dy = fmax(max_y - min_y, 1e-9f);
+    float dz = fmax(max_z - min_z, 1e-9f);
+
+    float nx = clamp((c.x - min_x) / dx, 0.0f, 1.0f);
+    float ny = clamp((c.y - min_y) / dy, 0.0f, 1.0f);
+    float nz = clamp((c.z - min_z) / dz, 0.0f, 1.0f);
+
+    morton_codes[idx] = morton3D(nx, ny, nz);
+    tri_indices[idx]  = idx;
+}
+
+// Bitonic sort step for (key, value)
+__kernel void bitonic_sort_step(
+    __global uint* keys,
+    __global uint* values,
+    uint           j,
+    uint           k,
+    uint           length)
+{
+    uint i = get_global_id(0);
+    if (i >= length)
+        return;
+
+    uint ixj = i ^ j;
+    if (ixj <= i || ixj >= length)
+        return;
+
+    uint key_i = keys[i];
+    uint key_j = keys[ixj];
+    uint val_i = values[i];
+    uint val_j = values[ixj];
+
+    bool ascending = ((i & k) == 0);
+    bool swap = ascending ? (key_i > key_j) : (key_i < key_j);
+    if (key_i == key_j) {
+        swap = ascending ? (val_i > val_j) : (val_i < val_j);
+    }
+
+    if (swap) {
+        keys[i]   = key_j;
+        keys[ixj] = key_i;
+        values[i] = val_j;
+        values[ixj] = val_i;
+    }
+}
+
+// Copy sorted triangle indices into leafTriIndices buffer
+__kernel void copy_leaf_indices(__global const uint* sorted_tri_indices,
+                                __global       uint*  leaf_tri_indices,
+                                uint                  nfaces)
+{
+    uint idx = get_global_id(0);
+    if (idx >= nfaces) return;
+    leaf_tri_indices[idx] = sorted_tri_indices[idx];
+}
+
+// Build leaf nodes from sorted triangles
+__kernel void build_leaf_nodes(
+    __global const float* vertices,
+    __global const uint*  faces,
+    __global const uint*  sorted_tri_indices,
+    __global       BVHNodeGPU* nodes,
+    uint nfaces)
+{
+    uint idx = get_global_id(0);
+    if (idx >= nfaces) return;
+
+    uint tri = sorted_tri_indices[idx];
+    uint3 f = loadFace(faces, tri);
+    float3 v0 = loadVertex(vertices, f.x);
+    float3 v1 = loadVertex(vertices, f.y);
+    float3 v2 = loadVertex(vertices, f.z);
+
+    AABBGPU aabb;
+    aabb.min_x = fmin(fmin(v0.x, v1.x), v2.x);
+    aabb.min_y = fmin(fmin(v0.y, v1.y), v2.y);
+    aabb.min_z = fmin(fmin(v0.z, v1.z), v2.z);
+    aabb.max_x = fmax(fmax(v0.x, v1.x), v2.x);
+    aabb.max_y = fmax(fmax(v0.y, v1.y), v2.y);
+    aabb.max_z = fmax(fmax(v0.z, v1.z), v2.z);
+
+    uint leafIndex = (nfaces - 1u) + idx;
+    nodes[leafIndex].aabb = aabb;
+    nodes[leafIndex].leftChildIndex  = 0xFFFFFFFFu;
+    nodes[leafIndex].rightChildIndex = 0xFFFFFFFFu;
+}
+
+// Prefix helpers
+static inline int clz32(uint x) { return (int)clz(x); }
+
+static inline int common_prefix(__global const uint* codes, int N, int i, int j)
+{
+    if (j < 0 || j >= N) return -1;
+    uint ci = codes[i];
+    uint cj = codes[j];
+    if (ci == cj) {
+        uint diff = ((uint)i) ^ ((uint)j);
+        return 32 + clz32(diff);
+    } else {
+        uint diff = ci ^ cj;
+        return clz32(diff);
+    }
+}
+
+static inline void determine_range(__global const uint* codes, int N, int i, __private int* outFirst, __private int* outLast)
+{
+    int cpL = common_prefix(codes, N, i, i - 1);
+    int cpR = common_prefix(codes, N, i, i + 1);
+    int d = (cpR > cpL) ? 1 : -1;
+
+    int deltaMin = common_prefix(codes, N, i, i - d);
+    int lmax = 2;
+    while (common_prefix(codes, N, i, i + lmax * d) > deltaMin) {
+        lmax <<= 1;
+    }
+
+    int l = 0;
+    for (int t = lmax >> 1; t > 0; t >>= 1) {
+        if (common_prefix(codes, N, i, i + (l + t) * d) > deltaMin) {
+            l += t;
+        }
+    }
+
+    int j = i + l * d;
+    *outFirst = min(i, j);
+    *outLast  = max(i, j);
+}
+
+static inline int find_split(__global const uint* codes, int first, int last)
+{
+    if (first == last) return first;
+    int commonPrefix = common_prefix(codes, (last + 1), first, last);
+    int split = first;
+    int step = last - first;
+
+    do {
+        step = (step + 1) >> 1;
+        int newSplit = split + step;
+        if (newSplit < last) {
+            int splitPrefix = common_prefix(codes, (last + 1), first, newSplit);
+            if (splitPrefix > commonPrefix) {
+                split = newSplit;
+            }
+        }
+    } while (step > 1);
+
+    return split;
+}
+
+// Build internal nodes (child indices)
+__kernel void build_internal_nodes(__global const uint* morton_codes,
+                                   __global BVHNodeGPU* nodes,
+                                   uint                 nfaces)
+{
+    uint idx = get_global_id(0);
+    if (idx >= nfaces - 1u)
+        return;
+
+    int first, last;
+    determine_range(morton_codes, (int)nfaces, (int)idx, &first, &last);
+    int split = find_split(morton_codes, first, last);
+
+    int leftIndex = (split == first) ? ((int)(nfaces - 1) + split) : split;
+    int rightIndex = (split + 1 == last) ? ((int)(nfaces - 1) + split + 1) : (split + 1);
+
+    nodes[idx].leftChildIndex  = (uint)leftIndex;
+    nodes[idx].rightChildIndex = (uint)rightIndex;
+}
+
+// Init internal nodes AABB with sentinel values
+__kernel void init_internal_aabb(__global BVHNodeGPU* nodes, uint nfaces)
+{
+    uint idx = get_global_id(0);
+    if (idx >= nfaces - 1u)
+        return;
+
+    nodes[idx].aabb.min_x = FLT_MAX;
+    nodes[idx].aabb.min_y = FLT_MAX;
+    nodes[idx].aabb.min_z = FLT_MAX;
+    nodes[idx].aabb.max_x = -FLT_MAX;
+    nodes[idx].aabb.max_y = -FLT_MAX;
+    nodes[idx].aabb.max_z = -FLT_MAX;
+}
+
+// Propagate AABB upwards (iterate several times from host)
+__kernel void propagate_aabb(__global BVHNodeGPU* nodes, uint nfaces)
+{
+    uint idx = get_global_id(0);
+    if (idx >= nfaces - 1u)
+        return;
+
+    BVHNodeGPU node = nodes[idx];
+    BVHNodeGPU left  = nodes[node.leftChildIndex];
+    BVHNodeGPU right = nodes[node.rightChildIndex];
+
+    AABBGPU aabb;
+    aabb.min_x = fmin(left.aabb.min_x, right.aabb.min_x);
+    aabb.min_y = fmin(left.aabb.min_y, right.aabb.min_y);
+    aabb.min_z = fmin(left.aabb.min_z, right.aabb.min_z);
+    aabb.max_x = fmax(left.aabb.max_x, right.aabb.max_x);
+    aabb.max_y = fmax(left.aabb.max_y, right.aabb.max_y);
+    aabb.max_z = fmax(left.aabb.max_z, right.aabb.max_z);
+
+    nodes[idx].aabb = aabb;
+}
