@@ -12,12 +12,20 @@ uint bin_search(
     uint val,
     bool left)
 {
-    for (;l < r; ++l) {
-        if ((left && data[l] >= val) || (!left && data[l] > val)) {
-            break;
+    while (l < r - 1) {
+        int mid = (l + r) / 2;
+        uint cur = data[mid];
+        if ((left && cur < val) || (!left && cur <= val)) {
+            l = mid;
+        } else {
+            r = mid;
         }
     }
-    return l;
+    uint res = r;
+    if (left) {
+        res = l + 1;
+    }
+    return res;
 }
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
@@ -56,9 +64,9 @@ __kernel void merge_sort(
         len = n - start_idx_right;
     }
 
-    int l = start_idx_left, r = start_idx_left + len;
+    int l = start_idx_left - 1, r = start_idx_left + len;
     if (left) {
-        l = start_idx_right;
+        l = start_idx_right - 1;
         r = start_idx_right + len;
     }
 
