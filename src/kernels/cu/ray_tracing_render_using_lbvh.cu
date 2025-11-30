@@ -6,6 +6,7 @@
 
 #include "../shared_structs/camera_gpu_shared.h"
 #include "../shared_structs/bvh_node_gpu_shared.h"
+#include "../shared_structs/denoising_gpu_shared.h"
 #include "../defines.h"
 #include "helpers/rassert.cu"
 
@@ -31,7 +32,75 @@ __device__ bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    auto fn_treat_leaf = [&](int child_ind, bool& is_child_intersected) {
+        const int left_child_leaf_ind = child_ind - leafStart;
+        const unsigned int leaf_tri_ind = leafTriIndices[left_child_leaf_ind];
+
+        const auto face = loadFace(faces, leaf_tri_ind);
+
+        float local_outT = FLT_MAX;
+        float local_outU = FLT_MAX;
+        float local_outV = FLT_MAX;
+
+        if (intersect_ray_triangle(orig, dir, loadVertex(vertices, face.x), loadVertex(vertices, face.y), loadVertex(vertices, face.z),
+            tMin, FLT_MAX, false, local_outT, local_outU, local_outV)) {
+            is_child_intersected = true;
+            if (local_outT < outT) {
+                outT = local_outT;
+                outU = local_outU;
+                outV = local_outV;
+                outFaceId = leaf_tri_ind;
+            }
+        }
+    };
+
+    const BVHNodeGPU* stack[32]; // ?
+    int stack_top_index = -1;
+
+    const BVHNodeGPU* cur_node = &nodes[rootIndex];
+
+    do {
+        const int left_child = cur_node->leftChildIndex;
+        bool left_child_intersected = false;
+
+        if (left_child != 0xFFFFFFFFu && left_child >= leafStart) // is leaf, so it's a triangle
+        {
+            fn_treat_leaf(left_child, left_child_intersected);
+        } else if (left_child != 0xFFFFFFFFu) {
+            float _nearest_hit, _farthest_hit; // dummies ?
+            left_child_intersected = intersect_ray_aabb(orig, dir, nodes[left_child].aabb, tMin, FLT_MAX, _nearest_hit, _farthest_hit);
+        }
+
+        const int right_child = cur_node->rightChildIndex;
+        bool right_child_intersected = false;
+
+        if (right_child != 0xFFFFFFFFu && right_child >= leafStart) // is leaf, so it's a triangle
+        {
+            fn_treat_leaf(right_child, right_child_intersected);
+        } else if (right_child != 0xFFFFFFFFu) {
+            float _nearest_hit, _farthest_hit;
+            right_child_intersected = intersect_ray_aabb(orig, dir, nodes[right_child].aabb, tMin, FLT_MAX, _nearest_hit, _farthest_hit);
+        }
+
+        if (!left_child_intersected && !right_child_intersected)
+        {
+            cur_node = stack_top_index == -1 ? nullptr : stack[stack_top_index];
+            stack_top_index -= (stack_top_index == -1) ? 0 : 1;
+        } else {
+            cur_node = left_child_intersected ? &nodes[left_child] : &nodes[right_child];
+            if (left_child_intersected && right_child_intersected)
+            {
+                stack_top_index += 1;
+                stack[stack_top_index] = &nodes[right_child];
+            }
+        }
+
+    } while (cur_node);
+
+    if (outFaceId != -1)
+    {
+        return true;
+    }
 
     return false; // no intersections found
 }
@@ -51,9 +120,73 @@ __device__ bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    auto fn_treat_leaf = [&](int child_ind) -> bool {
+        const int left_child_leaf_ind = child_ind - leafStart;
+        const unsigned int leaf_tri_ind = leafTriIndices[left_child_leaf_ind];
 
-    return false; // no intersections found
+        const auto face = loadFace(faces, leaf_tri_ind);
+
+        // dummies
+        float _local_outT = FLT_MAX;
+        float _local_outU = FLT_MAX;
+        float _local_outV = FLT_MAX;
+
+        if (intersect_ray_triangle_any(orig, dir, loadVertex(vertices, face.x), loadVertex(vertices, face.y), loadVertex(vertices, face.z), 
+            false, _local_outT, _local_outU, _local_outV)) {
+            return true;
+        }
+        return false;
+    };
+
+    const BVHNodeGPU* stack[32]; // ?
+    int stack_top_index = -1;
+
+    const BVHNodeGPU* cur_node = &nodes[rootIndex];
+
+    do {
+        const int left_child = cur_node->leftChildIndex;
+        bool left_child_intersected = false;
+
+        // Fix: Check for valid child index before treating as leaf
+        if (left_child != 0xFFFFFFFFu && left_child >= leafStart) // is leaf, so it's a triangle
+        {
+            const bool triangle_intersection = fn_treat_leaf(left_child);
+            if (triangle_intersection)
+                return true;
+
+        } else if (left_child != 0xFFFFFFFFu) {
+            float _nearest_hit, _farthest_hit;
+            left_child_intersected = intersect_ray_aabb_any(orig, dir, nodes[left_child].aabb, _nearest_hit, _farthest_hit);
+        }
+
+        const int right_child = cur_node->rightChildIndex;
+        bool right_child_intersected = false;
+
+        // Fix: Check for valid child index before treating as leaf
+        if (right_child != 0xFFFFFFFFu && right_child >= leafStart) // is leaf, so it's a triangle
+        {
+            const bool triangle_intersection = fn_treat_leaf(right_child);
+            if (triangle_intersection)
+                return true;
+        } else if (right_child != 0xFFFFFFFFu) {
+            float _nearest_hit, _farthest_hit;
+            right_child_intersected = intersect_ray_aabb_any(orig, dir, nodes[right_child].aabb, _nearest_hit, _farthest_hit);
+        }
+
+        if (!left_child_intersected && !right_child_intersected) {
+            cur_node = stack_top_index == -1 ? nullptr : stack[stack_top_index];
+            stack_top_index -= (stack_top_index == -1) ? 0 : 1;
+        } else {
+            cur_node = left_child_intersected ? &nodes[left_child] : &nodes[right_child];
+            if (left_child_intersected && right_child_intersected) {
+                stack_top_index += 1;
+                stack[stack_top_index] = &nodes[right_child];
+            }
+        }
+
+    } while (cur_node);
+
+    return false; // no intersections found;
 }
 
 // + helper: build tangent basis for a given normal
@@ -71,8 +204,11 @@ __global__ void ray_tracing_render_using_lbvh(
     const unsigned int* leafTriIndices,
     int* framebuffer_face_id,
     float* framebuffer_ambient_occlusion,
+    DENOISE* denoise_info,
     CameraViewGPU *camera,
-    unsigned int nfaces
+    unsigned int nfaces,
+    unsigned int iter_index,
+    bool denoising_enabled
 )
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -142,7 +278,9 @@ __global__ void ray_tracing_render_using_lbvh(
             uint32_t u32;
         } tBestUnion;
         tBestUnion.f32 = tBest;
-        uint32_t rng = 0x9E3779B9u ^ idx ^ tBestUnion.u32;
+
+        // xor with iter ind multiplied by constant
+        uint32_t rng = denoising_enabled ? 0x9E3779B9u ^ idx ^ tBestUnion.u32 ^ (iter_index * 0xBADA55) : 0x9E3779B9u ^ idx ^ tBestUnion.u32;
 
         int hits = 0;
         for (int s = 0; s < AO_SAMPLES; ++s) {
@@ -169,7 +307,14 @@ __global__ void ray_tracing_render_using_lbvh(
         }
         ao = 1.0f - (float)hits / (float)AO_SAMPLES; // [0,1]
     }
-    framebuffer_ambient_occlusion[idx] = ao;
+
+    if (denoising_enabled)
+    {
+        denoise_info[idx].value_sum += ao;
+        denoise_info[idx].samples += 1;
+    }
+    
+    framebuffer_ambient_occlusion[idx] = denoising_enabled ? denoise_info[idx].value_sum / (float)denoise_info[idx].samples : ao;
 }
 
 
@@ -179,8 +324,11 @@ void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
     const gpu::shared_device_buffer_typed<BVHNodeGPU> &bvhNodes, const gpu::gpu_mem_32u &leafTriIndices,
     gpu::gpu_mem_32i &framebuffer_face_id,
     gpu::gpu_mem_32f &framebuffer_ambient_occlusion,
+    gpu::shared_device_buffer_typed<DENOISE>& accumulation_buffer,
     gpu::shared_device_buffer_typed<CameraViewGPU> camera,
-    unsigned int nfaces)
+    unsigned int nfaces,
+    unsigned int iter_index,
+    bool denoising_enabled)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
@@ -189,8 +337,11 @@ void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
         vertices.cuptr(), faces.cuptr(),
         bvhNodes.cuptr(), leafTriIndices.cuptr(),
         framebuffer_face_id.cuptr(), framebuffer_ambient_occlusion.cuptr(),
+        accumulation_buffer.cuptr(),
         camera.cuptr(),
-        nfaces
+        nfaces,
+        iter_index,
+        denoising_enabled
         );
     CUDA_CHECK_KERNEL(stream);
 }
