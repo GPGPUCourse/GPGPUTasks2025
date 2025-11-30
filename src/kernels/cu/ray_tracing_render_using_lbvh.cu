@@ -63,10 +63,10 @@ __device__ bool bvh_closest_hit(
         const int left_child = cur_node->leftChildIndex;
         bool left_child_intersected = false;
 
-        if (left_child >= leafStart) // is leaf, so it's a triangle
+        if (left_child != 0xFFFFFFFFu && left_child >= leafStart) // is leaf, so it's a triangle
         {
             fn_treat_leaf(left_child, left_child_intersected);
-        } else {
+        } else if (left_child != 0xFFFFFFFFu) {
             float _nearest_hit, _farthest_hit; // dummies ?
             left_child_intersected = intersect_ray_aabb(orig, dir, nodes[left_child].aabb, tMin, FLT_MAX, _nearest_hit, _farthest_hit);
         }
@@ -74,10 +74,10 @@ __device__ bool bvh_closest_hit(
         const int right_child = cur_node->rightChildIndex;
         bool right_child_intersected = false;
 
-        if (right_child >= leafStart) // is leaf, so it's a triangle
+        if (right_child != 0xFFFFFFFFu && right_child >= leafStart) // is leaf, so it's a triangle
         {
             fn_treat_leaf(right_child, right_child_intersected);
-        } else {
+        } else if (right_child != 0xFFFFFFFFu) {
             float _nearest_hit, _farthest_hit;
             right_child_intersected = intersect_ray_aabb(orig, dir, nodes[right_child].aabb, tMin, FLT_MAX, _nearest_hit, _farthest_hit);
         }
@@ -147,13 +147,14 @@ __device__ bool any_hit_from(
         const int left_child = cur_node->leftChildIndex;
         bool left_child_intersected = false;
 
-        if (left_child >= leafStart) // is leaf, so it's a triangle
+        // Fix: Check for valid child index before treating as leaf
+        if (left_child != 0xFFFFFFFFu && left_child >= leafStart) // is leaf, so it's a triangle
         {
             const bool triangle_intersection = fn_treat_leaf(left_child);
             if (triangle_intersection)
                 return true;
 
-        } else {
+        } else if (left_child != 0xFFFFFFFFu) {
             float _nearest_hit, _farthest_hit;
             left_child_intersected = intersect_ray_aabb_any(orig, dir, nodes[left_child].aabb, _nearest_hit, _farthest_hit);
         }
@@ -161,12 +162,13 @@ __device__ bool any_hit_from(
         const int right_child = cur_node->rightChildIndex;
         bool right_child_intersected = false;
 
-        if (right_child >= leafStart) // is leaf, so it's a triangle
+        // Fix: Check for valid child index before treating as leaf
+        if (right_child != 0xFFFFFFFFu && right_child >= leafStart) // is leaf, so it's a triangle
         {
             const bool triangle_intersection = fn_treat_leaf(right_child);
             if (triangle_intersection)
                 return true;
-        } else {
+        } else if (right_child != 0xFFFFFFFFu) {
             float _nearest_hit, _farthest_hit;
             right_child_intersected = intersect_ray_aabb_any(orig, dir, nodes[right_child].aabb, _nearest_hit, _farthest_hit);
         }
@@ -184,7 +186,7 @@ __device__ bool any_hit_from(
 
     } while (cur_node);
 
-    return false; // no intersections found
+    return false; // no intersections found;
 }
 
 // + helper: build tangent basis for a given normal
