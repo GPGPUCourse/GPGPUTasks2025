@@ -236,7 +236,7 @@ inline void buildLBVH_CPU(
         ny = std::min(std::max(ny, 0.0f), 1.0f);
         nz = std::min(std::max(nz, 0.0f), 1.0f);
 
-        prims[i].morton = morton3DGpu(nx, ny, nz);
+        prims[i].morton = morton3D(nx, ny, nz);
     }
 
     // 3) Sort primitives by Morton code
