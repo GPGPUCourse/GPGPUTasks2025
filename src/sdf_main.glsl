@@ -24,24 +24,84 @@ float lazycos(float angle)
     return 1.0;
 }
 
-// возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
-// способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
+
+float sdRoundCone( vec3 p, float r1, float r2, float h )
+{
+  float b = (r1-r2)/h;
+  float a = sqrt(1.0-b*b);
+
+  vec2 q = vec2( length(p.xz), p.y );
+  float k = dot(q,vec2(-b,a));
+  if( k<0.0 ) return length(q) - r1;
+  if( k>a*h ) return length(q-vec2(0.0,h)) - r2;
+  return dot(q, vec2(a,b) ) - r1;
+}
+
+float sdEllipsoid( vec3 p, vec3 r )
+{
+  float k0 = length(p/r);
+  float k1 = length(p/(r*r));
+  return k0*(k0-1.0)/k1;
+}
+
+
+vec4 minC(vec4 a, vec4 b) {
+    if (a.x < b.x) {
+        return a;
+    }
+    return b;
+}
+
+
+float sdArm(vec3 p, float angle)
+{   
+    float c = cos(angle);
+    float s = sin(angle);
+    p.xy = mat2(c, -s, s, c) * p.xy;
+    return sdRoundCone(p, 0.08, 0.06, 0.15);
+}
+
+float sdLeg(vec3 p)
+{
+    return sdRoundCone(p, 0.06, 0.05, 0.12);
+   
+}
+
 vec4 sdBody(vec3 p)
 {
     float d = 1e10;
-
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
-
-    // return distance and color
+    vec3 bodyPos = p;
+    float body = sdEllipsoid(bodyPos, vec3(0.2, 0.3, 0.12));
+    d = body;
+    
+    
+    float armAngle =2.0 + 0.5 * lazycos(iTime * 3.0);
+    float leftArm = sdArm(p - vec3(-0.16, 0.05, 0.0), armAngle);
+    d = min(d, leftArm);
+    float rightArm = sdArm(p - vec3(0.16, 0.05, 0.0), -armAngle);
+    d = min(d, rightArm);
+    float leftLeg = sdLeg(p - vec3(-0.08, -0.3, 0.0));
+    d = min(d, leftLeg);
+    float rightLeg = sdLeg(p - vec3(0.08, -0.3, 0.0));
+    d = min(d, rightLeg);
+    
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
+    float size = 0.04;
+    float scale = 0.3;
+    vec3 mv = vec3(0.0, 0.0, -(1.0 + scale) * size);
+    
+    vec4 white = vec4(sdSphere(p, size*3.0), 1.0, 1.0, 1.0);
+    vec4 cyan = vec4(sdSphere(p+mv, size*2.0), 0.0, 1.0, 1.0);
+    vec4 black = vec4(sdSphere(p+mv*2.0, size), 0.0, 0.0, 0.0);
 
     vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
-
+    res = minC(res,white);
+    res = minC(res,cyan);
+    res = minC(res,black);
     return res;
 }
 
@@ -49,15 +109,11 @@ vec4 sdMonster(vec3 p)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    p -= vec3(0.0, 0.08, -1.0);
 
-    vec4 res = sdBody(p);
-
-    vec4 eye = sdEye(p);
-    if (eye.x < res.x) {
-        res = eye;
-    }
-
+    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    res = minC(res, sdBody(p - vec3(0.0, 0.3, 0.0)));
+    res = minC(res,sdEye(p - vec3(0.0, 0.45, 0.04)));
     return res;
 }
 
