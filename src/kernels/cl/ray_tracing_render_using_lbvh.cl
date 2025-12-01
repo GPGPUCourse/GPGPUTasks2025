@@ -28,12 +28,42 @@ static inline bool bvh_closest_hit(
     __private float*          outU, // сюда нужно записать u рассчитанный в intersect_ray_triangle(..., t, u, v)
     __private float*          outV) // сюда нужно записать v рассчитанный в intersect_ray_triangle(..., t, u, v)
 {
-    const int rootIndex = 0;
-    const int leafStart = (int)nfaces - 1;
+    const unsigned leafStart = nfaces - 1;
 
     // TODO implement BVH travering (with stack, don't use recursion)
-
-    return false;
+    unsigned stack[128];
+    unsigned size = 1;
+    stack[0] = 0;
+    float tOut = FLT_MAX;
+    while(size) {
+        unsigned at = stack[--size];
+        AABBGPU aabb = nodes[at].aabb;
+        if(at < leafStart)
+        {
+            float tNear, tFar;
+            if(intersect_ray_aabb(orig, dir, nodes[at].aabb, tMin, tOut, &tNear, &tFar))
+            {
+                stack[size++] = nodes[at].leftChildIndex;
+                stack[size++] = nodes[at].rightChildIndex;
+            }
+            continue;
+        }
+        unsigned ind = leafTriIndices[at - leafStart];
+        uint3 face = loadFace(faces, ind);
+        float3 a = loadVertex(vertices, face.x);
+        float3 b = loadVertex(vertices, face.y);
+        float3 c = loadVertex(vertices, face.z);
+        float t, u, v;
+        if(intersect_ray_triangle(orig, dir, a, b, c, tMin, tOut, false, &t, &u, &v))
+        {
+            tOut = t;
+            *outFaceId = ind;
+            *outU = u;
+            *outV = v;
+        }
+    }
+    *outT = tOut;
+    return tOut != FLT_MAX;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -47,11 +77,34 @@ static inline bool any_hit_from(
     uint                      nfaces,
     int                       ignore_face)
 {
-    const int rootIndex = 0;
-    const int leafStart = (int)nfaces - 1;
+    const unsigned leafStart = nfaces - 1;
 
     // TODO implement BVH travering (with stack, don't use recursion)
-
+    unsigned stack[128];
+    unsigned size = 1;
+    stack[0] = 0;
+    while(size) {
+        unsigned at = stack[--size];
+        AABBGPU aabb = nodes[at].aabb;
+        if(at < leafStart)
+        {
+            float tNear, tFar;
+            if(intersect_ray_aabb_any(orig, dir, nodes[at].aabb, &tNear, &tFar))
+            {
+                stack[size++] = nodes[at].leftChildIndex;
+                stack[size++] = nodes[at].rightChildIndex;
+            }
+            continue;
+        }
+        unsigned ind = leafTriIndices[at - leafStart];
+        uint3 face = loadFace(faces, ind);
+        float3 a = loadVertex(vertices, face.x);
+        float3 b = loadVertex(vertices, face.y);
+        float3 c = loadVertex(vertices, face.z);
+        float t, u, v;
+        if(intersect_ray_triangle_any(orig, dir, a, b, c, false, &t, &u, &v))
+            return true;
+    }
     return false;
 }
 
