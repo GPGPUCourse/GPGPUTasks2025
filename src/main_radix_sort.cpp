@@ -89,9 +89,7 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u is_zero_gpu(n), num_of_zeroes_gpu(n), pow2_sum_gpu(n), next_pow2_sum_gpu(n);
     gpu::gpu_mem_32u buffer_output_gpu(n);
-
     gpu::gpu_mem_32u buffer_input_gpu(n);
-    input_gpu.writeN(as.data(), n);
     
     is_zero_gpu.fill(255);
     num_of_zeroes_gpu.fill(0);
