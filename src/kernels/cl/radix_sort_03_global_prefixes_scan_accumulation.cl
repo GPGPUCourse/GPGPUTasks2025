@@ -21,7 +21,7 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     }
 
     const uint pow2_i = (i + 1) >> pow2;
-    if (pow2_i % 2 == 1) {
+    if (pow2_i & 1 == 1) {
         prefix_sum_accum[i] += pow2_sum[pow2_i - 1];
     }
 }

@@ -21,11 +21,7 @@ __kernel void radix_sort_04_scatter(
         return;
     }
 
-    if (((in[i] >> bit) & 1) == 0) {
-        out[num_of_zeroes[i] - 1] = in[i];
-        return;
-    }
-    
-    out[num_of_zeroes[n - 1] + i - num_of_zeroes[i]] = in[i];
+    uint idx = ((in[i] >> bit) & 1) == 0 ? num_of_zeroes[i] - 1 : num_of_zeroes[n - 1] + i - num_of_zeroes[i];
+    out[idx] = in[i];
 
 }

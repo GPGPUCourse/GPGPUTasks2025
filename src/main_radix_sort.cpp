@@ -94,7 +94,7 @@ void run(int argc, char** argv)
     input_gpu.writeN(as.data(), n);
     
     is_zero_gpu.fill(255);
-    num_of_zeroes_gpu.fill(255);
+    num_of_zeroes_gpu.fill(0);
     pow2_sum_gpu.fill(255);
     next_pow2_sum_gpu.fill(255);
     buffer_output_gpu.fill(255);
@@ -110,25 +110,29 @@ void run(int argc, char** argv)
         input_gpu.copyToN(buffer_input_gpu, n);
 
         for (unsigned bit = 0; bit < 32; bit += 1) {
-            unsigned int pow2 = 0;
+            
+            // check for zeroes
             ocl_radixSort01LocalCounting.exec(workSize, buffer_input_gpu, is_zero_gpu, n, bit);
-
             is_zero_gpu.copyToN(pow2_sum_gpu, n);
 
+            // reset accumulation buffer
             ocl_fillBufferWithZeros.exec(workSize, num_of_zeroes_gpu, n);
 
-            ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize, is_zero_gpu, num_of_zeroes_gpu, n, pow2++);
-
+            // scan
+            unsigned int pow2 = 0;
             unsigned int reduction_size = n;
+            ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize, is_zero_gpu, num_of_zeroes_gpu, n, pow2++);
             while (reduction_size > 0) {
                 ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, reduction_size), pow2_sum_gpu, next_pow2_sum_gpu, reduction_size);
                 ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize, next_pow2_sum_gpu, num_of_zeroes_gpu, n, pow2);
                 pow2_sum_gpu.swap(next_pow2_sum_gpu);
-                ++pow2;
-                reduction_size /= 2;
+                reduction_size /= 2, ++pow2;
             }
 
+            // scatter
             ocl_radixSort04Scatter.exec(workSize, buffer_input_gpu, num_of_zeroes_gpu, buffer_output_gpu, n, bit);
+            
+            // pass for next iteration
             buffer_output_gpu.swap(buffer_input_gpu);
         }
 
