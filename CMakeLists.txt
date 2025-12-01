@@ -100,7 +100,12 @@ if (GPU_CUDA_SUPPORT)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
             src/kernels/cu/ray_tracing_render_brute_force.cu
-            src/kernels/cu/ray_tracing_render_using_lbvh.cu)
+            src/kernels/cu/ray_tracing_render_using_lbvh.cu
+            src/kernels/cu/merge_sort.cu
+            src/kernels/cu/build_prim.cu
+            src/kernels/cu/set_morton_codes.cu
+            src/kernels/cu/pre_build_bvh.cu
+            src/kernels/cu/build_bvh.cu)
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})

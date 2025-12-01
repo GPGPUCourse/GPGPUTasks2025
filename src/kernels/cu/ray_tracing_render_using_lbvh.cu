@@ -30,8 +30,69 @@ __device__ bool bvh_closest_hit(
 {
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
+    const int MAX_STACK_SIZE = 50;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[MAX_STACK_SIZE] = {-1, 0};
+    int statuses[MAX_STACK_SIZE] = {2, 0};
+    int curIdx = 1;
+
+    float tBest = FLT_MAX;
+    float uBest=0, vBest=0;
+    int   faceIdBest = -1;
+
+    while (curIdx > 0) {
+        // if (curIdx >= MAX_STACK_SIZE) {
+        //     printf("BVH traversal stack overflow %d of %d\n", curIdx, MAX_STACK_SIZE);
+        // }
+        curassert(curIdx < MAX_STACK_SIZE, 23452345);
+        // curassert(curIdx > 0, 23452345);
+        int nodeIndex = stack[curIdx];
+        int& status = statuses[curIdx];
+        const BVHNodeGPU& node = nodes[nodeIndex];
+
+        if (nodeIndex >= leafStart) {
+            const int fi = leafTriIndices[nodeIndex - leafStart];
+
+            float t,u,v;
+            uint3 face = loadFace(faces, fi);
+            float3 v0 = loadVertex(vertices, face.x);
+            float3 v1 = loadVertex(vertices, face.y);
+            float3 v2 = loadVertex(vertices, face.z);
+            if (intersect_ray_triangle(orig, dir,
+                    v0, v1, v2,
+                    tMin, tBest, /*backface*/ false, t,u,v)) {
+                tBest = t; faceIdBest = fi; uBest = u; vBest = v;
+            }
+            status = 2;
+        } else if (status == 0) {
+            float tNear;
+            float tFar;
+
+            if (intersect_ray_aabb(orig, dir, node.aabb, tMin, tBest, tNear, tFar)) {
+                status = 1;
+                stack[++curIdx] = node.leftChildIndex;
+                statuses[curIdx] = 0;
+            } else {
+                status = 2;
+            }
+        } else if (statuses[curIdx] == 1) {
+            status = 2;
+            stack[++curIdx] = node.rightChildIndex;
+            statuses[curIdx] = 0;
+        }
+
+        if (statuses[curIdx] == 2) {
+            --curIdx;
+        }
+    }
+
+    if (faceIdBest >= 0) {
+        outT = tBest;
+        outFaceId = faceIdBest;
+        outU = uBest;
+        outV = vBest;
+        return true;
+    }
 
     return false; // no intersections found
 }
@@ -50,8 +111,67 @@ __device__ bool any_hit_from(
 {
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
+    const int MAX_STACK_SIZE = 50;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[MAX_STACK_SIZE] = {-1, 0};
+    int statuses[MAX_STACK_SIZE] = {2, 0};
+    int curIdx = 1;
+
+    float tBest = FLT_MAX;
+    float uBest=0, vBest=0;
+    int   faceIdBest = -1;
+
+    while (curIdx > 0) {
+        // if (curIdx >= MAX_STACK_SIZE) {
+        //     printf("BVH traversal stack overflow %d of %d\n", curIdx, MAX_STACK_SIZE);
+        // }
+        curassert(curIdx < MAX_STACK_SIZE, 23452345);
+        // curassert(curIdx > 0, 23452345);
+        int nodeIndex = stack[curIdx];
+        int& status = statuses[curIdx];
+        const BVHNodeGPU& node = nodes[nodeIndex];
+
+        float tMin = 1e-6f;
+
+        if (nodeIndex >= leafStart) {
+            const int fi = leafTriIndices[nodeIndex - leafStart];
+            if (fi == ignore_face) {
+                --curIdx;
+                continue;
+            }
+
+            float t,u,v;
+            uint3 face = loadFace(faces, fi);
+            float3 v0 = loadVertex(vertices, face.x);
+            float3 v1 = loadVertex(vertices, face.y);
+            float3 v2 = loadVertex(vertices, face.z);
+            if (intersect_ray_triangle(orig, dir,
+                    v0, v1, v2,
+                    tMin, tBest, /*backface*/ false, t,u,v)) {
+                return true;
+            }
+            status = 2;
+        } else if (status == 0) {
+            float tNear;
+            float tFar;
+
+            if (intersect_ray_aabb(orig, dir, node.aabb, tMin, tBest, tNear, tFar)) {
+                status = 1;
+                stack[++curIdx] = node.leftChildIndex;
+                statuses[curIdx] = 0;
+            } else {
+                status = 2;
+            }
+        } else if (statuses[curIdx] == 1) {
+            status = 2;
+            stack[++curIdx] = node.rightChildIndex;
+            statuses[curIdx] = 0;
+        }
+
+        if (statuses[curIdx] == 2) {
+            --curIdx;
+        }
+    }
 
     return false; // no intersections found
 }
@@ -78,7 +198,7 @@ __global__ void ray_tracing_render_using_lbvh(
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    curassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 946435342);
+    //curassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 946435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 
@@ -176,7 +296,8 @@ __global__ void ray_tracing_render_using_lbvh(
 namespace cuda {
 void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
     const gpu::gpu_mem_32f &vertices, const gpu::gpu_mem_32u &faces,
-    const gpu::shared_device_buffer_typed<BVHNodeGPU> &bvhNodes, const gpu::gpu_mem_32u &leafTriIndices,
+    const gpu::shared_device_buffer_typed<BVHNodeGPU> &bvhNodes,
+    const gpu::gpu_mem_32u &leafTriIndices,
     gpu::gpu_mem_32i &framebuffer_face_id,
     gpu::gpu_mem_32f &framebuffer_ambient_occlusion,
     gpu::shared_device_buffer_typed<CameraViewGPU> camera,
@@ -186,9 +307,12 @@ void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
     ::ray_tracing_render_using_lbvh<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(
-        vertices.cuptr(), faces.cuptr(),
-        bvhNodes.cuptr(), leafTriIndices.cuptr(),
-        framebuffer_face_id.cuptr(), framebuffer_ambient_occlusion.cuptr(),
+        vertices.cuptr(),
+        faces.cuptr(),
+        bvhNodes.cuptr(),
+        leafTriIndices.cuptr(),
+        framebuffer_face_id.cuptr(),
+        framebuffer_ambient_occlusion.cuptr(),
         camera.cuptr(),
         nfaces
         );

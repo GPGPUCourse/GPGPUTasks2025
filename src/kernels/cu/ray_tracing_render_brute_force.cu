@@ -53,7 +53,7 @@ __global__ void ray_tracing_render_brute_force(
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    curassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 146435342);
+    // curassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 146435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 

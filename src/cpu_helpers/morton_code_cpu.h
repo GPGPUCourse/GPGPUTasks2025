@@ -22,9 +22,9 @@ unsigned int expandBits(unsigned int v)
 MortonCode morton3D(float x, float y, float z)
 {
     // Map and clamp to integer grid [0, 1023]
-    unsigned int ix = std::min(std::max((int) (x * 1024.0f), 0), 1023);
-    unsigned int iy = std::min(std::max((int) (y * 1024.0f), 0), 1023);
-    unsigned int iz = std::min(std::max((int) (z * 1024.0f), 0), 1023);
+    unsigned int ix = std::min(std::max((int)(x * 1024.0f), 0), 1023);
+    unsigned int iy = std::min(std::max((int)(y * 1024.0f), 0), 1023);
+    unsigned int iz = std::min(std::max((int)(z * 1024.0f), 0), 1023);
 
     unsigned int xx = expandBits(ix);
     unsigned int yy = expandBits(iy);

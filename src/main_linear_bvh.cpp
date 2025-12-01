@@ -1,11 +1,12 @@
+#include <cfloat>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
-#include <libimages/debug_io.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
+#include <libimages/debug_io.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
@@ -14,16 +15,20 @@
 #include "io/scene_reader.h"
 
 #include "cpu_helpers/build_bvh_cpu.h"
+#include "kernels/shared_structs/prim_gpu_cuda.h"
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <filesystem>
 #include <fstream>
 
 // Считает сколько непустых пикселей
-template<typename T>
-size_t countNonEmpty(const TypedImage<T> &image, T empty_value) {
+template <typename T>
+size_t countNonEmpty(const TypedImage<T>& image, T empty_value)
+{
     rassert(image.channels() == 1, 4523445132412, image.channels());
     size_t count = 0;
-    #pragma omp parallel for reduction(+:count)
+#pragma omp parallel for reduction(+ : count)
     for (ptrdiff_t j = 0; j < image.height(); ++j) {
         for (ptrdiff_t i = 0; i < image.width(); ++i) {
             if (image.ptr(j)[i] != empty_value) {
@@ -35,13 +40,14 @@ size_t countNonEmpty(const TypedImage<T> &image, T empty_value) {
 }
 
 // Считает сколько отличающихся пикселей (отличающихся > threshold)
-template<typename T>
-size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
+template <typename T>
+size_t countDiffs(const TypedImage<T>& a, const TypedImage<T>& b, T threshold)
+{
     rassert(a.channels() == 1, 5634532413241, a.channels());
     rassert(a.channels() == b.channels(), 562435231453243);
     rassert(a.width() == b.width() && a.height() == b.height(), 562435231453243);
     size_t count = 0;
-    #pragma omp parallel for reduction(+:count)
+#pragma omp parallel for reduction(+ : count)
     for (ptrdiff_t j = 0; j < a.height(); ++j) {
         for (ptrdiff_t i = 0; i < a.width(); ++i) {
             if (std::abs(a.ptr(j)[i] - b.ptr(j)[i]) > threshold) {
@@ -67,7 +73,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -93,7 +99,7 @@ void run(int argc, char** argv)
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
 
     std::cout << "Using " << AO_SAMPLES << " ray samples for ambient occlusion" << std::endl;
-    for (std::string scene_path: scenes) {
+    for (std::string scene_path : scenes) {
         std::cout << "____________________________________________________________________________________________" << std::endl;
         timer total_t;
         if (scene_path == gnome_scene_path) {
@@ -137,8 +143,8 @@ void run(int argc, char** argv)
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
         timer pcie_writing_t;
-        vertices_gpu.writeN((const float*) scene.vertices.data(), 3 * nvertices);
-        faces_gpu.writeN((const unsigned int*) scene.faces.data(), 3 * nfaces);
+        vertices_gpu.writeN((const float*)scene.vertices.data(), 3 * nvertices);
+        faces_gpu.writeN((const unsigned int*)scene.faces.data(), 3 * nfaces);
         camera_gpu.writeN(&camera, 1);
         double pcie_writing_time = pcie_writing_t.elapsed();
         double pcie_reading_time = 0.0;
@@ -229,9 +235,6 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
                         gpu::WorkSize(16, 16, width, height),
@@ -290,14 +293,148 @@ void run(int argc, char** argv)
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
+            gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(nfaces * 2 - 1);
+            gpu::gpu_mem_32u leaf_faces_indices_gpu(nfaces);
+
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                gpu::shared_device_buffer_typed<unsigned int> prims_morton(nfaces);
+                gpu::shared_device_buffer_typed<AABBGPU> prims_aabb(nfaces);
+                gpu::shared_device_buffer_typed<float3> prims_centroid(nfaces);
+
+                gpu::shared_device_buffer_typed<float3> cMax_gpu(1);
+                cMax_gpu.fill(float3 { FLT_MIN, FLT_MIN, FLT_MIN });
+                gpu::shared_device_buffer_typed<float3> cMin_gpu(1);
+                cMin_gpu.fill(float3 { FLT_MAX, FLT_MAX, FLT_MAX });
+
+                cuda::build_prim(
+                    gpu::WorkSize(GROUP_SIZE, nfaces),
+                    vertices_gpu,
+                    faces_gpu,
+                    nvertices,
+                    nfaces,
+                    leaf_faces_indices_gpu,
+                    prims_morton,
+                    prims_aabb,
+                    prims_centroid,
+                    cMin_gpu,
+                    cMax_gpu);
+                cuda::set_morton_codes(
+                    gpu::WorkSize(GROUP_SIZE, nfaces),
+                    prims_morton,
+                    prims_centroid,
+                    nfaces,
+                    cMin_gpu,
+                    cMax_gpu);
+
+                // Sorting
+                {
+                    gpu::WorkSize workSize(GROUP_SIZE, nfaces);
+                    gpu::shared_device_buffer_typed<unsigned int> buffer1_triIndex(nfaces);
+                    gpu::shared_device_buffer_typed<unsigned int> buffer1_morton(nfaces);
+                    gpu::shared_device_buffer_typed<AABBGPU> buffer1_aabb(nfaces);
+                    gpu::shared_device_buffer_typed<float3> buffer1_centroid(nfaces);
+
+                    gpu::shared_device_buffer_typed<unsigned int> buffer2_triIndex(nfaces);
+                    gpu::shared_device_buffer_typed<unsigned int> buffer2_morton(nfaces);
+                    gpu::shared_device_buffer_typed<AABBGPU> buffer2_aabb(nfaces);
+                    gpu::shared_device_buffer_typed<float3> buffer2_centroid(nfaces);
+
+                    const int n = nfaces;
+
+                    int current_block_size = 2;
+                    cuda::merge_sort(
+                        workSize,
+                        leaf_faces_indices_gpu,
+                        prims_morton,
+                        prims_aabb,
+                        prims_centroid,
+                        buffer1_triIndex,
+                        buffer1_morton,
+                        buffer1_aabb,
+                        buffer1_centroid,
+                        current_block_size,
+                        n);
+                    current_block_size = 4;
+                    int i;
+                    for (i = 0; current_block_size < n; ++i) {
+                        if (i % 2 == 0) {
+                            cuda::merge_sort(
+                                workSize,
+                                buffer1_triIndex,
+                                buffer1_morton,
+                                buffer1_aabb,
+                                buffer1_centroid,
+                                buffer2_triIndex,
+                                buffer2_morton,
+                                buffer2_aabb,
+                                buffer2_centroid,
+                                current_block_size,
+                                n);
+                        } else {
+                            cuda::merge_sort(workSize,
+                                buffer2_triIndex,
+                                buffer2_morton,
+                                buffer2_aabb,
+                                buffer2_centroid,
+                                buffer1_triIndex,
+                                buffer1_morton,
+                                buffer1_aabb,
+                                buffer1_centroid,
+                                current_block_size,
+                                n);
+                        }
+                        current_block_size *= 2;
+                    }
+                    if (i % 2 == 0) {
+                        cuda::merge_sort(workSize, buffer1_triIndex,
+                            buffer1_morton,
+                            buffer1_aabb,
+                            buffer1_centroid,
+                            leaf_faces_indices_gpu,
+                            prims_morton,
+                            prims_aabb,
+                            prims_centroid,
+                            current_block_size,
+                            n);
+                    } else {
+                        cuda::merge_sort(workSize,
+                            buffer2_triIndex,
+                            buffer2_morton,
+                            buffer2_aabb,
+                            buffer2_centroid,
+                            leaf_faces_indices_gpu,
+                            prims_morton,
+                            prims_aabb,
+                            prims_centroid,
+                            current_block_size,
+                            n);
+                    }
+
+                    // auto prims = prims_morton.readVector();
+                    // for (unsigned int i = 1; i < nfaces; ++i) {
+                    //     rassert(prims[i - 1] <= prims[i], 3456345234123);
+                    // }
+                }
+
+                cuda::pre_build_bvh(gpu::WorkSize(GROUP_SIZE, 2 * nfaces - 1), nfaces, leaf_faces_indices_gpu, prims_morton, prims_aabb, lbvh_nodes_gpu);
+
+                gpu::shared_device_buffer_typed<int> is_finished(1);
+                is_finished.fill(0);
+                for (int i = 0; i < log2(nfaces) + 1; ++i) {
+                    cuda::build_bvh(gpu::WorkSize(GROUP_SIZE, nfaces - 1), nfaces - 1, lbvh_nodes_gpu, is_finished);
+                }
+                int local_is_finished;
+                is_finished.readN(&local_is_finished, 1);
+                while (local_is_finished == 0) {
+                    cuda::build_bvh(gpu::WorkSize(GROUP_SIZE, nfaces - 1), nfaces - 1, lbvh_nodes_gpu, is_finished);
+                    is_finished.readN(&local_is_finished, 1);
+                }
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -316,7 +453,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                cuda::ray_tracing_render_using_lbvh(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu, leaf_faces_indices_gpu,
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu, nfaces);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
@@ -382,7 +524,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
