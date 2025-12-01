@@ -349,6 +349,15 @@ void run(int argc, char** argv)
             }
             for (int i = 0; i < tree.size(); ++i) {
                 rassert(tree[i].rightChildIndex == lbvh_nodes_cpu[i].rightChildIndex, 10);
+                rassert(tree[i].leftChildIndex == lbvh_nodes_cpu[i].leftChildIndex, 20);
+            }
+            for (int i = 0; i < tree.size(); ++i) {
+                rassert(tree[i].aabb.max_x == lbvh_nodes_cpu[i].aabb.max_x, 50);
+                rassert(tree[i].aabb.max_y == lbvh_nodes_cpu[i].aabb.max_y, 51);
+                rassert(tree[i].aabb.max_z == lbvh_nodes_cpu[i].aabb.max_z, 52);
+                rassert(tree[i].aabb.min_x == lbvh_nodes_cpu[i].aabb.min_x, 53);
+                rassert(tree[i].aabb.min_y == lbvh_nodes_cpu[i].aabb.min_y, 54);
+                rassert(tree[i].aabb.min_z == lbvh_nodes_cpu[i].aabb.min_z, 55);
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
             double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
