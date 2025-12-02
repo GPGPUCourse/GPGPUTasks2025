@@ -160,12 +160,66 @@ bool intersect_ray_aabb(const float3 ray_o, const float3 ray_d,
     return true;
 }
 
-// Convenience wrapper: any-hit with default interval [0, +inf)
+static __device__ __forceinline__
+bool intersect_ray_aabb_fast(const float3 ray_o, const float3 invDir,
+                             const AABBGPU &box,
+                             float tMin, float tMax,
+                             float &tHitNear, float &tHitFar)
+{
+    float t0 = tMin;
+    float t1 = tMax;
+
+    {
+        float tx0 = (box.min_x - ray_o.x) * invDir.x;
+        float tx1 = (box.max_x - ray_o.x) * invDir.x;
+        float txMin = fminf(tx0, tx1);
+        float txMax = fmaxf(tx0, tx1);
+        t0 = fmaxf(t0, txMin);
+        t1 = fminf(t1, txMax);
+    }
+
+    {
+        float ty0 = (box.min_y - ray_o.y) * invDir.y;
+        float ty1 = (box.max_y - ray_o.y) * invDir.y;
+        float tyMin = fminf(ty0, ty1);
+        float tyMax = fmaxf(ty0, ty1);
+        t0 = fmaxf(t0, tyMin);
+        t1 = fminf(t1, tyMax);
+    }
+
+    {
+        float tz0 = (box.min_z - ray_o.z) * invDir.z;
+        float tz1 = (box.max_z - ray_o.z) * invDir.z;
+        float tzMin = fminf(tz0, tz1);
+        float tzMax = fmaxf(tz0, tz1);
+        t0 = fmaxf(t0, tzMin);
+        t1 = fminf(t1, tzMax);
+    }
+
+    tHitNear = t0;
+    tHitFar  = t1;
+    return t1 >= t0;
+}
+
 static __device__ __forceinline__
 bool intersect_ray_aabb_any(const float3 ray_o, const float3 ray_d,
                             const AABBGPU &box,
                             float &tHitNear, float &tHitFar)
 {
     return intersect_ray_aabb(ray_o, ray_d, box, 0.0f, FLT_MAX, tHitNear, tHitFar);
+}
+
+__device__ __forceinline__ float3 loadVertexLdg(const float* vertices, unsigned int vi)
+{
+    return make_float3(__ldg(&vertices[3 * vi + 0]), 
+                       __ldg(&vertices[3 * vi + 1]), 
+                       __ldg(&vertices[3 * vi + 2]));
+}
+
+__device__ __forceinline__ uint3 loadFaceLdg(const unsigned int* faces, unsigned int fi)
+{
+    return make_uint3(__ldg(&faces[3 * fi + 0]), 
+                      __ldg(&faces[3 * fi + 1]), 
+                      __ldg(&faces[3 * fi + 2]));
 }
 }

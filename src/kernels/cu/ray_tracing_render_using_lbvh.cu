@@ -13,7 +13,6 @@
 #include "geometry_helpers.cu"
 #include "random_helpers.cu"
 
-// BVH traversal: closest hit along ray
 __device__ bool bvh_closest_hit(
     const float3& orig,
     const float3& dir,
@@ -28,61 +27,67 @@ __device__ bool bvh_closest_hit(
     float& outU, // сюда нужно записать u рассчитанный в intersect_ray_triangle(..., t, u, v)
     float& outV) // сюда нужно записать v рассчитанный в intersect_ray_triangle(..., t, u, v)
 {
-    const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
-    const int MAX_STACK_SIZE = 50;
+    const int MAX_STACK_SIZE = 32;
 
-    int stack[MAX_STACK_SIZE] = {-1, 0};
-    int statuses[MAX_STACK_SIZE] = {2, 0};
-    int curIdx = 1;
+    float3 invDir = make_float3(1.0f / dir.x, 1.0f / dir.y, 1.0f / dir.z);
+
+    int stack[MAX_STACK_SIZE];
+    int stackPtr = 0;
+    stack[stackPtr++] = 0;
 
     float tBest = FLT_MAX;
-    float uBest=0, vBest=0;
-    int   faceIdBest = -1;
+    float uBest = 0, vBest = 0;
+    int faceIdBest = -1;
 
-    while (curIdx > 0) {
-        // if (curIdx >= MAX_STACK_SIZE) {
-        //     printf("BVH traversal stack overflow %d of %d\n", curIdx, MAX_STACK_SIZE);
-        // }
-        curassert(curIdx < MAX_STACK_SIZE, 23452345);
-        // curassert(curIdx > 0, 23452345);
-        int nodeIndex = stack[curIdx];
-        int& status = statuses[curIdx];
-        const BVHNodeGPU& node = nodes[nodeIndex];
+    while (stackPtr > 0) {
+        int nodeIndex = stack[--stackPtr];
 
         if (nodeIndex >= leafStart) {
-            const int fi = leafTriIndices[nodeIndex - leafStart];
+            const int fi = __ldg(&leafTriIndices[nodeIndex - leafStart]);
 
-            float t,u,v;
-            uint3 face = loadFace(faces, fi);
-            float3 v0 = loadVertex(vertices, face.x);
-            float3 v1 = loadVertex(vertices, face.y);
-            float3 v2 = loadVertex(vertices, face.z);
-            if (intersect_ray_triangle(orig, dir,
-                    v0, v1, v2,
-                    tMin, tBest, /*backface*/ false, t,u,v)) {
-                tBest = t; faceIdBest = fi; uBest = u; vBest = v;
+            float t, u, v;
+            uint3 face = loadFaceLdg(faces, fi);
+            float3 v0 = loadVertexLdg(vertices, face.x);
+            float3 v1 = loadVertexLdg(vertices, face.y);
+            float3 v2 = loadVertexLdg(vertices, face.z);
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, tBest, false, t, u, v)) {
+                tBest = t;
+                faceIdBest = fi;
+                uBest = u;
+                vBest = v;
             }
-            status = 2;
-        } else if (status == 0) {
-            float tNear;
-            float tFar;
+        } else {
+            const BVHNodeGPU& node = nodes[nodeIndex];
+            float tNear, tFar;
 
-            if (intersect_ray_aabb(orig, dir, node.aabb, tMin, tBest, tNear, tFar)) {
-                status = 1;
-                stack[++curIdx] = node.leftChildIndex;
-                statuses[curIdx] = 0;
-            } else {
-                status = 2;
+            if (intersect_ray_aabb_fast(orig, invDir, node.aabb, tMin, tBest, tNear, tFar)) {
+                int leftIdx = node.leftChildIndex;
+                int rightIdx = node.rightChildIndex;
+
+                float tNearLeft, tFarLeft, tNearRight, tFarRight;
+                bool hitLeft = (leftIdx < leafStart) ? 
+                    intersect_ray_aabb_fast(orig, invDir, nodes[leftIdx].aabb, tMin, tBest, tNearLeft, tFarLeft) : true;
+                bool hitRight = (rightIdx < leafStart) ? 
+                    intersect_ray_aabb_fast(orig, invDir, nodes[rightIdx].aabb, tMin, tBest, tNearRight, tFarRight) : true;
+
+                if (leftIdx >= leafStart) tNearLeft = 0.0f;
+                if (rightIdx >= leafStart) tNearRight = 0.0f;
+
+                if (hitLeft && hitRight) {
+                    if (tNearLeft < tNearRight) {
+                        stack[stackPtr++] = rightIdx;
+                        stack[stackPtr++] = leftIdx;
+                    } else {
+                        stack[stackPtr++] = leftIdx;
+                        stack[stackPtr++] = rightIdx;
+                    }
+                } else if (hitLeft) {
+                    stack[stackPtr++] = leftIdx;
+                } else if (hitRight) {
+                    stack[stackPtr++] = rightIdx;
+                }
             }
-        } else if (statuses[curIdx] == 1) {
-            status = 2;
-            stack[++curIdx] = node.rightChildIndex;
-            statuses[curIdx] = 0;
-        }
-
-        if (statuses[curIdx] == 2) {
-            --curIdx;
         }
     }
 
@@ -97,8 +102,6 @@ __device__ bool bvh_closest_hit(
     return false; // no intersections found
 }
 
-// BVH traversal: any hit (for AO rays)
-// ignore_face: do not count intersections with this triangle index
 __device__ bool any_hit_from(
     const float3& orig,
     const float3& dir,
@@ -109,67 +112,40 @@ __device__ bool any_hit_from(
     unsigned int nfaces,
     int ignore_face)
 {
-    const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
-    const int MAX_STACK_SIZE = 50;
+    const int MAX_STACK_SIZE = 32;
 
-    int stack[MAX_STACK_SIZE] = {-1, 0};
-    int statuses[MAX_STACK_SIZE] = {2, 0};
-    int curIdx = 1;
+    float3 invDir = make_float3(1.0f / dir.x, 1.0f / dir.y, 1.0f / dir.z);
+    const float tMin = 1e-6f;
+    const float tMax = FLT_MAX;
 
-    float tBest = FLT_MAX;
-    float uBest=0, vBest=0;
-    int   faceIdBest = -1;
+    int stack[MAX_STACK_SIZE];
+    int stackPtr = 0;
+    stack[stackPtr++] = 0;
 
-    while (curIdx > 0) {
-        // if (curIdx >= MAX_STACK_SIZE) {
-        //     printf("BVH traversal stack overflow %d of %d\n", curIdx, MAX_STACK_SIZE);
-        // }
-        curassert(curIdx < MAX_STACK_SIZE, 23452345);
-        // curassert(curIdx > 0, 23452345);
-        int nodeIndex = stack[curIdx];
-        int& status = statuses[curIdx];
-        const BVHNodeGPU& node = nodes[nodeIndex];
-
-        float tMin = 1e-6f;
+    while (stackPtr > 0) {
+        int nodeIndex = stack[--stackPtr];
 
         if (nodeIndex >= leafStart) {
-            const int fi = leafTriIndices[nodeIndex - leafStart];
-            if (fi == ignore_face) {
-                --curIdx;
-                continue;
-            }
+            const int fi = __ldg(&leafTriIndices[nodeIndex - leafStart]);
+            if (fi == ignore_face) continue;
 
-            float t,u,v;
-            uint3 face = loadFace(faces, fi);
-            float3 v0 = loadVertex(vertices, face.x);
-            float3 v1 = loadVertex(vertices, face.y);
-            float3 v2 = loadVertex(vertices, face.z);
-            if (intersect_ray_triangle(orig, dir,
-                    v0, v1, v2,
-                    tMin, tBest, /*backface*/ false, t,u,v)) {
+            float t, u, v;
+            uint3 face = loadFaceLdg(faces, fi);
+            float3 v0 = loadVertexLdg(vertices, face.x);
+            float3 v1 = loadVertexLdg(vertices, face.y);
+            float3 v2 = loadVertexLdg(vertices, face.z);
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, tMax, false, t, u, v)) {
                 return true;
             }
-            status = 2;
-        } else if (status == 0) {
-            float tNear;
-            float tFar;
+        } else {
+            const BVHNodeGPU& node = nodes[nodeIndex];
+            float tNear, tFar;
 
-            if (intersect_ray_aabb(orig, dir, node.aabb, tMin, tBest, tNear, tFar)) {
-                status = 1;
-                stack[++curIdx] = node.leftChildIndex;
-                statuses[curIdx] = 0;
-            } else {
-                status = 2;
+            if (intersect_ray_aabb_fast(orig, invDir, node.aabb, tMin, tMax, tNear, tFar)) {
+                stack[stackPtr++] = node.rightChildIndex;
+                stack[stackPtr++] = node.leftChildIndex;
             }
-        } else if (statuses[curIdx] == 1) {
-            status = 2;
-            stack[++curIdx] = node.rightChildIndex;
-            statuses[curIdx] = 0;
-        }
-
-        if (statuses[curIdx] == 2) {
-            --curIdx;
         }
     }
 
@@ -272,7 +248,9 @@ __global__ void ray_tracing_render_using_lbvh(
             float z  = u1;                          // z in [0,1]
             float phi = 6.28318530718f * u2;        // 2*pi*u2
             float r  = sqrtf(fmaxf(0.f, 1.f - z*z));
-            float3 d_local = make_float3(r * cosf(phi), r * sinf(phi), z);
+            float sinPhi, cosPhi;
+            __sincosf(phi, &sinPhi, &cosPhi);
+            float3 d_local = make_float3(r * cosPhi, r * sinPhi, z);
 
             // transform to world space
             float3 d = make_float3(
