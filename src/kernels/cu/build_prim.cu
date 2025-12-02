@@ -146,6 +146,32 @@ __device__ void atomicMaxFloat(float* address, float val)
     } while (assumed != old);
 }
 
+__global__ void init_min_max(float3* cMin, float3* cMax)
+{
+    cMin->x = FLT_MAX;
+    cMin->y = FLT_MAX;
+    cMin->z = FLT_MAX;
+    cMax->x = -FLT_MAX;
+    cMax->y = -FLT_MAX;
+    cMax->z = -FLT_MAX;
+}
+
+__device__ __forceinline__ float warpReduceMin(float val)
+{
+    for (int offset = 16; offset > 0; offset /= 2) {
+        val = fminf(val, __shfl_down_sync(0xffffffff, val, offset));
+    }
+    return val;
+}
+
+__device__ __forceinline__ float warpReduceMax(float val)
+{
+    for (int offset = 16; offset > 0; offset /= 2) {
+        val = fmaxf(val, __shfl_down_sync(0xffffffff, val, offset));
+    }
+    return val;
+}
+
 __global__ void build_prim(
     const float* vertices,
     const unsigned int* faces,
@@ -230,7 +256,8 @@ __global__ void build_prim(
     }
     */
 
-    __shared__ float3 centroid_shared[256];
+    __shared__ float smin_x[8], smin_y[8], smin_z[8];
+    __shared__ float smax_x[8], smax_y[8], smax_z[8];
 
     unsigned int f1 = faces[i * 3 + 0];
     unsigned int f2 = faces[i * 3 + 1];
@@ -257,36 +284,67 @@ __global__ void build_prim(
     data_aabb[i]     = aabb_local;
     data_centroid[i] = centroid_local;
 
-    centroid_shared[threadIdx.x] = centroid_local;
+    float min_x = centroid_local.x, min_y = centroid_local.y, min_z = centroid_local.z;
+    float max_x = centroid_local.x, max_y = centroid_local.y, max_z = centroid_local.z;
+
+    min_x = warpReduceMin(min_x);
+    min_y = warpReduceMin(min_y);
+    min_z = warpReduceMin(min_z);
+    max_x = warpReduceMax(max_x);
+    max_y = warpReduceMax(max_y);
+    max_z = warpReduceMax(max_z);
+
+    int warpId = threadIdx.x / 32;
+    int laneId = threadIdx.x % 32;
+    if (laneId == 0) {
+        smin_x[warpId] = min_x;
+        smin_y[warpId] = min_y;
+        smin_z[warpId] = min_z;
+        smax_x[warpId] = max_x;
+        smax_y[warpId] = max_y;
+        smax_z[warpId] = max_z;
+    }
     __syncthreads();
 
-    if (threadIdx.x == 0) {
-        float3 cmin_local = {FLT_MAX, FLT_MAX, FLT_MAX};
-        float3 cmax_local = {FLT_MIN, FLT_MIN, FLT_MIN};
-        const int block_offset = blockIdx.x * blockDim.x;
-        for (int i = 0; i < 256; ++i) {
-            if (block_offset + i >= nFaces) {
-                break;
-            }
+    if (warpId == 0) {
+        int numWarps = (blockDim.x + 31) / 32;
+        min_x = (laneId < numWarps) ? smin_x[laneId] : FLT_MAX;
+        min_y = (laneId < numWarps) ? smin_y[laneId] : FLT_MAX;
+        min_z = (laneId < numWarps) ? smin_z[laneId] : FLT_MAX;
+        max_x = (laneId < numWarps) ? smax_x[laneId] : -FLT_MAX;
+        max_y = (laneId < numWarps) ? smax_y[laneId] : -FLT_MAX;
+        max_z = (laneId < numWarps) ? smax_z[laneId] : -FLT_MAX;
 
-            cmin_local.x = fmin(cmin_local.x, centroid_shared[i].x);
-            cmin_local.y = fmin(cmin_local.y, centroid_shared[i].y);
-            cmin_local.z = fmin(cmin_local.z, centroid_shared[i].z);
-            cmax_local.x = fmax(cmax_local.x, centroid_shared[i].x);
-            cmax_local.y = fmax(cmax_local.y, centroid_shared[i].y);
-            cmax_local.z = fmax(cmax_local.z, centroid_shared[i].z);
+        min_x = warpReduceMin(min_x);
+        min_y = warpReduceMin(min_y);
+        min_z = warpReduceMin(min_z);
+        max_x = warpReduceMax(max_x);
+        max_y = warpReduceMax(max_y);
+        max_z = warpReduceMax(max_z);
+
+        if (laneId == 0) {
+            atomicMinFloat(&cMin->x, min_x);
+            atomicMinFloat(&cMin->y, min_y);
+            atomicMinFloat(&cMin->z, min_z);
+            atomicMaxFloat(&cMax->x, max_x);
+            atomicMaxFloat(&cMax->y, max_y);
+            atomicMaxFloat(&cMax->z, max_z);
         }
-
-        atomicMinFloat(&cMin->x, cmin_local.x);
-        atomicMinFloat(&cMin->y, cmin_local.y);
-        atomicMinFloat(&cMin->z, cmin_local.z);
-        atomicMaxFloat(&cMax->x, cmax_local.x);
-        atomicMaxFloat(&cMax->y, cmax_local.y);
-        atomicMaxFloat(&cMax->z, cmax_local.z);
     }
 }
 
 namespace cuda {
+
+void init_min_max(gpu::shared_device_buffer_typed<float3>& cMin,
+    gpu::shared_device_buffer_typed<float3>& cMax)
+{
+    gpu::Context context;
+    rassert(context.type() == gpu::Context::TypeCUDA, 34523543124315, context.type());
+    cudaStream_t stream = context.cudaStream();
+    ::init_min_max<<<1, 1, 0, stream>>>(cMin.cuptr(), cMax.cuptr());
+    CUDA_CHECK_KERNEL(stream);
+}
+
 void build_prim(const gpu::WorkSize& workSize,
     const gpu::gpu_mem_32f& vertices,
     const gpu::gpu_mem_32u& faces,

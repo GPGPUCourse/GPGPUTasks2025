@@ -53,6 +53,9 @@ void build_prim(const gpu::WorkSize& workSize,
     gpu::shared_device_buffer_typed<float3>& cMin,
     gpu::shared_device_buffer_typed<float3>& cMax);
 
+void init_min_max(gpu::shared_device_buffer_typed<float3>& cMin,
+    gpu::shared_device_buffer_typed<float3>& cMax);
+
 void set_morton_codes(const gpu::WorkSize& workSize,
     gpu::shared_device_buffer_typed<unsigned int>& data_morton,
     gpu::shared_device_buffer_typed<float3>& data_centroid,

@@ -323,8 +323,7 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                cMax_gpu.fill(float3 { FLT_MIN, FLT_MIN, FLT_MIN });
-                cMin_gpu.fill(float3 { FLT_MAX, FLT_MAX, FLT_MAX });
+                cuda::init_min_max(cMin_gpu, cMax_gpu);
 
                 cuda::build_prim(
                     gpu::WorkSize(GROUP_SIZE, nfaces),
