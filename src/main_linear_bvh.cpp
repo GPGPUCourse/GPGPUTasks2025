@@ -289,8 +289,6 @@ void run(int argc, char** argv)
         double gpu_lbvh_time_sum = 0.0;
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
-        // TODO постройте LBVH на GPU
-        // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
         bool gpu_lbvg_gpu_rt_done = true;
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
@@ -332,6 +330,8 @@ void run(int argc, char** argv)
             lbvh_nodes_gpu.readN(tree.data(), tree.size());
             std::vector<uint32_t> indices(nfaces);
             triangle_indices.readN(indices.data(), indices.size());
+            std::vector<uint32_t> parents_data(nfaces * 2 - 1);
+            parents.readN(parents_data.data(), parents_data.size());
             std::vector<uint32_t> morton(2 * nfaces);
             input_gpu.readN(morton.data(), morton.size());
             std::vector<uint32_t> sorted_morton(2 * nfaces);
@@ -346,6 +346,12 @@ void run(int argc, char** argv)
             for (int i = 0; i < tree.size(); ++i) {
                 rassert(tree[i].rightChildIndex == lbvh_nodes_cpu[i].rightChildIndex, 10);
                 rassert(tree[i].leftChildIndex == lbvh_nodes_cpu[i].leftChildIndex, 20);
+                if (tree[i].leftChildIndex != -1) {
+                    rassert(parents_data[tree[i].leftChildIndex] == i, 21, tree[i].leftChildIndex, i, parents_data[tree[i].leftChildIndex]);
+                }
+                if (tree[i].rightChildIndex != -1) {
+                    rassert(parents_data[tree[i].rightChildIndex] == i, 22, tree[i].rightChildIndex, i, parents_data[tree[i].rightChildIndex]);
+                }
             }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
             double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);

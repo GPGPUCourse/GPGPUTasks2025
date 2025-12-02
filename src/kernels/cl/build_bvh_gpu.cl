@@ -158,5 +158,4 @@ __kernel void build_bvh_gpu(
     output_nodes[i].rightChildIndex = rightIndex;
     parents[leftIndex] = i;
     parents[rightIndex] = i;
-    output_nodes[i].aabb = get_simple_aabb(faces, vertices, output_triIndex[first]);
 }
