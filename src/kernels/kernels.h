@@ -32,6 +32,7 @@ const ProgramBinaries& getMergeSortForLBVH();
 const ProgramBinaries& getComputeCentroids();
 const ProgramBinaries& getComputeMortonCode();
 const ProgramBinaries& getBuildBvhGpu();
+const ProgramBinaries& getUpdateAABB();
 }
 
 namespace avk2 {

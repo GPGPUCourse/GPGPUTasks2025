@@ -81,6 +81,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_compute_morton_code(ocl::getComputeMortonCode());
     ocl::KernelSource ocl_merge_sort_lbvh(ocl::getMergeSortForLBVH());
     ocl::KernelSource ocl_build_bvh_gpu(ocl::getBuildBvhGpu());
+    ocl::KernelSource ocl_update_aabb(ocl::getUpdateAABB());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -295,6 +296,7 @@ void run(int argc, char** argv)
             std::vector<double> gpu_lbvh_times;
             gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(2 * nfaces - 1);
             gpu::gpu_mem_32u triangle_indices(nfaces);
+            gpu::gpu_mem_32u parents(nfaces * 2 - 1);
             gpu::gpu_mem_32f bounds_gpu(6);
             std::vector<float> start_bounds = {10000, 10000, 10000, 0, 0, 0};
             gpu::gpu_mem_32f centroids_gpu(nfaces * 3);
@@ -322,7 +324,8 @@ void run(int argc, char** argv)
                 }
                 ocl_merge_sort_lbvh.exec(workSize, *input_buffer_ptr, buffer_output_gpu, nfaces, chunk_size);
                 gpu::WorkSize bvhWorkSize(GROUP_SIZE, 2 * nfaces - 1);
-                ocl_build_bvh_gpu.exec(bvhWorkSize, buffer_output_gpu, faces_gpu, vertices_gpu, triangle_indices, lbvh_nodes_gpu.clmem(), nfaces);
+                ocl_build_bvh_gpu.exec(bvhWorkSize, buffer_output_gpu, faces_gpu, vertices_gpu, triangle_indices, parents, lbvh_nodes_gpu.clmem(), nfaces);
+                ocl_update_aabb.exec(bvhWorkSize, parents, lbvh_nodes_gpu, nfaces * 2 - 1);
                 gpu_lbvh_times.push_back(t.elapsed());
             }
             std::vector<BVHNodeGPU> tree(2 * nfaces - 1);

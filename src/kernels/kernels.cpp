@@ -7,6 +7,7 @@
 #include "cl/generated_kernels/compute_morton_code.h"
 #include "cl/generated_kernels/compute_centroids.h"
 #include "cl/generated_kernels/build_bvh_gpu.h"
+#include "cl/generated_kernels/update_aabb.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -78,6 +79,11 @@ const ProgramBinaries& getComputeMortonCode()
 const ProgramBinaries& getBuildBvhGpu()
 {
     return opencl_binaries_build_bvh_gpu;
+}
+
+const ProgramBinaries& getUpdateAABB()
+{
+    return opencl_binaries_update_aabb;
 }
 } // namespace ocl
 
