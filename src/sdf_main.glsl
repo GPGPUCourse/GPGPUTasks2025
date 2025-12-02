@@ -24,17 +24,40 @@ float lazycos(float angle)
     return 1.0;
 }
 
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
+float smin( float a, float b, float k )
+{
+    k *= 0.3;
+    float r = exp2(-a/k) + exp2(-b/k);
+    return -k*log2(r);
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    vec3 bodyCol = vec3(0.0, 0.95, 0.0);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d1 = sdSphere(p - vec3(0.0, 0.33, -0.72), 0.31);
+    float d2 = sdSphere(p - vec3(0.0, 0.55, -0.66), 0.24);
+    float d  = smin(d1, d2, 0.10);
+
+    float armR = 0.055;
+    d = min(d, sdCapsule(p, vec3(-0.26, 0.33, -0.73), vec3(-0.40, 0.25, -0.72), armR));
+    d = min(d, sdCapsule(p, vec3(0.26, 0.33, -0.73), vec3(0.40, 0.25, -0.72), armR));
+
+    float legRad = 0.055;
+    d = min(d, sdCapsule(p, vec3(-0.12, -0.025, -0.70), vec3(-0.12, 0.07, -0.66), legRad));
+    d = min(d, sdCapsule(p, vec3(0.12, -0.025, -0.70), vec3(0.12, 0.07, -0.66), legRad));
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(d, bodyCol);
 }
 
 vec4 sdEye(vec3 p)
@@ -42,6 +65,27 @@ vec4 sdEye(vec3 p)
 
     vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
 
+    vec3 c = vec3(0.0, 0.55, -0.46);
+    float r = 0.14;
+
+    float d = sdSphere(p - c, r);
+
+    vec3 col = vec3(0.98);
+
+    vec3 q = (p - c) / r;
+    float m = max(length(q), 1e-6);
+    q /= m;
+
+    float radial = length(q.xy);
+    float front = smoothstep(0.0, 0.12, q.z);
+
+    float iris  = front * (1.0 - smoothstep(0.55, 0.58, radial));
+    float pupil = front * (1.0 - smoothstep(0.24, 0.27, radial));
+
+    col = mix(col, vec3(0.20, 0.70, 1.00), iris);
+    col = mix(col, vec3(0.0), pupil);
+
+    res = vec4(d, col);
     return res;
 }
 
