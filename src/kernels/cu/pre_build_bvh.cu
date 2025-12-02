@@ -95,7 +95,8 @@ __global__ void pre_build_bvh(
     const unsigned int* data_triIndex,
     const MortonCode* data_morton,
     const AABBGPU* data_aabb,
-    BVHNodeGPU* outNodes)
+    BVHNodeGPU* outNodes,
+    int* parentIndices)
 {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -182,6 +183,13 @@ __global__ void pre_build_bvh(
         BVHNodeGPU& node = outNodes[i];
         node.leftChildIndex = (unsigned int)leftIndex;
         node.rightChildIndex = (unsigned int)rightIndex;
+
+        parentIndices[leftIndex] = i;
+        parentIndices[rightIndex] = i;
+    }
+
+    if (i == 0) {
+        parentIndices[0] = -1;
     }
 }
 
@@ -191,7 +199,8 @@ void pre_build_bvh(const gpu::WorkSize& workSize,
     gpu::shared_device_buffer_typed<unsigned int>& data_triIndex,
     gpu::shared_device_buffer_typed<MortonCode>& data_morton,
     gpu::shared_device_buffer_typed<AABBGPU>& data_aabb,
-    gpu::shared_device_buffer_typed<BVHNodeGPU>& outNodes)
+    gpu::shared_device_buffer_typed<BVHNodeGPU>& outNodes,
+    gpu::shared_device_buffer_typed<int>& parentIndices)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
@@ -201,7 +210,8 @@ void pre_build_bvh(const gpu::WorkSize& workSize,
         data_triIndex.cuptr(),
         data_morton.cuptr(),
         data_aabb.cuptr(),
-        outNodes.cuptr()
+        outNodes.cuptr(),
+        parentIndices.cuptr()
     );
     CUDA_CHECK_KERNEL(stream);
 }

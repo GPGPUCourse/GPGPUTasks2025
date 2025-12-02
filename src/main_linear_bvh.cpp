@@ -94,7 +94,7 @@ void run(int argc, char** argv)
         "data/san-miguel/san-miguel.obj",
     };
 
-    const int niters = 5; // при отладке удобно запускать одну итерацию
+    const int niters = 10; // при отладке удобно запускать одну итерацию
     std::vector<double> gpu_rt_perf_mrays_per_sec;
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
 
@@ -300,16 +300,30 @@ void run(int argc, char** argv)
             gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(nfaces * 2 - 1);
             gpu::gpu_mem_32u leaf_faces_indices_gpu(nfaces);
 
+            gpu::shared_device_buffer_typed<unsigned int> prims_morton(nfaces);
+            gpu::shared_device_buffer_typed<AABBGPU> prims_aabb(nfaces);
+            gpu::shared_device_buffer_typed<float3> prims_centroid(nfaces);
+            gpu::shared_device_buffer_typed<float3> cMax_gpu(1);
+            gpu::shared_device_buffer_typed<float3> cMin_gpu(1);
+
+            gpu::WorkSize workSize(GROUP_SIZE, nfaces);
+            gpu::shared_device_buffer_typed<unsigned int> buffer1_triIndex(nfaces);
+            gpu::shared_device_buffer_typed<unsigned int> buffer1_morton(nfaces);
+            gpu::shared_device_buffer_typed<AABBGPU> buffer1_aabb(nfaces);
+            gpu::shared_device_buffer_typed<float3> buffer1_centroid(nfaces);
+
+            gpu::shared_device_buffer_typed<unsigned int> buffer2_triIndex(nfaces);
+            gpu::shared_device_buffer_typed<unsigned int> buffer2_morton(nfaces);
+            gpu::shared_device_buffer_typed<AABBGPU> buffer2_aabb(nfaces);
+            gpu::shared_device_buffer_typed<float3> buffer2_centroid(nfaces);
+
+            gpu::shared_device_buffer_typed<int> parentIndices(2 * nfaces - 1);
+            gpu::shared_device_buffer_typed<int> atomicCounters(nfaces - 1);
+
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                gpu::shared_device_buffer_typed<unsigned int> prims_morton(nfaces);
-                gpu::shared_device_buffer_typed<AABBGPU> prims_aabb(nfaces);
-                gpu::shared_device_buffer_typed<float3> prims_centroid(nfaces);
-
-                gpu::shared_device_buffer_typed<float3> cMax_gpu(1);
                 cMax_gpu.fill(float3 { FLT_MIN, FLT_MIN, FLT_MIN });
-                gpu::shared_device_buffer_typed<float3> cMin_gpu(1);
                 cMin_gpu.fill(float3 { FLT_MAX, FLT_MAX, FLT_MAX });
 
                 cuda::build_prim(
@@ -334,16 +348,6 @@ void run(int argc, char** argv)
 
                 // Sorting
                 {
-                    gpu::WorkSize workSize(GROUP_SIZE, nfaces);
-                    gpu::shared_device_buffer_typed<unsigned int> buffer1_triIndex(nfaces);
-                    gpu::shared_device_buffer_typed<unsigned int> buffer1_morton(nfaces);
-                    gpu::shared_device_buffer_typed<AABBGPU> buffer1_aabb(nfaces);
-                    gpu::shared_device_buffer_typed<float3> buffer1_centroid(nfaces);
-
-                    gpu::shared_device_buffer_typed<unsigned int> buffer2_triIndex(nfaces);
-                    gpu::shared_device_buffer_typed<unsigned int> buffer2_morton(nfaces);
-                    gpu::shared_device_buffer_typed<AABBGPU> buffer2_aabb(nfaces);
-                    gpu::shared_device_buffer_typed<float3> buffer2_centroid(nfaces);
 
                     const int n = nfaces;
 
@@ -422,19 +426,10 @@ void run(int argc, char** argv)
                     // }
                 }
 
-                cuda::pre_build_bvh(gpu::WorkSize(GROUP_SIZE, 2 * nfaces - 1), nfaces, leaf_faces_indices_gpu, prims_morton, prims_aabb, lbvh_nodes_gpu);
+                cuda::pre_build_bvh(gpu::WorkSize(GROUP_SIZE, 2 * nfaces - 1), nfaces, leaf_faces_indices_gpu, prims_morton, prims_aabb, lbvh_nodes_gpu, parentIndices);
 
-                gpu::shared_device_buffer_typed<int> is_finished(1);
-                is_finished.fill(0);
-                for (int i = 0; i < log2(nfaces) + 1; ++i) {
-                    cuda::build_bvh(gpu::WorkSize(GROUP_SIZE, nfaces - 1), nfaces - 1, lbvh_nodes_gpu, is_finished);
-                }
-                int local_is_finished;
-                is_finished.readN(&local_is_finished, 1);
-                while (local_is_finished == 0) {
-                    cuda::build_bvh(gpu::WorkSize(GROUP_SIZE, nfaces - 1), nfaces - 1, lbvh_nodes_gpu, is_finished);
-                    is_finished.readN(&local_is_finished, 1);
-                }
+                cuda::fill_zeros(gpu::WorkSize(GROUP_SIZE, nfaces - 1), atomicCounters, nfaces - 1);
+                cuda::build_bvh(gpu::WorkSize(GROUP_SIZE, nfaces), nfaces, lbvh_nodes_gpu, parentIndices, atomicCounters);
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }

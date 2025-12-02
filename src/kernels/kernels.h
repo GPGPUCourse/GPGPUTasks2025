@@ -65,12 +65,18 @@ void pre_build_bvh(const gpu::WorkSize& workSize,
     gpu::shared_device_buffer_typed<unsigned int>& data_triIndex,
     gpu::shared_device_buffer_typed<MortonCode>& data_morton,
     gpu::shared_device_buffer_typed<AABBGPU>& data_aabb,
-    gpu::shared_device_buffer_typed<BVHNodeGPU>& outNodes);
+    gpu::shared_device_buffer_typed<BVHNodeGPU>& outNodes,
+    gpu::shared_device_buffer_typed<int>& parentIndices);
+
+void fill_zeros(const gpu::WorkSize& workSize,
+    gpu::shared_device_buffer_typed<int>& data,
+    const int n);
 
 void build_bvh(const gpu::WorkSize& workSize,
-    const int n,
+    const int nLeaves,
     gpu::shared_device_buffer_typed<BVHNodeGPU>& nodes,
-    gpu::shared_device_buffer_typed<int>& is_finished);
+    gpu::shared_device_buffer_typed<int>& parentIndices,
+    gpu::shared_device_buffer_typed<int>& atomicCounters);
 }
 
 namespace ocl {
