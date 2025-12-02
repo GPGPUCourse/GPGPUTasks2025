@@ -235,9 +235,6 @@ inline void buildLBVH_CPU(
         nz = std::min(std::max(nz, 0.0f), 1.0f);
 
         prims[i].morton = morton3D(nx, ny, nz);
-        if (i == 275) {
-           std::cout << c.x << ' ' << c.y << ' ' << c.z << " CPU" << std::endl;
-        }
     }
 
     // 3) Sort primitives by Morton code
@@ -245,10 +242,6 @@ inline void buildLBVH_CPU(
         [](const Prim& a, const Prim& b) {
             return a.morton < b.morton;
         });
-    for (int i = 0; i < 10; ++i) {
-        std::cout << prims[i].morton << ' ' << prims[i].triIndex << ' ';
-    }
-    std::cout << "CPU" << std::endl;
     // 4) Prepare arrays
     const size_t numNodes = 2 * N - 1;
     outNodes.resize(numNodes);

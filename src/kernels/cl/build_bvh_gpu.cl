@@ -92,7 +92,7 @@ __kernel void build_bvh_gpu(
     __global const uint* faces,
     __global const uint* vertices,
     __global       uint* output_triIndex,
-    __global       uint* paretns,
+    __global       uint* parents,
     __global       BVHNodeGPU* output_nodes,
                    int nfaces)
 {

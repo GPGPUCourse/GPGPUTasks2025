@@ -38,7 +38,8 @@ __kernel void update_aabb(
     while (index != 0) {
         // At least on the second pass aabb should be correct
         BVHNodeGPU node = output_nodes[parents[index]];
-        AABBGPU tmp = merge_aabb(output_nodes[node.leftChildIndex].aabb, output_nodes[node.leftChildIndex].aabb);
-        output_nodes[parents[index]].aabb = merge_aabb(output_nodes[parents[index]].aabb, tmp);
+        AABBGPU tmp = merge_aabb(output_nodes[node.leftChildIndex].aabb, output_nodes[node.rightChildIndex].aabb);
+        output_nodes[parents[index]].aabb = merge_aabb(node.aabb, tmp);
+        index = parents[index];
     }
 }
