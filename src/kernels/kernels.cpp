@@ -3,6 +3,12 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/morton_build.h"
+#include "cl/generated_kernels/lbvh_build.h"
+#include "cl/generated_kernels/merge_sort.h"
+#include "cl/generated_kernels/fill_permutation.h"
+#include "cl/generated_kernels/up_merge_aabb.h"
+#include "cl/generated_kernels/fill_zeroes.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -55,6 +61,35 @@ const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getBuildMortonCodes()
+{
+    return opencl_binaries_morton_build;
+}
+
+const ProgramBinaries& getBuildLBVH()
+{
+    return opencl_binaries_lbvh_build;
+}
+
+const ProgramBinaries& getMergeSort()
+{
+    return opencl_binaries_merge_sort;
+}
+
+const ProgramBinaries& getFillPermutation()
+{
+    return opencl_binaries_fill_permutation;
+}
+const ProgramBinaries& getUpMergeAABB()
+{
+    return opencl_binaries_up_merge_aabb;
+}
+const ProgramBinaries& getFillZeroes()
+{
+    return opencl_binaries_fill_zeroes;
+}
+
 } // namespace ocl
 
 namespace avk2 {

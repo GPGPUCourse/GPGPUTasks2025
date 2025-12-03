@@ -71,7 +71,7 @@ __kernel void ray_tracing_render_brute_force(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    rassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 646435342);
+    rassert(camera->magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 646435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 

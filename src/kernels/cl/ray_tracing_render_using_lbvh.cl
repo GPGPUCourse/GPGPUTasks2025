@@ -13,6 +13,35 @@
 #include "geometry_helpers.cl"
 #include "random_helpers.cl"
 
+static inline bool update_intersect_triangle(
+    const float3              orig,
+    const float3              dir,
+    __global const float*     vertices,
+    __global const uint*      faces,
+    uint                      faceId,
+    float                     tMin,
+    __private float*          outT,
+    __private int*            outFaceId,
+    __private float*          outU,
+    __private float*          outV) 
+{
+    uint3 f = loadFace(faces, faceId);
+    float3 a = loadVertex(vertices, f.x);
+    float3 b = loadVertex(vertices, f.y);
+    float3 c = loadVertex(vertices, f.z);
+
+    float tHit, uHit, vHit;
+
+    if (intersect_ray_triangle(orig, dir, a, b, c, tMin, *outT, false, &tHit, &uHit, &vHit)) {
+        *outT = tHit;
+        *outFaceId = faceId;
+        *outU = uHit;
+        *outV = vHit;
+        return true;
+    }
+    return false;
+}
+
 // BVH traversal: closest hit along ray
 static inline bool bvh_closest_hit(
     const float3              orig,
@@ -31,9 +60,33 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[MAX_STACK_SIZE];
+    uint stackPtr = 0;
+    stack[stackPtr++] = -1;
 
-    return false;
+    bool result = false;
+
+    int nodeIndex = rootIndex;
+    while (nodeIndex != -1) {
+        if (nodeIndex >= leafStart) {
+            const uint faceId = leafTriIndices[nodeIndex - leafStart];
+            result |= update_intersect_triangle(orig, dir, vertices, faces, faceId, tMin, outT, outFaceId, outU, outV);
+
+            nodeIndex = stack[--stackPtr];
+            continue;
+        }
+
+        BVHNodeGPU node = nodes[nodeIndex];
+        float nearHit, farHit;
+        if (intersect_ray_aabb(orig, dir, node.aabb, tMin, *outT, &nearHit, &farHit)) {
+            stack[stackPtr++] = node.rightChildIndex;
+            nodeIndex = node.leftChildIndex;
+        } else {
+            nodeIndex = stack[--stackPtr];
+        }
+    }
+
+    return result;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -50,7 +103,38 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[MAX_STACK_SIZE];
+    uint stackPtr = 0;
+    stack[stackPtr++] = -1;
+
+    const float tMin = 0.0f;
+    float outT = FLT_MAX;
+    float outU = 0.0f;
+    float outV = 0.0f;
+    int outFaceId = -1;
+
+    int nodeIndex = rootIndex;
+    while (nodeIndex != -1) {
+        if (nodeIndex >= leafStart) {
+            const uint faceId = leafTriIndices[nodeIndex - leafStart];
+            if (faceId != (uint)ignore_face) {
+                if (update_intersect_triangle(orig, dir, vertices, faces, faceId, tMin, &outT, &outFaceId, &outU, &outV)) {
+                    return true;
+                }
+            }
+            nodeIndex = stack[--stackPtr];
+            continue;
+        }
+
+        BVHNodeGPU node = nodes[nodeIndex];
+        float nearHit, farHit;
+        if (intersect_ray_aabb(orig, dir, node.aabb, tMin, outT, &nearHit, &farHit)) {
+            stack[stackPtr++] = node.rightChildIndex;
+            nodeIndex = node.leftChildIndex;
+        } else {
+            nodeIndex = stack[--stackPtr];
+        }
+    }
 
     return false;
 }
@@ -82,7 +166,7 @@ __kernel void ray_tracing_render_using_lbvh(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    rassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 786435342);
+    rassert(camera->magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 786435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 

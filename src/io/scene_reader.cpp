@@ -155,6 +155,20 @@ static inline void triangulateFan(const std::vector<Idx>& poly, std::vector<poin
     }
 }
 
+void update_scene_aabb(SceneGeometry &scene, const point3f &v, bool init)
+{
+    if (init) {
+        scene.min = scene.max = v;
+        return;
+    }
+    scene.min.x = std::min(scene.min.x, v.x);
+    scene.min.y = std::min(scene.min.y, v.y);
+    scene.min.z = std::min(scene.min.z, v.z);
+    scene.max.x = std::max(scene.max.x, v.x);
+    scene.max.y = std::max(scene.max.y, v.y);
+    scene.max.z = std::max(scene.max.z, v.z);
+}
+
 // ----------------- OBJ loader -----------------
 
 SceneGeometry loadOBJ(const std::string &path)
@@ -187,6 +201,7 @@ SceneGeometry loadOBJ(const std::string &path)
             float y = parseFloat(p);
             float z = parseFloat(p);
             scene.vertices.emplace_back(point3f{x,y,z});
+            update_scene_aabb(scene, scene.vertices.back(), scene.vertices.size() == 1);
             continue;
         }
 
@@ -407,6 +422,7 @@ SceneGeometry loadPLY(const std::string &path)
                 point3f{ float(scalars[size_t(xPos)]),
                          float(scalars[size_t(yPos)]),
                          float(scalars[size_t(zPos)]) };
+            update_scene_aabb(scene, scene.vertices[static_cast<size_t>(i)], i==0);
         }
 
         // Identify face indices list
@@ -451,6 +467,7 @@ SceneGeometry loadPLY(const std::string &path)
                 point3f{ float(vals[size_t(xPos)]),
                          float(vals[size_t(yPos)]),
                          float(vals[size_t(zPos)]) };
+            update_scene_aabb(scene, scene.vertices[static_cast<size_t>(i)], i==0);
         }
 
         // Binary faces: consume properties in declared order
