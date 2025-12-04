@@ -31,23 +31,20 @@ __kernel void radix_sort_04_scatter(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     for (int shift = 1; shift < GROUP_SIZE; shift *= 2) {
-        uint buf[RADIX];
-
         for (int i = 0; i < RADIX; ++i) {
+            uint tmp;
             if (localX >= shift) {
-                buf[i] = localScan[i][localX - shift];
+                tmp = localScan[i][localX - shift];
             } else {
-                buf[i] = 0;
+                tmp = 0;
             }
+
+            barrier(CLK_LOCAL_MEM_FENCE);
+
+            localScan[i][localX] += tmp;
+
+            barrier(CLK_LOCAL_MEM_FENCE);            
         }
-
-        barrier(CLK_LOCAL_MEM_FENCE);
-
-        for (int i = 0; i < RADIX; ++i) {
-            localScan[i][localX] += buf[i];
-        }   
-
-        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     if (x >= n) {
