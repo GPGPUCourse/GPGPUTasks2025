@@ -115,51 +115,51 @@ float lazycos(float angle)
 
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
-vec4 sdBody(vec3 p, float scale)
+vec4 sdBody(vec3 p)
 {
     float top_d = 1e10;
     float main_d = 1e10;
 
-    top_d = sdRoundCone((p - vec3(0.0, 0.4, -0.7)), scale * 0.35, scale * 0.3, scale * 0.3);
-    main_d = sdSphere((p - vec3(0.0, 0.35, -0.7)), scale * 0.35);
+    top_d = sdRoundCone((p - vec3(0.0, 0.4, -0.7)), 0.35, 0.3, 0.3);
+    main_d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
 
     // return distance and color
     return vec4(sigmoid_min(top_d, main_d, 0.1), vec3(0.0, 1.0, 0.0));
 }
 
-vec4 sdArm(vec3 p, vec3 shift, mat3 rotation, float scale)
+vec4 sdArm(vec3 p, vec3 shift, mat3 rotation)
 {
     float d = 1e10;
     vec3 center = (p + shift - vec3(0.0, 0.35, -0.5));
-    d = sdEllipsoid(center * rotation, scale * vec3(0.2, 0.05, 0.05));
+    d = sdEllipsoid(center * rotation, vec3(0.2, 0.05, 0.05));
 
     // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
-vec4 sdLeg(vec3 p, vec3 shift, float scale)
+vec4 sdLeg(vec3 p, vec3 shift)
 {
     float d = 1e10;
-    d = sdEllipsoid((p + shift - vec3(0.0, 0.0, -0.5)), scale * vec3(0.05, 0.2, 0.05));
+    d = sdEllipsoid((p + shift - vec3(0.0, 0.0, -0.5)), vec3(0.05, 0.2, 0.05));
 
     // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
-vec4 sdHat(vec3 p, float scale)
+vec4 sdHat(vec3 p)
 {
     float bottom_d = 1e10;
     float main_d = 1e10;
 
-    bottom_d = sdEllipsoid((p - vec3(0.0, 0.9, -0.6)), scale * vec3(0.4, 0.01, 0.4));
-    main_d = sdCappedCone((p - vec3(0.0, 0.9, -0.6)), scale * 0.2, scale * 0.09, scale * 0.2);
+    bottom_d = sdEllipsoid((p - vec3(0.0, 0.9, -0.6)), vec3(0.4, 0.01, 0.4));
+    main_d = sdCappedCone((p - vec3(0.0, 0.9, -0.6)), 0.2, 0.09, 0.2);
 
     // return distance and color
     return vec4(sigmoid_min(bottom_d, main_d, 0.1), vec3(0.45, 0.32, 0.1));
 }
 
 
-vec4 sdEye(vec3 p, vec3 shift, float should_add, float scale)
+vec4 sdEye(vec3 p, vec3 shift, float should_add)
 {
     float main_d = 1e10;
     float small_d = 1e10;
@@ -168,11 +168,11 @@ vec4 sdEye(vec3 p, vec3 shift, float should_add, float scale)
     float monster_refl_d = 1e10;
     float eps = 1e-2;
 
-    main_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.4)), scale * vec3(0.11, 0.16, 0.1));
-    small_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.35)), scale * vec3(0.05, 0.09, 0.06));
-    very_small_d = sdEllipsoid((p + shift - vec3(0.0, 0.554, -0.30)), scale * vec3(0.01, 0.02, 0.01));
-    floor_d = sdEllipsoid((p + shift - vec3(0.0, 0.545, -0.3)), scale * vec3(0.007, 0.01, 0.01));
-    monster_refl_d = sdEllipsoid((p + shift - vec3(0.0, 0.551, -0.294)), scale * vec3(0.0005, 0.001, 0.0005));
+    main_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.4)), vec3(0.11, 0.16, 0.1));
+    small_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.35)), vec3(0.05, 0.09, 0.06));
+    very_small_d = sdEllipsoid((p + shift - vec3(0.0, 0.554, -0.30)), vec3(0.01, 0.02, 0.01));
+    floor_d = sdEllipsoid((p + shift - vec3(0.0, 0.545, -0.3)), vec3(0.007, 0.01, 0.01));
+    monster_refl_d = sdEllipsoid((p + shift - vec3(0.0, 0.551, -0.294)), vec3(0.0005, 0.001, 0.0005));
     vec2 first_res = smin_color(main_d, small_d, 0.01);
     vec2 second_res = smin_color(first_res.x, very_small_d, 0.001);
     vec2 third_res = smin_color(second_res.x, floor_d, 0.0001);
@@ -199,20 +199,20 @@ vec4 sdEye(vec3 p, vec3 shift, float should_add, float scale)
     return vec4(fourth_res.x, second_col.x, second_col.y, second_col.z);
 }
 
-vec4 sdMonster(vec3 p, float should_add, float scale)
+vec4 sdMonster(vec3 p, float should_add)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
     p -= vec3(0.0, 0.2, -0.4);
 
-    vec4 res = sdBody(p, scale);
+    vec4 res = sdBody(p);
 
-    vec4 right_eye = sdEye(p, vec3(-0.15, 0.0, 0.0), 1.0, scale);
+    vec4 right_eye = sdEye(p, vec3(-0.15, 0.0, 0.0), 1.0);
     if (right_eye.x < res.x) {
         res = right_eye;
     }
 
-    vec4 left_eye = sdEye(p, vec3(0.15, 0.0, 0.0), should_add, scale);
+    vec4 left_eye = sdEye(p, vec3(0.15, 0.0, 0.0), should_add);
     if (left_eye.x < res.x) {
         res = left_eye;
     }
@@ -225,27 +225,27 @@ vec4 sdMonster(vec3 p, float should_add, float scale)
     }
     float angle = time * 1.5 - 3.14 / 4.0;
 
-    vec4 left_arm = sdArm(p, vec3(0.4, 0.0, 0.0), rotateZ(angle), scale);
+    vec4 left_arm = sdArm(p, vec3(0.4, 0.0, 0.0), rotateZ(angle));
     if (left_arm.x < res.x) {
         res = left_arm;
     }
 
-    vec4 right_arm = sdArm(p, vec3(-0.4, 0.0, 0.0), rotateZ(3.14 / 4.0), scale);
+    vec4 right_arm = sdArm(p, vec3(-0.4, 0.0, 0.0), rotateZ(3.14 / 4.0));
     if (right_arm.x < res.x) {
         res = right_arm;
     }
 
-    vec4 left_leg = sdLeg(p, vec3(0.15, 0.0, 0.0), scale);
+    vec4 left_leg = sdLeg(p, vec3(0.15, 0.0, 0.0));
     if (left_leg.x < res.x) {
         res = left_leg;
     }
 
-    vec4 right_leg = sdLeg(p, vec3(-0.15, 0.0, 0.0), scale);
+    vec4 right_leg = sdLeg(p, vec3(-0.15, 0.0, 0.0));
     if (right_leg.x < res.x) {
         res = right_leg;
     }
 
-    vec4 hat = sdHat(p, scale);
+    vec4 hat = sdHat(p);
     if (hat.x < res.x) {
         res = hat;
     }
@@ -271,7 +271,7 @@ vec4 sdTotal(vec3 p)
     }
     float should_add = z_add > 0.3 ? 1.0 - z_add: 1.0;
     p -= vec3(x_add * 0.18, -y_add * 0.3, 2.0 * z_add);
-    vec4 res = sdMonster(p, should_add, 1.0);
+    vec4 res = sdMonster(p, should_add);
 
 
     float dist = sdPlane(p);
