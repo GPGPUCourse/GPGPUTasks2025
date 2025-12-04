@@ -1,0 +1,8 @@
+#include "sum_03_local_memory_atomic_per_workgroup_comp_spirv_vulkan.h"
+
+namespace avk2 {
+	static const avk2::VersionedBinary* vulkan_versioned_binaries_sum_03_local_memory_atomic_per_workgroup_comp[] = {
+		&vulkan_binary_sum_03_local_memory_atomic_per_workgroup_comp_spirv,
+	};
+	static ProgramBinaries vulkan_binaries_sum_03_local_memory_atomic_per_workgroup_comp = ProgramBinaries(std::vector<const VersionedBinary *>(vulkan_versioned_binaries_sum_03_local_memory_atomic_per_workgroup_comp, vulkan_versioned_binaries_sum_03_local_memory_atomic_per_workgroup_comp + sizeof(vulkan_versioned_binaries_sum_03_local_memory_atomic_per_workgroup_comp) / sizeof(vulkan_versioned_binaries_sum_03_local_memory_atomic_per_workgroup_comp[0])), "sum_03_local_memory_atomic_per_workgroup_comp");
+}

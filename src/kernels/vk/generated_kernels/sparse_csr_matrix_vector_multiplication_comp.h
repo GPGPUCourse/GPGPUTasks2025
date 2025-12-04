@@ -1,0 +1,8 @@
+#include "sparse_csr_matrix_vector_multiplication_comp_spirv_vulkan.h"
+
+namespace avk2 {
+	static const avk2::VersionedBinary* vulkan_versioned_binaries_sparse_csr_matrix_vector_multiplication_comp[] = {
+		&vulkan_binary_sparse_csr_matrix_vector_multiplication_comp_spirv,
+	};
+	static ProgramBinaries vulkan_binaries_sparse_csr_matrix_vector_multiplication_comp = ProgramBinaries(std::vector<const VersionedBinary *>(vulkan_versioned_binaries_sparse_csr_matrix_vector_multiplication_comp, vulkan_versioned_binaries_sparse_csr_matrix_vector_multiplication_comp + sizeof(vulkan_versioned_binaries_sparse_csr_matrix_vector_multiplication_comp) / sizeof(vulkan_versioned_binaries_sparse_csr_matrix_vector_multiplication_comp[0])), "sparse_csr_matrix_vector_multiplication_comp");
+}

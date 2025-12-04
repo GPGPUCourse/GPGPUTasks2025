@@ -24,16 +24,32 @@ float lazycos(float angle)
     return 1.0;
 }
 
+// exponential
+float smin( float a, float b, float k )
+{
+    k *= 0.30;
+    float r = exp2(-a/k) + exp2(-b/k);
+    return -k*log2(r);
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    float bottom = sdSphere(p - vec3(0.0, 0.25, 0.0), 0.35);
+    float top    = sdSphere(p - vec3(0.0, 0.60, 0.0), 0.28);
+    float d = smin(bottom, top, 0.2);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float leg_l = sdSphere(p - vec3(-0.3, 0.04, 0.05), 0.08);
+    float leg_r = sdSphere(p - vec3( 0.3, 0.04, 0.05), 0.08);
+    d = min(d, leg_l);
+    d = min(d, leg_r);
 
-    // return distance and color
+    float arm_l = sdSphere(p - vec3(-0.37, 0.35, 0.0), 0.08);
+    float arm_r = sdSphere(p - vec3( 0.37, 0.35, 0.0), 0.08);
+    d = min(d, arm_l);
+    d = min(d, arm_r);
+
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
@@ -42,6 +58,18 @@ vec4 sdEye(vec3 p)
 
     vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
 
+    res = vec4(sdSphere(p - vec3(0.0, 0.5, 0.25), 0.18), 1.0, 1.0, 1.0);
+
+    float d_iris = sdSphere(p - vec3(0.0, 0.5, 0.32), 0.13);
+    if (d_iris < res.x) {
+        res = vec4(d_iris, 0.0, 0.5, 0.8);
+    }
+
+    float d_pupil = sdSphere(p - vec3(0.0, 0.5, 0.41), 0.06);
+    if (d_pupil < res.x) {
+        res = vec4(d_pupil, 0.0, 0.0, 0.0);
+    }
+
     return res;
 }
 
@@ -49,7 +77,7 @@ vec4 sdMonster(vec3 p)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    p -= vec3(0.0, 0.08, -0.40);
 
     vec4 res = sdBody(p);
 

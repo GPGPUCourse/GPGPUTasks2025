@@ -1,0 +1,8 @@
+#include "sum_03_local_memory_atomic_per_workgroup_nospir_opencl120.h"
+
+namespace ocl {
+	static const ocl::VersionedBinary* opencl_versioned_binaries_sum_03_local_memory_atomic_per_workgroup[] = {
+		&opencl_binary_sum_03_local_memory_atomic_per_workgroup_nospir_opencl120
+	};
+	static ProgramBinaries opencl_binaries_sum_03_local_memory_atomic_per_workgroup = ProgramBinaries(std::vector<const VersionedBinary *>(opencl_versioned_binaries_sum_03_local_memory_atomic_per_workgroup, opencl_versioned_binaries_sum_03_local_memory_atomic_per_workgroup + sizeof(opencl_versioned_binaries_sum_03_local_memory_atomic_per_workgroup) / sizeof(opencl_versioned_binaries_sum_03_local_memory_atomic_per_workgroup[0])), "sum_03_local_memory_atomic_per_workgroup");
+}
