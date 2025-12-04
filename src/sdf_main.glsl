@@ -11,6 +11,42 @@ float sdPlane(vec3 p)
     return p.y;
 }
 
+float dot2(in vec3 v ) { return dot(v,v); }
+float sdRoundCone( vec3 p, vec3 a, vec3 b, float r1, float r2 )
+{
+  vec3  ba = b - a;
+  float l2 = dot(ba,ba);
+  float rr = r1 - r2;
+  float a2 = l2 - rr*rr;
+  float il2 = 1.0/l2;
+    
+  vec3 pa = p - a;
+  float y = dot(pa,ba);
+  float z = y - l2;
+  float x2 = dot2( pa*l2 - ba*y );
+  float y2 = y*y*l2;
+  float z2 = z*z*l2;
+
+  // single square root!
+  float k = sign(rr)*rr*rr*x2;
+  if( sign(z)*a2*z2>k ) return  sqrt(x2 + z2)        *il2 - r2;
+  if( sign(y)*a2*y2<k ) return  sqrt(x2 + y2)        *il2 - r1;
+                        return (sqrt(x2*a2*il2)+y*rr)*il2 - r1;
+}
+
+float sdVerticalCapsule( vec3 p, float h, float r )
+{
+  p.y -= clamp( p.y, 0.0, h );
+  return length( p ) - r;
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
 // косинус который пропускает некоторые периоды, удобно чтобы махать ручкой не все время
 float lazycos(float angle)
 {
@@ -30,19 +66,54 @@ vec4 sdBody(vec3 p)
 {
     float d = 1e10;
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    // Body
+    d = sdRoundCone(p, vec3(0.0, 0.3, 0.0), vec3(0.0, 0.5, 0.0), 0.2, 0.17);
 
-    // return distance and color
+    // Legs
+    d = min(d, sdVerticalCapsule(p - vec3(0.1, 0.04, 0.0), 0.1, 0.02));
+    d = min(d, sdVerticalCapsule(p - vec3(-0.1, 0.04, 0.0), 0.1, 0.02));
+    
+    // Right arm
+    d = min(d, sdCapsule(p, vec3(0.17, 0.4, 0.0), vec3(0.24, 0.37, 0.0), 0.02));
+    
+    // Left arm
+    vec3 shoulder = vec3(-0.17, 0.4, 0.0);
+    vec3 handOffset = vec3(-0.07, -0.03, 0.0);
+    
+    float angle = 0.8 * lazycos(iTime * 5.0);
+    
+    float c = cos(angle);
+    float s = sin(angle);
+    vec3 hand = shoulder + vec3(
+        c * handOffset.x - s * handOffset.y,
+        s * handOffset.x + c * handOffset.y,
+        0.0
+    );
+    
+    d = min(d, sdCapsule(p, shoulder, hand, 0.02));
+
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
+    vec3 eyeCenter = vec3(0.0, 0.5, 0.15);
+    float eyeRadius = 0.11;
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float d = sdSphere(p - eyeCenter, eyeRadius);
+    
+    vec3 col;
+    float distFromAxis = length((p - eyeCenter).xy);
 
-    return res;
+    if (distFromAxis < 0.04) {
+        col = vec3(0.0, 0.0, 0.0);
+    } else if (distFromAxis < 0.07) {
+        col = vec3(0.0, 0.0, 1.0);
+    } else {
+        col = vec3(1.0, 1.0, 1.0);
+    }
+
+    return vec4(d, col);
 }
 
 vec4 sdMonster(vec3 p)
