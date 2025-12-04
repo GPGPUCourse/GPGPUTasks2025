@@ -77,6 +77,11 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_lbvh_1_morton_codes(ocl::getLBVH1MortonCodes());
+    ocl::KernelSource ocl_lbvh_2_sort(ocl::getLBVH2Sort());
+    ocl::KernelSource ocl_lbvh_3_init_leaves(ocl::getLBVH3InitLeaves());
+    ocl::KernelSource ocl_lbvh_4_build_internal(ocl::getLBVH4BuildInternal());
+    ocl::KernelSource ocl_lbvh_5_refit(ocl::getLBVH5Refit());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -230,7 +235,7 @@ void run(int argc, char** argv)
                 timer t;
 
                 // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                // throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
@@ -285,19 +290,108 @@ void run(int argc, char** argv)
             }
         }
 
+        float min_x = std::numeric_limits<float>::infinity();
+        float min_y = std::numeric_limits<float>::infinity();
+        float min_z = std::numeric_limits<float>::infinity();
+        float max_x = -std::numeric_limits<float>::infinity();
+        float max_y = -std::numeric_limits<float>::infinity();
+        float max_z = -std::numeric_limits<float>::infinity();
+        
+        for (const auto& v : scene.vertices) {
+            min_x = std::min(min_x, v.x);
+            min_y = std::min(min_y, v.y);
+            min_z = std::min(min_z, v.z);
+            max_x = std::max(max_x, v.x);
+            max_y = std::max(max_y, v.y);
+            max_z = std::max(max_z, v.z);
+        }
+
         double gpu_lbvh_time_sum = 0.0;
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
+            // Allocate buffers for Morton codes and indices
+            gpu::gpu_mem_32u morton_codes_gpu(nfaces);
+            gpu::gpu_mem_32u indices_gpu(nfaces);
+            gpu::gpu_mem_32u morton_codes_tmp(nfaces);
+            gpu::gpu_mem_32u indices_tmp(nfaces);
+            
+            // Allocate BVH buffers
+            gpu::shared_device_buffer_typed<BVHNodeGPU> bvh_nodes_gpu(2 * nfaces);
+            gpu::gpu_mem_32u parents_gpu(2 * nfaces);
+            gpu::gpu_mem_32i flags_gpu(nfaces);
+            
+            gpu::gpu_mem_32u* final_indices_ptr = nullptr;
+
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                // 1. Compute morton codes
+                unsigned int work_group_size = 128;
+                unsigned int global_work_size = (nfaces + work_group_size - 1) / work_group_size * work_group_size;
+                
+                ocl_lbvh_1_morton_codes.exec(
+                    gpu::WorkSize(work_group_size, global_work_size),
+                    vertices_gpu, faces_gpu,
+                    morton_codes_gpu, indices_gpu,
+                    nfaces,
+                    min_x, min_y, min_z,
+                    max_x, max_y, max_z
+                );
+                
+                // 2. sort
+                gpu::gpu_mem_32u* current_keys = &morton_codes_gpu;
+                gpu::gpu_mem_32u* current_vals = &indices_gpu;
+                gpu::gpu_mem_32u* next_keys = &morton_codes_tmp;
+                gpu::gpu_mem_32u* next_vals = &indices_tmp;
+
+                for (int sorted_k = 1; sorted_k < nfaces; sorted_k *= 2) {
+                    ocl_lbvh_2_sort.exec(
+                        gpu::WorkSize(work_group_size, global_work_size),
+                        *current_keys, *current_vals,
+                        *next_keys, *next_vals,
+                        sorted_k,
+                        (int)nfaces
+                    );
+                    
+                    std::swap(current_keys, next_keys);
+                    std::swap(current_vals, next_vals);
+                }
+                
+                final_indices_ptr = current_vals;
+                
+                // 3. Init leaves
+                ocl_lbvh_3_init_leaves.exec(
+                    gpu::WorkSize(work_group_size, global_work_size),
+                    *current_vals,
+                    vertices_gpu, faces_gpu,
+                    bvh_nodes_gpu.clmem(),
+                    nfaces
+                );
+                
+                // 4. Build internal Nodes
+                ocl_lbvh_4_build_internal.exec(
+                    gpu::WorkSize(work_group_size, global_work_size),
+                    *current_keys, // Sorted codes
+                    bvh_nodes_gpu.clmem(),
+                    parents_gpu,
+                    nfaces
+                );
+                
+                // 5. Refit AABBs
+                flags_gpu.fill(0);
+                ocl_lbvh_5_refit.exec(
+                    gpu::WorkSize(work_group_size, global_work_size),
+                    bvh_nodes_gpu.clmem(),
+                    parents_gpu,
+                    flags_gpu,
+                    nfaces
+                );
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -316,7 +410,20 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                if (context.type() == gpu::Context::TypeOpenCL) {
+                    ocl_rt_with_lbvh.exec(
+                        gpu::WorkSize(16, 16, width, height),
+                        vertices_gpu, faces_gpu,
+                        bvh_nodes_gpu.clmem(), *final_indices_ptr,
+                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                        camera_gpu.clmem(), nfaces);
+                } else if (context.type() == gpu::Context::TypeCUDA) {
+                    // TODO
+                } else if (context.type() == gpu::Context::TypeVulkan) {
+                    // TODO
+                } else {
+                    rassert(false, 654724541234123);
+                }
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }

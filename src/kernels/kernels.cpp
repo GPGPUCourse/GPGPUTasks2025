@@ -3,6 +3,11 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/lbvh_1_morton_codes.h"
+#include "cl/generated_kernels/lbvh_2_sort.h"
+#include "cl/generated_kernels/lbvh_3_init_leaves.h"
+#include "cl/generated_kernels/lbvh_4_build_internal.h"
+#include "cl/generated_kernels/lbvh_5_refit.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -54,6 +59,31 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
+}
+
+const ProgramBinaries& getLBVH1MortonCodes()
+{
+    return opencl_binaries_lbvh_1_morton_codes;
+}
+
+const ProgramBinaries& getLBVH2Sort()
+{
+    return opencl_binaries_lbvh_2_sort;
+}
+
+const ProgramBinaries& getLBVH3InitLeaves()
+{
+    return opencl_binaries_lbvh_3_init_leaves;
+}
+
+const ProgramBinaries& getLBVH4BuildInternal()
+{
+    return opencl_binaries_lbvh_4_build_internal;
+}
+
+const ProgramBinaries& getLBVH5Refit()
+{
+    return opencl_binaries_lbvh_5_refit;
 }
 } // namespace ocl
 
