@@ -1,5 +1,6 @@
 #pragma once
 
+#include "libgpu/opencl/engine.h"
 #include <libgpu/vulkan/engine.h>
 
 namespace cuda {
@@ -20,6 +21,7 @@ const ProgramBinaries& getRadixSort02GlobalPrefixesScanSumReduction();
 const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation();
 const ProgramBinaries& getRadixSort04Scatter();
 
+const ProgramBinaries& getCopyArray();
 }
 
 namespace avk2 {

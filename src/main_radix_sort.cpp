@@ -10,8 +10,62 @@
 #include "kernels/kernels.h"
 
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
+#include "libgpu/opencl/engine.h"
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
+#include <string>
+
+void debugBuffer(const gpu::gpu_mem_32u& buffer)
+{
+    std::vector<unsigned int> v = buffer.readVector();
+    for (unsigned int elem : v) {
+        std::cout << elem << ' ';
+    }
+    std::cout << '\n';
+}
+
+void debugBufferRadix(const gpu::gpu_mem_32u& buffer, const int localCntWidth)
+{
+    std::vector<unsigned int> v = buffer.readVector();
+    for (int i = 0; i < v.size(); ++i) {
+        if (i % localCntWidth == 0 && i > 0) {
+            std::cout << " | ";
+        }
+        std::cout << v[i] << ' ';
+    }
+    std::cout << '\n';
+}
+
+std::string toBinaryString(unsigned int x)
+{
+    // if (x == 0) {
+    //     return "0";
+    // }
+    std::string s;
+    for (int i = 0; i < 5; ++i) {
+        s = (char)((x & 1) + '0') + s;
+        x >>= 1;
+    }
+    return s;
+}
+
+void debugBufferGroupSize(const gpu::gpu_mem_32u& buffer)
+{
+    std::vector<unsigned int> v = buffer.readVector();
+    for (int i = 0; i < v.size(); ++i) {
+        if (i % GROUP_SIZE == 0 && i > 0) {
+            std::cout << " | ";
+        }
+        std::cout << v[i] << ' ';
+    }
+    std::cout << '\n';
+
+    for (unsigned int elem : v) {
+        printf("%5s\n", toBinaryString(elem).c_str());
+    }
+}
 
 void run(int argc, char** argv)
 {
@@ -42,16 +96,14 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_radixSort03GlobalPrefixesScanAccumulation(ocl::getRadixSort03GlobalPrefixesScanAccumulation());
     ocl::KernelSource ocl_radixSort04Scatter(ocl::getRadixSort04Scatter());
 
-    avk2::KernelSource vk_fillBufferWithZeros(avk2::getFillBufferWithZeros());
-    avk2::KernelSource vk_radixSort01LocalCounting(avk2::getRadixSort01LocalCounting());
-    avk2::KernelSource vk_radixSort02GlobalPrefixesScanSumReduction(avk2::getRadixSort02GlobalPrefixesScanSumReduction());
-    avk2::KernelSource vk_radixSort03GlobalPrefixesScanAccumulation(avk2::getRadixSort03GlobalPrefixesScanAccumulation());
-    avk2::KernelSource vk_radixSort04Scatter(avk2::getRadixSort04Scatter());
-
+    ocl::KernelSource ocl_copy_array(ocl::getCopyArray());
+    
     FastRandom r;
 
     int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // int n = 100000;
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+    // int max_value = 15;
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -83,23 +135,36 @@ void run(int argc, char** argv)
         double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
         std::cout << "CPU std::sort finished in " << t.elapsed() << " sec" << std::endl;
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
+
+        // for (unsigned int elem : sorted) {
+        //     std::cout << elem << ' ';
+        // }
+        // std::cout << '\n';
+
+        // for (unsigned int elem : as) {
+        //     printf("%5s\n", toBinaryString(elem).c_str());
+        //     // std::cout <<  << '\n';
+        // }
+        // std::cout << '\n';
     }
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u buffer_output1_gpu(n), buffer_output2_gpu(n);
+
+    const int localCntWidth = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+    const int localCntSize = RADIX * localCntWidth;
+    gpu::gpu_mem_32u prefix_sum_accum(localCntSize);
+    gpu::gpu_mem_32u local_cnt1_gpu(localCntSize), local_cnt2_gpu((localCntSize + 1) / 2);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+
+    buffer_output1_gpu.fill(255);
+    buffer_output2_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -109,16 +174,74 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         // TODO
-        throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        for (int offset = 0; offset < sizeof(unsigned int) * 8; offset += 2) {
-            
-        }
-        // ocl_fillBufferWithZeros.exec();
-        // ocl_radixSort01LocalCounting.exec();
-        // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-        // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-        // ocl_radixSort04Scatter.exec();
+        ocl_copy_array.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer_output1_gpu, n);
+        for (int offset = 0; offset < sizeof(unsigned int) * 8; offset += BIT_WIDTH) {
+            ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, localCntSize), prefix_sum_accum, localCntSize);
 
+            // std::cout << "input_gpu\n";
+            // debugBuffer(input_gpu);
+            // std::cout << '\n';
+
+            // std::cout << "offset " << offset << "\n\n";
+
+            ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output1_gpu, local_cnt1_gpu,
+                n, offset);
+
+            std::vector<unsigned int> localCnt = local_cnt1_gpu.readVector();
+
+            // std::cout << "local_cnt1_gpu:\n";
+            // debugBufferRadix(local_cnt1_gpu, localCntWidth);
+            // std::cout << '\n';
+
+            int curN = localCntSize;
+            int pow2 = 0;
+
+            // ocl_copy_array.exec(gpu::WorkSize(GROUP_SIZE, localCntSize), local_cnt1_gpu, prefix_sum_accum, localCntSize);
+            ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, localCntSize),
+                local_cnt1_gpu, prefix_sum_accum, localCntSize, pow2);
+
+            // std::cout << "prefix_sum_accum:\n";
+            // debugBufferRadix(prefix_sum_accum, localCntWidth);
+            // std::cout << '\n';
+
+            while (curN > 1) {
+                ++pow2;
+
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, (curN + 1) / 2),
+                    local_cnt1_gpu, local_cnt2_gpu, curN);
+                curN = (curN + 1) / 2;
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, localCntSize),
+                    local_cnt2_gpu, prefix_sum_accum, localCntSize, pow2);
+                std::swap(local_cnt1_gpu, local_cnt2_gpu);
+
+                // std::cout << "local_cnt1_gpu:\n";
+                // debugBufferRadix(local_cnt1_gpu, localCntWidth);
+                // std::cout << "\n\n";
+                
+                // std::cout << "prefix_sum_accum:\n";
+                // debugBufferRadix(prefix_sum_accum, localCntWidth);
+                // std::cout << '\n';
+            }
+
+            // std::cout << "prefix_sum_accum:\n";
+            // debugBufferRadix(prefix_sum_accum, localCntWidth);
+            // std::cout << '\n';
+
+            // std::vector<unsigned int> prefSum = prefix_sum_accum.readVector();
+            // unsigned int sum = 0;
+            // for (int i = 0; i < localCnt.size(); ++i) {
+            //     sum += localCnt[i];
+            //     rassert(sum == prefSum[i], 28460929, prefSum[i], sum, i);
+            // }
+
+
+            ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), buffer_output1_gpu, prefix_sum_accum, buffer_output2_gpu, n, offset);
+            std::swap(buffer_output1_gpu, buffer_output2_gpu);
+
+            // std::cout << "buffer_output1_gpu:\n";
+            // debugBufferGroupSize(buffer_output1_gpu);
+            // std::cout << '\n';
+        }
         times.push_back(t.elapsed());
     }
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
@@ -128,7 +251,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = buffer_output1_gpu.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {

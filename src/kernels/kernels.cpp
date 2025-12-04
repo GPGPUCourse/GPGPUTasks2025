@@ -1,12 +1,14 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/copy_array.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/radix_sort_01_local_counting.h"
 #include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
 #include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
 #include "cl/generated_kernels/radix_sort_04_scatter.h"
 
+#include "libgpu/opencl/engine.h"
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
 #include "vk/generated_kernels/radix_sort_01_local_counting_comp.h"
@@ -22,28 +24,28 @@ void aplusb(const gpu::WorkSize& workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
-            gpu::gpu_mem_32u &buffer, unsigned int n)
+void fill_buffer_with_zeros(const gpu::WorkSize& workSize,
+    gpu::gpu_mem_32u& buffer, unsigned int n)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_01_local_counting(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &values, gpu::gpu_mem_32u &buffer1, unsigned int a1, unsigned int a2)
+void radix_sort_01_local_counting(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& values, gpu::gpu_mem_32u& buffer1, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1)
+void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& buffer1, gpu::gpu_mem_32u& buffer2, unsigned int a1)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_03_global_prefixes_scan_accumulation(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1, unsigned int a2)
+void radix_sort_03_global_prefixes_scan_accumulation(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& buffer1, gpu::gpu_mem_32u& buffer2, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_04_scatter(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &values, const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1, unsigned int a2)
+void radix_sort_04_scatter(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& values, const gpu::gpu_mem_32u& buffer1, gpu::gpu_mem_32u& buffer2, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
@@ -80,6 +82,11 @@ const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation()
 const ProgramBinaries& getRadixSort04Scatter()
 {
     return opencl_binaries_radix_sort_04_scatter;
+}
+
+const ProgramBinaries& getCopyArray()
+{
+    return opencl_binaries_copy_array;
 }
 } // namespace ocl
 

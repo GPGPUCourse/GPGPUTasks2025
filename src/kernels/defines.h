@@ -7,4 +7,7 @@
 
 #define RASSERT_ENABLED 0 // disabled by default, enable for debug by changing 0 to 1, disable before performance evaluation/profiling/commiting
 
+#define BIT_WIDTH 2
+#define RADIX (1 << BIT_WIDTH)
+
 #endif // pragma once
