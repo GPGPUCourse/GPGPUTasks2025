@@ -28,8 +28,8 @@ __kernel void radix_sort_01_local_counting(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    for (int shift = 1; shift < GROUP_SIZE; shift *= 2) {
-        if (localX + shift < GROUP_SIZE){
+    for (int shift = GROUP_SIZE / 2; shift > 0; shift /= 2) {
+        if (localX < shift) {
             for (int i = 0; i < RADIX; ++i) {
                 localA[i][localX] += localA[i][localX + shift];
             }
