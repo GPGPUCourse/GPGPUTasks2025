@@ -116,6 +116,7 @@ void run(int argc, char** argv)
             }
             ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), array1, prefix_sum, array2, n, bit_start);
             std::swap(array1, array2);
+        }
         times.push_back(t.elapsed());
     }
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
