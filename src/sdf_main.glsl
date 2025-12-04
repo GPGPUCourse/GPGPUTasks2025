@@ -24,25 +24,97 @@ float lazycos(float angle)
     return 1.0;
 }
 
+float lazysin(float angle)
+{
+    return lazycos(angle - 1.57079632679);
+}
+
+// quadratic polynomial
+float smin( float a, float b, float k )
+{
+    k *= 4.0;
+    float h = max( k-abs(a-b), 0.0 )/k;
+    return min(a,b) - h*h*k*(1.0/4.0);
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
-
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float top = sdSphere((p - vec3(0.0, 0.76, -0.7)), 0.19);
+    float bottom = sdSphere((p - vec3(0.0, 0.4, -0.7)), 0.365);
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(smin(top, bottom, 0.08), vec3(1.0, 0.75, 0.8));
+}
+
+float sdVerticalCapsule( vec3 p, float h, float r )
+{
+  p.y -= clamp( p.y, 0.0, h );
+  return length( p ) - r;
+}
+
+vec4 sdLegs(vec3 p)
+{
+    
+    float one_leg = sdVerticalCapsule(p - vec3(0.095, -0.01, -0.7), 0.1, 0.058);
+    float other_leg = sdVerticalCapsule(p - vec3(-0.095, -0.01, -0.7), 0.1, 0.058);
+    
+    return vec4(min(one_leg, other_leg), vec3(1.0, 0.75, 0.8));
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
+vec3 rotateArm(vec3 offset, float angle) 
+{
+    float c = lazycos(angle);
+    float s = lazysin(angle);
+
+    vec3 off;
+    off.xy = mat2(c, -s, s, c) * offset.xy;
+    off.z = offset.z;
+    
+    return off;
+
+}
+vec4 sdArms(vec3 p) 
+{
+   vec3 a1 = vec3(0.27, 0.55, -0.7);
+    vec3 b1 = vec3(0.41, 0.35, -0.7);
+    float one_arm = sdCapsule(p, a1, b1, 0.05);
+
+    vec3 a2 = vec3(-0.27, 0.55, -0.7);
+    vec3 b2_rest = vec3(-0.41, 0.35, -0.7);
+    
+    vec3 offset = b2_rest - a2;
+    float angle = -0.85 * (lazycos(10.0 * iTime) - 1.0);
+    vec3 swing = rotateArm(offset, angle);
+
+    vec3 b2 = a2 + swing;
+
+    float other_arm = sdCapsule(p, a2, b2, 0.05);
+
+    return vec4(min(one_arm, other_arm), vec3(1.0, 0.75, 0.8));
 }
 
 vec4 sdEye(vec3 p)
 {
+    float white = sdSphere((p - vec3(0.0, 0.67, -0.46)), 0.18);
+    float iris = sdSphere((p - vec3(0.0, 0.67, -0.36)), 0.11);
+    float pupil = sdSphere((p - vec3(0.0, 0.67, -0.331)), 0.085);
+    
+    if (pupil < white && pupil < iris) {
+        return vec4(pupil, vec3(0.0, 0.0, 0.0));
+    } else if (iris < white) {
+        return vec4(iris, vec3(0.0, 0.8, 0.9));
+    }
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
-
-    return res;
+    return vec4(white, vec3(1.0, 1.0, 1.0));
 }
 
 vec4 sdMonster(vec3 p)
@@ -58,6 +130,16 @@ vec4 sdMonster(vec3 p)
         res = eye;
     }
 
+    vec4 arms = sdArms(p);
+    if (arms.x < res.x) {
+        res = arms;
+    }
+    
+    vec4 legs = sdLegs(p);
+    if (legs.x < res.x) {
+        res = legs;
+    }
+
     return res;
 }
 
@@ -69,7 +151,7 @@ vec4 sdTotal(vec3 p)
 
     float dist = sdPlane(p);
     if (dist < res.x) {
-        res = vec4(dist, vec3(1.0, 0.0, 0.0));
+        res = vec4(dist, vec3(0.7, 1.0, 0.7));
     }
 
     return res;
@@ -104,7 +186,7 @@ vec4 raycast(vec3 ray_origin, vec3 ray_direction)
         }
     }
 
-    return vec4(1e10, vec3(0.0, 0.0, 0.0));
+    return vec4(1e10, vec3(0.6, 0.8, 1.0));
 }
 
 
@@ -174,7 +256,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     shad = min(shad, castShadow(surface_point, light_source));
     col *= shad;
 
-    float spec = specular(surface_point, light_source, normal, ray_origin, 30.0);
+    float spec = specular(surface_point, light_source, normal, ray_origin, 90.0);
     col += vec3(1.0, 1.0, 1.0) * spec;
 
 
