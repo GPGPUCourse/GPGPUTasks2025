@@ -5,14 +5,29 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_01_local_counting(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* array,
+    __global       uint* buckets,
+    unsigned int n,
+    unsigned int bit_start)
 {
-    // TODO
+    const unsigned int index = get_global_id(0);
+    const unsigned int local_idx = get_local_id(0);
+    const unsigned int group = get_group_id(0);
+    __local unsigned int local_buckets[1 << RADIX_BIT_CNT];
+    if (local_idx < (1 << RADIX_BIT_CNT)) {
+        local_buckets[local_idx] = 0;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (index < n) {
+        int bucket = (array[index] >> bit_start) & ((1 << RADIX_BIT_CNT) - 1);
+        atomic_inc(&local_buckets[bucket]);
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (local_idx == 0) {
+        for (unsigned int bucket = 0; bucket < 1 << RADIX_BIT_CNT; bucket++) {
+            buckets[((n + GROUP_SIZE - 1) / GROUP_SIZE) * bucket + group] = local_buckets[bucket];
+        }
+    }
 }
