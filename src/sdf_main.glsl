@@ -23,15 +23,21 @@ float lazycos(float angle)
 
     return 1.0;
 }
+float smin( float a, float b, float k )
+{
+    k *= 1.0;
+    float r = exp2(-a/k) + exp2(-b/k);
+    return -k*log2(r);
+}
 
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
-
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d1 = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d2 = sdSphere((p - vec3(0.0, 0.65, -0.7)), 0.25);
+    
+    float d = smin(d1, d2, 0.06);
 
     // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
@@ -40,9 +46,57 @@ vec4 sdBody(vec3 p)
 vec4 sdEye(vec3 p)
 {
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    p -= vec3(0.0, 0.65, -0.44);
 
-    return res;
+    float d = sdSphere(p, 0.17);
+    
+    vec3 color = vec3(1.0, 1.0, 1.0);
+    if (length(p.xy) < 0.09) {
+        color = vec3(0.4, 1.0, 1.0);
+    }
+    if (length(p.xy) < 0.05) {
+        color = vec3(0.0, 0.0, 0.0);
+    }
+    
+    return vec4(d, color);
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
+vec4 sdLegs(vec3 p)
+{
+    p.z += 0.7;
+
+    float d1 = sdCapsule(p, vec3(-0.12, 0.05, 0.0), vec3(-0.12, -0.03, 0.0), 0.07);
+    float d2 = sdCapsule(p, vec3( 0.12, 0.05, 0.0), vec3( 0.12, -0.03, 0.0), 0.07);
+
+    float d = min(d1, d2);
+    return vec4(d, vec3(0.0, 1.0, 0.0));
+}
+
+vec4 sdArms(vec3 p)
+{
+    float t = iTime * 3.0;
+    float c = lazycos(t); 
+    float s = sqrt(1.0 - c * c);
+
+    vec3 a1 = vec3(-0.28, 0.45, -0.7);
+    vec3 b1 = vec3(-0.4 - s * 0.1, 0.45 - c * 0.2, -0.7);
+
+    vec3 a2 = vec3( 0.28, 0.45, -0.7);
+    vec3 b2 = vec3( 0.4, 0.45 - 0.2, -0.7);
+
+    float d1 = sdCapsule(p, a1, b1, 0.05);
+    float d2 = sdCapsule(p, a2, b2, 0.05);
+
+    float d = min(d1, d2);
+
+    return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdMonster(vec3 p)
@@ -56,6 +110,16 @@ vec4 sdMonster(vec3 p)
     vec4 eye = sdEye(p);
     if (eye.x < res.x) {
         res = eye;
+    }
+    
+    vec4 arms = sdArms(p);
+    if (arms.x < res.x) {
+        res = arms;
+    }
+    
+    vec4 legs = sdLegs(p);
+    if (legs.x < res.x) {
+        res = legs;
     }
 
     return res;
