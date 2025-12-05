@@ -115,48 +115,122 @@ float lazycos(float angle)
 
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
-vec4 sdBody(vec3 p)
+vec4 sdBody(vec3 p, float scale, float main_down)
 {
     float top_d = 1e10;
     float main_d = 1e10;
 
-    top_d = sdRoundCone((p - vec3(0.0, 0.4, -0.7)), 0.35, 0.3, 0.3);
-    main_d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    top_d = sdRoundCone((p - vec3(0.0, 0.4, -0.7)) / scale, 0.35, 0.3, 0.3) * scale;
+    main_d = sdSphere((p - vec3(0.0, 0.4 - main_down, -0.7)) / scale, 0.35) * scale;
 
     // return distance and color
-    return vec4(sigmoid_min(top_d, main_d, 0.1), vec3(0.0, 1.0, 0.0));
+    return vec4(sigmoid_min(top_d, main_d, 0.1 * scale), vec3(0.0, 1.0, 0.0));
 }
 
-vec4 sdArm(vec3 p, vec3 shift, mat3 rotation)
+vec4 sdArm(vec3 p, vec3 shift, mat3 rotation, float scale)
 {
     float d = 1e10;
-    vec3 center = (p + shift - vec3(0.0, 0.35, -0.5));
+    vec3 center = (p + shift - vec3(0.0, 0.35, -0.5)) / scale;
     d = sdEllipsoid(center * rotation, vec3(0.2, 0.05, 0.05));
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(d * scale, vec3(0.0, 1.0, 0.0));
 }
 
-vec4 sdLeg(vec3 p, vec3 shift)
+vec4 sdLeg(vec3 p, vec3 shift, float scale)
 {
     float d = 1e10;
-    d = sdEllipsoid((p + shift - vec3(0.0, 0.0, -0.5)), vec3(0.05, 0.2, 0.05));
+    d = sdEllipsoid((p + shift - vec3(0.0, 0.0, -0.5)) / scale, vec3(0.05, 0.2, 0.05));
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(d * scale, vec3(0.0, 1.0, 0.0));
 }
 
-vec4 sdHat(vec3 p)
+vec4 sdHat(vec3 p, float scale)
 {
     float bottom_d = 1e10;
     float main_d = 1e10;
 
-    bottom_d = sdEllipsoid((p - vec3(0.0, 0.9, -0.6)), vec3(0.4, 0.01, 0.4));
-    main_d = sdCappedCone((p - vec3(0.0, 0.9, -0.6)), 0.2, 0.09, 0.2);
+    bottom_d = sdEllipsoid((p - vec3(0.0, 0.9, -0.6)) / scale, vec3(0.4 * sqrt(scale), 0.01, 0.4 * sqrt(scale))) * scale;
+    main_d = sdCappedCone((p - vec3(0.0, 0.9, -0.6)) / scale, 0.2, 0.09, 0.2) * scale;
 
     // return distance and color
-    return vec4(sigmoid_min(bottom_d, main_d, 0.1), vec3(0.45, 0.32, 0.1));
+    return vec4(sigmoid_min(bottom_d, main_d, 0.1 * scale), vec3(0.45, 0.32, 0.1));
 }
+
+vec4 sdEyeSimple(vec3 p, vec3 shift, float scale)
+{
+    // No recursion :(
+    float main_d = 1e10;
+    float small_d = 1e10;
+    float very_small_d = 1e10;
+    float eps = 1e-2;
+
+    main_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.4)) / scale, vec3(0.11, 0.16, 0.1));
+    small_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.3996)) / scale, vec3(0.05, 0.09, 0.05));
+    vec2 first_res = smin_color(main_d, small_d, 0.01);
+    vec3 first_col = mix( vec3(1.0,1.0,1.0), vec3(0.2, 0.2, 1.0), first_res.y );
+    if (abs(main_d - first_res.x) < eps) {
+        first_col = vec3(1.0, 1.0, 1.0);
+    }
+    if (abs(small_d - first_res.x) < eps) {
+        first_col = vec3(0.2, 0.5, 1.0);
+    }
+    return vec4(first_res.x * scale, first_col.x, first_col.y, first_col.z);
+}
+
+vec4 sdMonsterSimple(vec3 p, float scale)
+{
+    // No recursion :(
+
+    vec4 res = sdBody(p, scale, 0.002);
+
+    vec4 right_eye = sdEyeSimple(p, vec3(-0.001, 0.149, 0.2985), scale);
+    if (right_eye.x < res.x) {
+        res = right_eye;
+    }
+
+    vec4 left_eye = sdEyeSimple(p, vec3(0.001, 0.149, 0.2985), scale);
+    if (left_eye.x < res.x) {
+        res = left_eye;
+    }
+    float time = iTime;
+    if (int(floor(time / 1.07)) % 2 == 1) {
+        time = 1.07 - mod(time, 1.07);
+    }
+    else {
+        time = mod(time, 1.07);
+    }
+    float angle = time * 1.5 - 3.14 / 4.0;
+
+    vec4 left_arm = sdArm(p, vec3(0.004, -0.0482, 0.199), rotateZ(angle), scale);
+    if (left_arm.x < res.x) {
+        res = left_arm;
+    }
+
+    vec4 right_arm = sdArm(p, vec3(-0.004, -0.0482, 0.199), rotateZ(3.14 / 4.0), scale);
+    if (right_arm.x < res.x) {
+        res = right_arm;
+    }
+
+    vec4 left_leg = sdLeg(p, vec3(0.001, -0.393, 0.2), scale);
+    if (left_leg.x < res.x) {
+        res = left_leg;
+    }
+
+    vec4 right_leg = sdLeg(p, vec3(-0.001, -0.393, 0.2), scale);
+    if (right_leg.x < res.x) {
+        res = right_leg;
+    }
+
+    vec4 hat = sdHat(p - vec3(0.0, -0.496, -0.1), scale);
+    if (hat.x < res.x) {
+        res = hat;
+    }
+
+    return res;
+}
+
 
 
 vec4 sdEye(vec3 p, vec3 shift, float should_add)
@@ -172,31 +246,34 @@ vec4 sdEye(vec3 p, vec3 shift, float should_add)
     small_d = sdEllipsoid((p + shift - vec3(0.0, 0.55, -0.35)), vec3(0.05, 0.09, 0.06));
     very_small_d = sdEllipsoid((p + shift - vec3(0.0, 0.554, -0.30)), vec3(0.01, 0.02, 0.01));
     floor_d = sdEllipsoid((p + shift - vec3(0.0, 0.545, -0.3)), vec3(0.007, 0.01, 0.01));
-    monster_refl_d = sdEllipsoid((p + shift - vec3(0.0, 0.551, -0.294)), vec3(0.0005, 0.001, 0.0005));
     vec2 first_res = smin_color(main_d, small_d, 0.01);
     vec2 second_res = smin_color(first_res.x, very_small_d, 0.001);
     vec2 third_res = smin_color(second_res.x, floor_d, 0.0001);
-    vec2 fourth_res = smin_color(third_res.x, monster_refl_d, 0.00001);
     vec3 first_col = mix( vec3(1.0,1.0,1.0), vec3(0.2, 0.2, 1.0), first_res.y );
     vec3 second_col = mix( first_col, vec3(0.0, 0.0, 0.0), second_res.y );
     if (abs(main_d - third_res.x) < eps) {
         second_col = vec3(1.0, 1.0, 1.0);
     }
-    if (abs(small_d - fourth_res.x) < eps) {
+    if (abs(small_d - third_res.x) < eps) {
         second_col = vec3(0.2, 0.5, 1.0);
     }
-    if (abs(very_small_d - fourth_res.x) < eps) {
+    if (abs(very_small_d - third_res.x) < eps) {
         second_col = vec3(0.0, 0.0, 0.0);
     }
+    float dist = third_res.x;
     if (should_add != 1.0) {
-        if (abs(floor_d - fourth_res.x) < eps) {
+        vec4 monster_refl = sdMonsterSimple(p + shift - vec3(0.0, 0.155, 0.43), 0.005);
+        monster_refl_d = monster_refl.x;
+        if (abs(floor_d - dist) < eps) {
             second_col = vec3(1.0 - should_add, 0.0, 0.0);
         }
+        vec2 fourth_res = smin_color(third_res.x, monster_refl_d, 0.0005);
         if (abs(monster_refl_d - fourth_res.x) < eps) {
-            second_col = vec3(0.0, 1.0 - should_add, 0.0);
+            second_col = monster_refl.yzw - vec3(should_add);
+            dist = fourth_res.x;
         }
     }
-    return vec4(fourth_res.x, second_col.x, second_col.y, second_col.z);
+    return vec4(dist, second_col.x, second_col.y, second_col.z);
 }
 
 vec4 sdMonster(vec3 p, float should_add)
@@ -205,13 +282,12 @@ vec4 sdMonster(vec3 p, float should_add)
     // модифицировать p, чтобы двигать объект как целое
     p -= vec3(0.0, 0.2, -0.4);
 
-    vec4 res = sdBody(p);
+    vec4 res = sdBody(p, 1.0, 0.05);
 
     vec4 right_eye = sdEye(p, vec3(-0.15, 0.0, 0.0), 1.0);
     if (right_eye.x < res.x) {
         res = right_eye;
     }
-
     vec4 left_eye = sdEye(p, vec3(0.15, 0.0, 0.0), should_add);
     if (left_eye.x < res.x) {
         res = left_eye;
@@ -225,27 +301,27 @@ vec4 sdMonster(vec3 p, float should_add)
     }
     float angle = time * 1.5 - 3.14 / 4.0;
 
-    vec4 left_arm = sdArm(p, vec3(0.4, 0.0, 0.0), rotateZ(angle));
+    vec4 left_arm = sdArm(p, vec3(0.4, 0.0, 0.0), rotateZ(angle), 1.0);
     if (left_arm.x < res.x) {
         res = left_arm;
     }
 
-    vec4 right_arm = sdArm(p, vec3(-0.4, 0.0, 0.0), rotateZ(3.14 / 4.0));
+    vec4 right_arm = sdArm(p, vec3(-0.4, 0.0, 0.0), rotateZ(3.14 / 4.0), 1.0);
     if (right_arm.x < res.x) {
         res = right_arm;
     }
 
-    vec4 left_leg = sdLeg(p, vec3(0.15, 0.0, 0.0));
+    vec4 left_leg = sdLeg(p, vec3(0.15, 0.0, 0.0), 1.0);
     if (left_leg.x < res.x) {
         res = left_leg;
     }
 
-    vec4 right_leg = sdLeg(p, vec3(-0.15, 0.0, 0.0));
+    vec4 right_leg = sdLeg(p, vec3(-0.15, 0.0, 0.0), 1.0);
     if (right_leg.x < res.x) {
         res = right_leg;
     }
 
-    vec4 hat = sdHat(p);
+    vec4 hat = sdHat(p, 1.0);
     if (hat.x < res.x) {
         res = hat;
     }
@@ -262,15 +338,12 @@ vec4 sdTotal(vec3 p)
     float y_add = sin(angle);
     float x_add = sin(angle);
     if (abs(z_add) > 0.835) {
-        // z_add = 0.8352;
-        // y_add = 0.8352;
-        // x_add = 0.8352;
         z_add = -(1.0 - z_add) * 0.1;
         y_add = -(1.0 - y_add) * 0.1;
         x_add = -(1.0 - x_add) * 0.1;
     }
     float should_add = z_add > 0.3 ? 1.0 - z_add: 1.0;
-    p -= vec3(x_add * 0.18, -y_add * 0.3, 2.0 * z_add);
+    p -= vec3(x_add * 0.18, -y_add * 0.31, 2.0 * z_add);
     vec4 res = sdMonster(p, should_add);
 
 
