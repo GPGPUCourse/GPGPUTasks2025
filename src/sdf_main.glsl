@@ -1,8 +1,23 @@
+float dot2( in vec2 v ) { return dot(v,v); }
+float dot2( in vec3 v ) { return dot(v,v); }
+
+// Helper: 2D Rotation
+mat2 rot(float a) {
+    float s = sin(a);
+    float c = cos(a);
+    return mat2(c, -s, s, c);
+}
 
 // sphere with center in (0, 0, 0)
 float sdSphere(vec3 p, float r)
 {
     return length(p) - r;
+}
+
+float sdRoundedCylinder( vec3 p, float ra, float rb, float h )
+{
+  vec2 d = vec2( length(p.xz)-ra+rb, abs(p.y) - h + rb );
+  return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rb;
 }
 
 // XZ plane
@@ -15,34 +30,73 @@ float sdPlane(vec3 p)
 float lazycos(float angle)
 {
     int nsleep = 10;
-
     int iperiod = int(angle / 6.28318530718) % nsleep;
     if (iperiod < 3) {
         return cos(angle);
     }
-
     return 1.0;
 }
 
-// возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
-// способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
+float smin( float a, float b, float k )
+{
+    k *= 1.0;
+    float r = exp2(-a/k) + exp2(-b/k);
+    return -k*log2(r);
+}
+
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    float sphereBottom = sdSphere(p - vec3(0.0, 0.3, -0.7), 0.25);
+    float sphereHead = sdSphere(p - vec3(0.0, 0.6, -0.7), 0.15);
+    float torso = smin(sphereBottom, sphereHead, 0.1);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float leftLeg = sdRoundedCylinder(p - vec3(0.1, 0.07, -0.7), 0.05, 0.03, 0.1);
+    float rightLeg = sdRoundedCylinder(p - vec3(-0.1, 0.07, -0.7), 0.05, 0.03, 0.1);
+    float lowerBody = min(leftLeg, rightLeg);
 
-    // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    float bodyBase = smin(lowerBody, torso, 0.05);
+
+    vec3 pLeft = p;
+    pLeft -= vec3(0.23, 0.40, -0.65);
+    pLeft.xy *= rot(-0.5);
+    pLeft.y += 0.12;
+    float leftArm = sdRoundedCylinder(pLeft, 0.05, 0.03, 0.12);
+
+    vec3 pRight = p;
+    pRight -= vec3(-0.23, 0.40, -0.65);
+
+    float wave = lazycos(iTime * 10.0);
+
+    float angle = 0.5 + (1.0 - wave);
+
+    pRight.xy *= rot(angle);
+    pRight.y += 0.12;
+    float rightArm = sdRoundedCylinder(pRight, 0.05, 0.03, 0.12);
+
+    float arms = min(leftArm, rightArm);
+
+    float totalDist = smin(bodyBase, arms, 0.01);
+
+    return vec4(totalDist, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
+    vec3 eyePos = vec3(0.0, 0.52, -0.5);
+    float rEye = 0.15;
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float d = sdSphere(p - eyePos, rEye);
 
-    return res;
+    vec3 col = vec3(1.0);
+
+    vec3 dir = normalize(p - eyePos);
+    vec3 fwd = vec3(0.0, 0.0, 1.0);
+    float dotVal = dot(dir, fwd);
+
+    if (dotVal > 0.85) col = vec3(0.0, 0.65, 0.8);
+    if (dotVal > 0.95) col = vec3(0.0);
+
+    return vec4(d, col);
 }
 
 vec4 sdMonster(vec3 p)
