@@ -49,6 +49,28 @@ float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
   return length( pa - ba*h ) - r;
 }
 
+float sdLeftArm(vec3 p) {
+  float cos_ = 1.0;
+  int timeRem = int(iTime) % 10;
+  int denom = int(iTime) + timeRem;
+  float timeIntervaled = iTime - float(int(iTime) / 10 * 10);
+  if (timeRem < 4) {
+      cos_ = 0.0;
+  }
+  if (4 <= timeRem && timeRem < 6) {
+      cos_ = cos(((timeIntervaled - 4.0) / 2. - 0.5) * 3.14159);
+  }
+  if (6 <= timeRem && timeRem < 8) {
+      cos_ = cos(((timeIntervaled - 6.0) / 2. - 0.5) * 3.14159);
+  }
+  if (8 <= timeRem && timeRem < 10) {
+      cos_ = cos(((timeIntervaled - 8.) / 2. - 0.5) * 3.14159);
+  }
+
+  float d = sdCapsule(p + vec3(0.45, -0.3, 0.6), vec3(0.1, 0.1, 0.0), vec3(0.0, 0.3 * cos_, 0.0), 0.05);
+  return d;
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
@@ -56,8 +78,7 @@ vec4 sdBody(vec3 p)
     float d = 1e10;
 
     d = sdRoundCone(p - vec3(0.0, 0.35, -0.7), 0.4, 0.3, 0.3);
-
-    float left_arm = sdCapsule(p + vec3(0.45, -0.3, 0.6), vec3(0.3, 0.3, 0.0), vec3(0.0, 0.0, 0.0), 0.05);
+    float left_arm = sdLeftArm(p);
     if (left_arm < d) {
         d = left_arm;
     }
