@@ -11,6 +11,43 @@ float sdPlane(vec3 p)
     return p.y;
 }
 
+float dot2( in vec3 v ) { return dot(v,v); }
+
+float sdRoundCone( vec3 p, vec3 a, vec3 b, float r1, float r2 )
+{
+  vec3  ba = b - a;
+  float l2 = dot(ba,ba);
+  float rr = r1 - r2;
+  float a2 = l2 - rr*rr;
+  float il2 = 1.0/l2;
+    
+  vec3 pa = p - a;
+  float y = dot(pa,ba);
+  float z = y - l2;
+  float x2 = dot2( pa*l2 - ba*y );
+  float y2 = y*y*l2;
+  float z2 = z*z*l2;
+
+  // single square root!
+  float k = sign(rr)*rr*rr*x2;
+  if( sign(z)*a2*z2>k ) return  sqrt(x2 + z2)        *il2 - r2;
+  if( sign(y)*a2*y2<k ) return  sqrt(x2 + y2)        *il2 - r1;
+                        return (sqrt(x2*a2*il2)+y*rr)*il2 - r1;
+}
+
+float sdVerticalCapsule( vec3 p, float h, float r )
+{
+  p.y -= clamp( p.y, 0.0, h );
+  return length( p ) - r;
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
 // косинус который пропускает некоторые периоды, удобно чтобы махать ручкой не все время
 float lazycos(float angle)
 {
@@ -28,37 +65,82 @@ float lazycos(float angle)
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    vec3 torsoBottom = vec3(0.0, 0.35, 0.0);
+    vec3 torsoTop = vec3(0.0, 0.55, 0.0);
+    float radiusBottom = 0.19;
+    float radiusTop = 0.16;
+    float dist = sdRoundCone(p, torsoBottom, torsoTop, radiusBottom, radiusTop);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float legHeight = 0.12;
+    float legRadius = 0.025;
+    vec3 rightLegPos = vec3(0.09, 0.03, 0.0);
+    vec3 leftLegPos = vec3(-0.09, 0.03, 0.0);
+    float rightLeg = sdVerticalCapsule(p - rightLegPos, legHeight, legRadius);
+    float leftLeg = sdVerticalCapsule(p - leftLegPos, legHeight, legRadius);
+    
+    dist = min(dist, rightLeg);
+    dist = min(dist, leftLeg);
+    
+    float armRadius = 0.025;
+    vec3 rightShoulder = vec3(0.16, 0.42, 0.0);
+    vec3 rightHand = vec3(0.25, 0.35, 0.0);
+    dist = min(dist, sdCapsule(p, rightShoulder, rightHand, armRadius));
+    
+    vec3 leftShoulder = vec3(-0.16, 0.42, 0.0);
 
-    // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    float waveAngle = 0.9 * lazycos(iTime * 5.0);
+    float cosA = cos(waveAngle);
+    float sinA = sin(waveAngle);
+    vec3 armDirection = vec3(-0.08, -0.04, 0.0);
+    vec3 leftHand = leftShoulder;
+    leftHand.x += cosA * armDirection.x - sinA * armDirection.y;
+    leftHand.y += sinA * armDirection.x + cosA * armDirection.y;
+
+    dist = min(dist, sdCapsule(p, leftShoulder, leftHand, armRadius));
+
+    return vec4(dist, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
+    vec3 cWhite = vec3(0.0, 0.5, 0.15);
+    float dWhite = sdSphere(p - cWhite, 0.11);
+    float dist = dWhite;
+    vec3 col = vec3(1.0);
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    vec3 cIris = cWhite + vec3(0.0, 0.0, 0.09);
+    float dIris = sdSphere(p - cIris, 0.07);
+    if (dIris < dist) {
+        dist = dIris;
+        col = vec3(0.2, 0.6, 1.0);
+    }
 
-    return res;
+    vec3 cPupil = cIris + vec3(0.0, 0.0, 0.04);
+    float dPupil = sdSphere(p - cPupil, 0.04);
+    if (dPupil < dist) {
+        dist = dPupil;
+        col = vec3(0.0, 0.0, 0.0);
+    }
+
+    vec3 cHighlight = cWhite + vec3(-0.02, 0.02, 0.09);
+    float dHighlight = sdSphere(p - cHighlight, 0.02);
+    if (dHighlight < dist) {
+        dist = dHighlight;
+        col = vec3(1.0);
+    }
+
+    return vec4(dist, col);
 }
 
 vec4 sdMonster(vec3 p)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    vec3 localP = p - vec3(0.0, 0.08, 0.0);
 
-    vec4 res = sdBody(p);
-
-    vec4 eye = sdEye(p);
-    if (eye.x < res.x) {
-        res = eye;
-    }
-
-    return res;
+    vec4 bodyResult = sdBody(localP);
+    vec4 eyeResult = sdEye(localP);
+    return (eyeResult.x < bodyResult.x) ? eyeResult : bodyResult;
 }
 
 
