@@ -1,3 +1,20 @@
+#define PI 3.14159265
+
+// sigmoid
+float smin( float a, float b, float k )
+{
+    k *= log(2.0);
+    float x = b-a;
+    return a + x/(1.0-exp2(x/k));
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
 
 // sphere with center in (0, 0, 0)
 float sdSphere(vec3 p, float r)
@@ -16,7 +33,7 @@ float lazycos(float angle)
 {
     int nsleep = 10;
 
-    int iperiod = int(angle / 6.28318530718) % nsleep;
+    int iperiod = int(angle / (2. * PI)) % nsleep;
     if (iperiod < 3) {
         return cos(angle);
     }
@@ -24,40 +41,94 @@ float lazycos(float angle)
     return 1.0;
 }
 
-// возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
-// способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    float d = smin(
+        sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.34),
+        sdSphere((p - vec3(0.0, 0.85, -0.7)), 0.1),
+        0.19
+    );
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
-
-    // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
+}
+
+vec4 sdIris(vec3 p) {
+    float d1 = sdSphere((p - vec3(0.0, 0.71, -0.343)), 0.1);
+    float d2 = sdSphere((p - vec3(0.0, 0.71, -0.4)), 0.15);
+    
+    if (d1 < d2) {
+        return vec4(d1, vec3(0.0));
+    }
+    return vec4(d2, vec3(0.0, 1.0, 0.898));
 }
 
 vec4 sdEye(vec3 p)
 {
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float d1 = sdSphere((p - vec3(0.0, 0.71, -0.46)), 0.2);
+    
+    return vec4(d1, vec3(1.0, 1.0, 1.0)); 
+}
 
-    return res;
+vec4 sdLimb(vec3 p, vec3 p1, vec3 p2) {
+    float d = sdCapsule(p, p1, p1 + p2, 0.055);
+    return vec4(d, vec3(0.0, 1.0, 0.0));
+}
+
+vec4 nextMin(vec4 cur, vec4 new) {
+    if (new.x < cur.x) {
+        return new;
+    }
+    return cur;
+}
+
+float handMove(float t) {
+    t -= 5.0;
+    float T = 4.0;
+    float f = 0.0;
+    f += sin(2.0 * PI * 1.0 * t / T) / 1.0;
+    f += sin(2.0 * PI * 3.0 * t / T) / 3.0;
+    f += sin(2.0 * PI * 5.0 * t / T) / 5.0;
+    f += sin(2.0 * PI * 7.0 * t / T) / 7.0;
+    f *= (4.0 / 3.14159265);
+    return max(f, -0.9);
 }
 
 vec4 sdMonster(vec3 p)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    p -= vec3(0.0, 0.08, -.2);
 
     vec4 res = sdBody(p);
 
     vec4 eye = sdEye(p);
-    if (eye.x < res.x) {
-        res = eye;
-    }
-
+    res = nextMin(res, eye);
+    
+    vec4 iris = sdIris(p);
+    res = nextMin(res, iris);
+    
+    vec3 leftHandOr = vec3(-.34, .4, -.6);
+    vec3 leftHandDelta = vec3(-0.09, 0.12 / 0.9 * handMove(iTime), 0.0);
+    vec4 leftHand = sdLimb(p, leftHandOr, leftHandDelta);
+    res = nextMin(res, leftHand);
+    
+    vec3 rightHandOr = vec3(.34, .4, -.6);
+    vec3 rightHandDelta = vec3(0.07, -0.12, 0.0);
+    vec4 rightHand = sdLimb(p, rightHandOr, rightHandDelta);
+    res = nextMin(res, rightHand);
+    
+    vec3 leftLegOr = vec3(-.14, .1, -.6);
+    vec3 leftLegDelta = vec3(0.0, -0.12, 0.0);
+    vec4 leftLeg = sdLimb(p, leftLegOr, leftLegDelta);
+    res = nextMin(res, leftLeg);
+    
+    vec3 rightLegOr = vec3(.14, .1, -.6);;
+    vec3 rightLegDelta = vec3(0.0, -0.12, 0.0);
+    vec4 rightLeg = sdLimb(p, rightLegOr, rightLegDelta);
+    res = nextMin(res, rightLeg);
+    
+    
     return res;
 }
 
@@ -69,7 +140,7 @@ vec4 sdTotal(vec3 p)
 
     float dist = sdPlane(p);
     if (dist < res.x) {
-        res = vec4(dist, vec3(1.0, 0.0, 0.0));
+        res = vec4(dist, vec3(246, 177, 206) / 170.);
     }
 
     return res;
@@ -104,7 +175,7 @@ vec4 raycast(vec3 ray_origin, vec3 ray_direction)
         }
     }
 
-    return vec4(1e10, vec3(0.0, 0.0, 0.0));
+    return vec4(1e10, vec3(0.2, 0.5, 1.8) * 3.2);
 }
 
 
@@ -115,7 +186,7 @@ float shading(vec3 p, vec3 light_source, vec3 normal)
 
     float shading = dot(light_dir, normal);
 
-    return clamp(shading, 0.5, 1.0);
+    return clamp(shading, 0.47, .92);
 
 }
 
@@ -168,13 +239,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 surface_point = ray_origin + res.x*ray_direction;
     vec3 normal = calcNormal(surface_point);
 
-    vec3 light_source = vec3(1.0 + 2.5*sin(iTime), 10.0, 10.0);
+    vec3 light_source = vec3(1.0 + 4.*sin(iTime), 10.5, 10.0);
 
     float shad = shading(surface_point, light_source, normal);
     shad = min(shad, castShadow(surface_point, light_source));
     col *= shad;
 
-    float spec = specular(surface_point, light_source, normal, ray_origin, 30.0);
+    float spec = specular(surface_point, light_source, normal, ray_origin, 50.0);
     col += vec3(1.0, 1.0, 1.0) * spec;
 
 
