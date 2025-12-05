@@ -24,23 +24,100 @@ float lazycos(float angle)
     return 1.0;
 }
 
+// smooth union helper, see https://iquilezles.org/articles/smin/
+float smin(float a, float b, float k)
+{
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// line segment with radius r
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r)
+{
+    vec3 pa = p - a;
+    vec3 ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    // базовый силуэт — без колебаний, чтобы стоял неподвижно
+    float wobble = 0.0;
+    float main = sdSphere(p - vec3(0.0, 0.32 + wobble, -0.7), 0.33);
+    float belly = sdSphere(p - vec3(0.0, 0.05, -0.6), 0.30);
+    float head = sdSphere(p - vec3(0.0, 0.58 + wobble, -0.72), 0.22);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d = smin(main, belly, 0.12);
+    d = smin(d, head, 0.10);
+
+    // руки слегка двигаются постоянно
+    float wave = 0.08 * sin(iTime * 1.5);
+    float arm_left = sdCapsule(p, vec3(-0.30, 0.25, -0.6), vec3(-0.32 + wave, 0.42 + wave, -0.55), 0.055);
+    float arm_right = sdCapsule(p, vec3(0.30, 0.25, -0.6), vec3(0.28 - wave, 0.42 + wave, -0.55), 0.055);
+    d = smin(d, arm_left, 0.05);
+    d = smin(d, arm_right, 0.05);
+
+    // ножки
+    float foot_left = sdCapsule(p, vec3(-0.12, -0.26, -0.55), vec3(-0.14, -0.36, -0.55), 0.10);
+    float foot_right = sdCapsule(p, vec3(0.12, -0.26, -0.55), vec3(0.14, -0.36, -0.55), 0.10);
+    d = smin(d, foot_left, 0.10);
+    d = smin(d, foot_right, 0.10);
+
+    // мягкие выпуклые бровки
+    float brow_left = sdSphere(p - vec3(-0.12, 0.53 + 0.5 * wobble, -0.50), 0.09);
+    float brow_right = sdSphere(p - vec3(0.12, 0.53 + 0.5 * wobble, -0.50), 0.09);
+    d = smin(d, brow_left, 0.05);
+    d = smin(d, brow_right, 0.05);
+
+    // градиентный окрас: полоски по Z
+    float stripes = 0.5 + 0.5 * sin(6.0 * p.z);
+    vec3 base = vec3(0.06, 0.75, 0.16);
+    vec3 highlight = vec3(0.18, 0.95, 0.28);
+    vec3 col = mix(base, highlight, stripes * 0.7);
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(d, col);
 }
 
 vec4 sdEye(vec3 p)
 {
 
     vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+
+    // плавное моргание: 1.0 — открыто, 0.35 — закрыто
+    float blink = mix(0.35, 1.0, smoothstep(-0.2, 0.2, sin(iTime * 0.9)));
+
+    // большой центральный глаз
+    vec3 center = vec3(0.0, 0.50, -0.52);
+    vec3 local = p - center;
+    // сплющиваем по Y при моргании
+    local.y *= blink;
+
+    float eyeball = sdSphere(local, 0.16);
+    vec3 color = vec3(0.94);
+
+    float iris = sdSphere(local - vec3(0.0, -0.015, 0.08), 0.10);
+    if (iris < eyeball) {
+        eyeball = iris;
+        color = vec3(0.16, 0.45, 0.75);
+    }
+
+    float pupil = sdSphere(local - vec3(0.0, -0.012, 0.11), 0.045);
+    if (pupil < eyeball) {
+        eyeball = pupil;
+        color = vec3(0.02);
+    }
+
+    float sparkle = sdSphere(local - vec3(-0.05, 0.05, 0.07), 0.018);
+    if (sparkle < eyeball) {
+        eyeball = sparkle;
+        color = vec3(1.0, 1.0, 0.9);
+    }
+
+    res = vec4(eyeball, color);
 
     return res;
 }
