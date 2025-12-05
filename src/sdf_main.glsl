@@ -257,8 +257,6 @@ vec4 sdBody(vec3 p) {
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
-const vec3 CAMERA_POS = vec3(0.0, 0.5, 1.0);
-
 vec3 rotateY(vec3 p, float angle) {
     float c = cos(angle);
     float s = sin(angle);
