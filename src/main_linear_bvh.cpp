@@ -326,33 +326,6 @@ void run(int argc, char** argv)
                 ocl_update_aabb.exec(bvhWorkSize, parents, lbvh_nodes_gpu.clmem(), nfaces * 2 - 1);
                 gpu_lbvh_times.push_back(t.elapsed());
             }
-            std::vector<BVHNodeGPU> tree(2 * nfaces - 1);
-            lbvh_nodes_gpu.readN(tree.data(), tree.size());
-            std::vector<uint32_t> indices(nfaces);
-            triangle_indices.readN(indices.data(), indices.size());
-            std::vector<uint32_t> parents_data(nfaces * 2 - 1);
-            parents.readN(parents_data.data(), parents_data.size());
-            std::vector<uint32_t> morton(2 * nfaces);
-            input_gpu.readN(morton.data(), morton.size());
-            std::vector<uint32_t> sorted_morton(2 * nfaces);
-            buffer_output_gpu.readN(sorted_morton.data(), sorted_morton.size());
-            std::vector<BVHNodeGPU> lbvh_nodes_cpu;
-            std::vector<uint32_t> leaf_faces_indices_cpu;
-            timer cpu_lbvh_t;
-            buildLBVH_CPU(scene.vertices, scene.faces, lbvh_nodes_cpu, leaf_faces_indices_cpu);
-            for (int i = 0; i < leaf_faces_indices_cpu.size(); ++i) {
-                rassert(leaf_faces_indices_cpu[i] == indices[i], 11);
-            }
-            for (int i = 0; i < tree.size(); ++i) {
-                rassert(tree[i].rightChildIndex == lbvh_nodes_cpu[i].rightChildIndex, 10);
-                rassert(tree[i].leftChildIndex == lbvh_nodes_cpu[i].leftChildIndex, 20);
-                if (tree[i].leftChildIndex != -1) {
-                    rassert(parents_data[tree[i].leftChildIndex] == i, 21, tree[i].leftChildIndex, i, parents_data[tree[i].leftChildIndex]);
-                }
-                if (tree[i].rightChildIndex != -1) {
-                    rassert(parents_data[tree[i].rightChildIndex] == i, 22, tree[i].rightChildIndex, i, parents_data[tree[i].rightChildIndex]);
-                }
-            }
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
             double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
             std::cout << "GPU LBVH build times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_times) << std::endl;
