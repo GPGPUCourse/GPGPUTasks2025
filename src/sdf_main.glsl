@@ -24,14 +24,28 @@ float lazycos(float angle)
     return 1.0;
 }
 
+
+float smin( float a, float b, float k )
+{
+    k *= 4.0;
+    float h = max( k-abs(a-b), 0.0 )/k;
+    return min(a,b) - h*h*k*(1.0/4.0);
+}
+
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    //float d = 1e10;
 
     // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float down = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float upper = sdSphere((p - vec3(0.0, 0.7, -0.7)), 0.27);
+
+    float k = 0.05;
+    float d = smin(down, upper, k);
+
 
     // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
@@ -39,11 +53,36 @@ vec4 sdBody(vec3 p)
 
 vec4 sdEye(vec3 p)
 {
+    vec3 center = vec3(0.0, 0.65, -0.5);
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float sdWhite = sdSphere(p - vec3(0.0, 0.68, -0.5), 0.15);
+    float sdIris  = sdSphere(p - vec3(0.0, 0.68, -0.39), 0.05);
+    float sdPupil = sdSphere(p - vec3(0.0, 0.68, -0.359), 0.02);
 
-    return res;
+    float k = 0.05;
+    float d12 = smin(sdWhite, sdIris, k);
+    float d    = smin(d12, sdPupil, k);
+
+    vec3 color;
+    if (sdPupil <= sdIris && sdPupil <= sdWhite) {
+        color = vec3(0.0, 0.0, 0.0);
+    } else if (sdIris <= sdWhite) {
+        color = vec3(0.1, 0.4, 1.0);
+    } else {
+        color = vec3(1.0, 1.0, 1.0);
+    }
+
+    return vec4(d, color);
 }
+
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
 
 vec4 sdMonster(vec3 p)
 {
@@ -57,6 +96,27 @@ vec4 sdMonster(vec3 p)
     if (eye.x < res.x) {
         res = eye;
     }
+
+    float k = 0.05;
+
+    float legL = sdCapsule(p, vec3(-0.2, 0.4, -0.7), vec3(-0.2, -0.0, -0.7), 0.04);
+    float legR = sdCapsule(p, vec3( 0.2, 0.4, -0.7), vec3( 0.2, -0.0, -0.7), 0.04);
+    float leg = smin(legL, legR, k);
+    if (leg < res.x) res = vec4(leg, vec3(0.0, 1.0, 0.0));
+
+
+
+    float armLAngle = lazycos(iTime * 3.0) * 0.5;
+    mat2 rot = mat2(cos(armLAngle), -sin(armLAngle), sin(armLAngle),  cos(armLAngle));
+
+    vec3 shoulder = vec3(-0.2, 0.6, -0.7);
+    vec3 armLEnd = vec3(-0.45, 0.6, -0.7);
+    armLEnd.xy = shoulder.xy + rot * (armLEnd.xy - shoulder.xy);
+    float armL = sdCapsule(p, shoulder, armLEnd, 0.04);
+    //float armL = sdCapsule(p, vec3(-0.2, 0.6, -0.7), vec3(-0.45, 0.4, -0.7), 0.04);
+    float armR = sdCapsule(p, vec3( 0.2, 0.6, -0.7), vec3( 0.45, 0.4, -0.7), 0.04);
+    float arm = smin(armL, armR, k);
+    if (arm < res.x) res = vec4(arm, vec3(0.0, 1.0, 0.0));
 
     return res;
 }
