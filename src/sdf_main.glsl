@@ -49,7 +49,18 @@ vec4 sdBody(vec3 p)
     float d  = smin(d1, d2, 0.10);
 
     float armR = 0.055;
-    d = min(d, sdCapsule(p, vec3(-0.26, 0.33, -0.73), vec3(-0.40, 0.25, -0.72), armR));
+    vec3 leftArmStart = vec3(-0.26, 0.33, -0.73);
+    vec3 leftArmEndBase = vec3(-0.40, 0.25, -0.72);
+
+    float swingAngle = lazycos(iTime * 1.5) * 5.7;
+    mat3 rot = mat3(
+        1.0, 0.0, 0.0,
+        0.0, cos(swingAngle), -sin(swingAngle),
+        0.0, sin(swingAngle), cos(swingAngle)
+    );
+    vec3 leftArmEnd = leftArmStart + rot * (leftArmEndBase - leftArmStart);
+
+    d = min(d, sdCapsule(p, leftArmStart, leftArmEnd, armR));
     d = min(d, sdCapsule(p, vec3(0.26, 0.33, -0.73), vec3(0.40, 0.25, -0.72), armR));
 
     float legRad = 0.055;
