@@ -10,8 +10,11 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Delete huge unnecessary tools folder
+      run: rm -rf /opt/hostedtoolcache
 
+    - uses: actions/checkout@v2
+    
     - name: Install prerequisites
       run: |
         sudo apt update
