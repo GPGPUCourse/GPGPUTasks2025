@@ -126,15 +126,14 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
-
+    std::vector<unsigned int> gpu_sorted = array1.readVector();
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
         rassert(sorted[i] == gpu_sorted[i], 566324523452323, sorted[i], gpu_sorted[i], i);
     }
 
     // Проверяем что входные данные остались нетронуты (ведь мы их переиспользуем от итерации к итерации)
-    std::vector<unsigned int> input_values = input_gpu.readVector();
+    std::vector<unsigned int> input_values = as;
     for (size_t i = 0; i < n; ++i) {
         rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);
     }
