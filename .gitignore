@@ -1,7 +1,7 @@
 **/*_cl.h
 **/generated_kernels/*
 .idea
-build*
+./build*
 data**
 results**
 cmake-build*
