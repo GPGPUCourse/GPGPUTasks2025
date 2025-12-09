@@ -113,7 +113,7 @@ void run(int argc, char** argv)
             // }
             // std::cout << '\n';
 
-            if (sortedK <= GROUP_SIZE) {
+            if (sortedK <= GROUP_SIZE * 2) {
                 ocl_mergeSort.exec(workSize,
                     buffer1_gpu, buffer_output_gpu, sortedK, n);
             } else {
