@@ -45,7 +45,6 @@ static inline bool bvh_closest_hit(
 
     while (stackPtr > 0) {
         uint nodeIndex = smashStack[--stackPtr];
-        const BVHNodeGPU* node = &nodes[nodeIndex];
 
         if (nodeIndex >= leafStart) {
             // It is leaf, check triangle
