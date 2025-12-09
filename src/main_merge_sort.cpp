@@ -36,17 +36,18 @@ void run(int argc, char** argv)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
-    ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    // ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
     ocl::KernelSource ocl_copy_array(ocl::getCopyArray());
-    ocl::KernelSource ocl_mergeSortDoubleHierarchy(ocl::getMergeSortDoubleIerarchy());
+    // ocl::KernelSource ocl_mergeSortDoubleHierarchy(ocl::getMergeSortDoubleIerarchy());
+    ocl::KernelSource ocl_simpleMerge(ocl::getSimpleMerge());
 
     FastRandom r;
 
     int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    // int n = 1000;
+    // int n = 10000000;
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
-    // int max_value = 8;
+    // int max_value = 10;
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -113,13 +114,8 @@ void run(int argc, char** argv)
             // }
             // std::cout << '\n';
 
-            if (sortedK <= GROUP_SIZE) {
-                ocl_mergeSort.exec(workSize,
-                    buffer1_gpu, buffer_output_gpu, sortedK, n);
-            } else {
-                ocl_mergeSortDoubleHierarchy.exec(workSize,
-                    buffer1_gpu, buffer_output_gpu, sortedK, n);
-            } 
+            ocl_simpleMerge.exec(workSize,
+                buffer1_gpu, buffer_output_gpu, sortedK, n);
             
             // std::cout << '\n';
             std::swap(buffer1_gpu, buffer_output_gpu);

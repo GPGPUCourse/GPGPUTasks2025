@@ -61,7 +61,8 @@ set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/merge_sort.cl
         src/kernels/cl/copy_array.cl
-        src/kernels/cl/merge_sort_double_hierarchy.cl)
+        src/kernels/cl/merge_sort_double_hierarchy.cl
+        src/kernels/cl/simple_merge.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)

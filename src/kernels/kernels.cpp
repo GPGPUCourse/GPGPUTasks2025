@@ -4,7 +4,9 @@
 #include "cl/generated_kernels/merge_sort.h"
 #include "cl/generated_kernels/copy_array.h"
 #include "cl/generated_kernels/merge_sort_double_hierarchy.h"
+#include "cl/generated_kernels/simple_merge.h"
 
+#include "libgpu/opencl/engine.h"
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/merge_sort_comp.h"
 
@@ -43,6 +45,10 @@ const ProgramBinaries& getCopyArray()
 
 const ProgramBinaries& getMergeSortDoubleIerarchy() {
     return opencl_binaries_merge_sort_double_hierarchy;
+}
+
+const ProgramBinaries& getSimpleMerge() {
+    return opencl_binaries_simple_merge;
 }
 } // namespace ocl
 

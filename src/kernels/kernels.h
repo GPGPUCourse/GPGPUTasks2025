@@ -1,5 +1,6 @@
 #pragma once
 
+#include "libgpu/opencl/engine.h"
 #include <libgpu/vulkan/engine.h>
 
 namespace cuda {
@@ -15,6 +16,8 @@ const ProgramBinaries& getMergeSort();
 const ProgramBinaries& getCopyArray();
 
 const ProgramBinaries& getMergeSortDoubleIerarchy();
+
+const ProgramBinaries& getSimpleMerge();
 }
 
 namespace avk2 {
