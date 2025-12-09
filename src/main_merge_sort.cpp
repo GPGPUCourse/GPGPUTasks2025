@@ -38,6 +38,7 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
     ocl::KernelSource ocl_copy_array(ocl::getCopyArray());
+    ocl::KernelSource ocl_mergeSortDoubleHierarchy(ocl::getMergeSortDoubleIerarchy());
 
     FastRandom r;
 
@@ -78,7 +79,7 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort finished in " << t.elapsed() << " sec" << std::endl;
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
 
-        // std::cout << '\n'; 
+        // std::cout << '\n';
         // for (auto elem: sorted) {
         //     std::cout << elem << ' ';
         // }
@@ -109,11 +110,17 @@ void run(int argc, char** argv)
             // std::vector<unsigned int> v = buffer1_gpu.readVector();
             // for (auto elem: v) {
             //     std::cout << elem << ' ';
-            // } 
+            // }
             // std::cout << '\n';
 
-            ocl_mergeSort.exec(workSize, 
-                buffer1_gpu, buffer_output_gpu, sortedK, n);
+            // if (sortedK <= GROUP_SIZE) {
+                ocl_mergeSort.exec(workSize,
+                    buffer1_gpu, buffer_output_gpu, sortedK, n);
+            // } else {
+            //     ocl_mergeSortDoubleHierarchy.exec(workSize,
+            //         buffer1_gpu, buffer_output_gpu, sortedK, n);
+            // } 
+            
             // std::cout << '\n';
             std::swap(buffer1_gpu, buffer_output_gpu);
         }

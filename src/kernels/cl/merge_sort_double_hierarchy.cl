@@ -76,10 +76,10 @@ void writeToOutput(int x, int y, int sorted_k, int block, int blockStart, int n,
 }
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void merge_sort(
+__kernel void merge_sort_double_hierarchy(
     __global const uint* input_data,
     __global       uint* output_data,
-                   int  sorted_k,
+                   int  sorted_k, // must be more than GROUP_SIZE
                    int  n)
 {
     const unsigned int i = get_global_id(0);
@@ -102,12 +102,23 @@ __kernel void merge_sort(
         xStart += iInBlock;
     }
 
+    const uint localI = get_local_id(0); 
+    __local int xBorder, yBorder;
     const int mx = sorted_k - abs(sorted_k - (int)(iInBlock + 1));
     int x, y;
-    binarySearch(-1, mx, 
-        xStart, yStart, sorted_k, block, n, blockStart,
-        &x, &y, input_data);
-
+    if (localI == GROUP_SIZE - 1) {
+        binarySearch(-1, mx, 
+            xStart, yStart, sorted_k, block, n, blockStart,
+            &x, &y, input_data);
+        xBorder = x;
+        yBorder = y;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (localI != GROUP_SIZE - 1) {
+        binarySearch(max(xBorder - xStart - 1, -1), min(yBorder - yStart + 1, mx), 
+            xStart, yStart, sorted_k, block, n, blockStart,
+            &x, &y, input_data);
+    }
 
     writeToOutput(x, y, sorted_k, block, blockStart, n, input_data, output_data);
 }

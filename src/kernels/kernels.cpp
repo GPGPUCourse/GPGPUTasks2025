@@ -3,6 +3,7 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/merge_sort.h"
 #include "cl/generated_kernels/copy_array.h"
+#include "cl/generated_kernels/merge_sort_double_hierarchy.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/merge_sort_comp.h"
@@ -38,6 +39,10 @@ const ProgramBinaries& getMergeSort()
 const ProgramBinaries& getCopyArray()
 {
     return opencl_binaries_copy_array;
+}
+
+const ProgramBinaries& getMergeSortDoubleIerarchy() {
+    return opencl_binaries_merge_sort_double_hierarchy;
 }
 } // namespace ocl
 

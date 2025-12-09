@@ -13,6 +13,8 @@ const ProgramBinaries& getAplusB();
 const ProgramBinaries& getMergeSort();
 
 const ProgramBinaries& getCopyArray();
+
+const ProgramBinaries& getMergeSortDoubleIerarchy();
 }
 
 namespace avk2 {
