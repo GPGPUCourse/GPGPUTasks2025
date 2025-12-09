@@ -3,6 +3,12 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/calculate_centroid_bounds.h"
+#include "cl/generated_kernels/init_triangle_codes.h"
+#include "cl/generated_kernels/merge_sort_morton.h"
+#include "cl/generated_kernels/build_lbvh.h"
+#include "cl/generated_kernels/wave_calculate_aabb.h"
+#include "cl/generated_kernels/denoise_facets.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -54,6 +60,31 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
+}
+
+const ProgramBinaries& getCalcCentroidBounds()
+{
+    return opencl_binaries_calculate_centroid_bounds;
+}
+const ProgramBinaries& getInitTriangleCodes()
+{
+    return opencl_binaries_init_triangle_codes;
+}
+const ProgramBinaries& getMergeSortMorton()
+{
+    return opencl_binaries_merge_sort_morton;
+}
+const ProgramBinaries& getBuildLBVH()
+{
+    return opencl_binaries_build_lbvh;
+}
+const ProgramBinaries& getWaveCalculateAABB()
+{
+    return opencl_binaries_wave_calculate_aabb;
+}
+const ProgramBinaries& getDenoiseFacets()
+{
+    return opencl_binaries_denoise_facets;
 }
 } // namespace ocl
 

@@ -31,9 +31,56 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    uint smashStack[MAX_STACK_SIZE];
+    int stackPtr = 0;
 
-    return false;
+    float musor = 0.0f;
+
+    if (!intersect_ray_aabb_any(orig, dir, nodes[rootIndex].aabb, &musor, &musor)) {
+        return false;
+    }
+
+    smashStack[stackPtr++] = rootIndex;
+    bool foundIntersection = false;
+
+    while (stackPtr > 0) {
+        uint nodeIndex = smashStack[--stackPtr];
+        const BVHNodeGPU* node = &nodes[nodeIndex];
+
+        if (nodeIndex >= leafStart) {
+            // It is leaf, check triangle
+            uint triIndex = leafTriIndices[nodeIndex - leafStart];
+            uint3 face = loadFace(faces, triIndex);
+            float3 v0, v1, v2;
+            v0 = loadVertex(vertices, face.x);
+            v1 = loadVertex(vertices, face.y);
+            v2 = loadVertex(vertices, face.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, FLT_MAX, false, &t, &u, &v)) {
+                if (!foundIntersection || (foundIntersection && t < *outT)) {
+                    foundIntersection = true;
+                    *outT = t;
+                    *outFaceId = triIndex;
+                    *outU = u;
+                    *outV = v;
+                }
+            }
+        } else {
+            // Not a leaf, check children AABBs
+            uint leftChildIndex = nodes[nodeIndex].leftChildIndex;
+            uint rightChildIndex = nodes[nodeIndex].rightChildIndex;
+
+            if (intersect_ray_aabb_any(orig, dir, nodes[rightChildIndex].aabb, &musor, &musor)) {
+                smashStack[stackPtr++] = rightChildIndex;
+            }
+            if (intersect_ray_aabb_any(orig, dir, nodes[leftChildIndex].aabb, &musor, &musor)) {
+                smashStack[stackPtr++] = leftChildIndex;
+            }
+        }
+    }
+
+    return foundIntersection;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -50,8 +97,52 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
 
+    uint smashStack[MAX_STACK_SIZE];
+    int stackPtr = 0;
+
+    float musor = 0.0f;
+
+    if (!intersect_ray_aabb_any(orig, dir, nodes[rootIndex].aabb, &musor, &musor)) {
+        return false;
+    }
+
+    smashStack[stackPtr++] = rootIndex;
+    bool foundIntersection = false;
+
+    while (stackPtr > 0) {
+        uint nodeIndex = smashStack[--stackPtr];
+
+        if (nodeIndex >= leafStart) {
+            // It is leaf, check triangle
+            uint triIndex = leafTriIndices[nodeIndex - leafStart];
+            if (triIndex == ignore_face) continue;
+
+            uint3 face = loadFace(faces, triIndex);
+            float3 v0, v1, v2;
+            v0 = loadVertex(vertices, face.x);
+            v1 = loadVertex(vertices, face.y);
+            v2 = loadVertex(vertices, face.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, 0.0f, FLT_MAX, false, &t, &u, &v)) {
+                foundIntersection = true;
+            }
+        } else {
+            // Not a leaf, check children AABBs
+            uint leftChildIndex = nodes[nodeIndex].leftChildIndex;
+            uint rightChildIndex = nodes[nodeIndex].rightChildIndex;
+
+            if (intersect_ray_aabb_any(orig, dir, nodes[rightChildIndex].aabb, &musor, &musor)) {
+                smashStack[stackPtr++] = rightChildIndex;
+            }
+            if (intersect_ray_aabb_any(orig, dir, nodes[leftChildIndex].aabb, &musor, &musor)) {
+                smashStack[stackPtr++] = leftChildIndex;
+            }
+        }
+    }
+
+    return foundIntersection;
     return false;
 }
 

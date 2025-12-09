@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdint>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -7,6 +9,7 @@
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
 
+#include "cpu_helpers/morton_code_cpu.h"
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
 
@@ -14,6 +17,11 @@
 #include "io/scene_reader.h"
 
 #include "cpu_helpers/build_bvh_cpu.h"
+#include "kernels/shared_structs/morton_code_gpu_shared.h"
+#include "libbase/point.h"
+#include "libgpu/opencl/engine.h"
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <filesystem>
 #include <fstream>
@@ -77,6 +85,12 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_merge_sort(ocl::getMergeSortMorton());
+    ocl::KernelSource ocl_build_lbvh(ocl::getBuildLBVH());
+    ocl::KernelSource ocl_wave_calc_aabb(ocl::getWaveCalculateAABB());
+    ocl::KernelSource ocl_init_triangle_codes(ocl::getInitTriangleCodes());
+    ocl::KernelSource ocl_calc_centroid_bounds(ocl::getCalcCentroidBounds());
+    ocl::KernelSource ocl_denoise_facets(ocl::getDenoiseFacets());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -134,6 +148,7 @@ void run(int argc, char** argv)
         // Аллоцируем фрейм-буферы (то есть картинки в которые сохранится результат рендеринга)
         gpu::gpu_mem_32i framebuffer_face_id_gpu(width * height);
         gpu::gpu_mem_32f framebuffer_ambient_occlusion_gpu(width * height);
+        gpu::gpu_mem_32f framebuffer_ambient_occlusion_denoised_gpu(width * height);
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
         timer pcie_writing_t;
@@ -230,7 +245,6 @@ void run(int argc, char** argv)
                 timer t;
 
                 // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
@@ -290,14 +304,40 @@ void run(int argc, char** argv)
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
+            gpu::gpu_mem_32i tri_indices_gpu(nfaces), out_tri_indices_gpu(nfaces);
+            gpu::gpu_mem_32u codes_gpu(nfaces), out_codes_gpu(nfaces);
+            gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(nfaces-1 + nfaces);
+
+
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
                 // TODO постройте LBVH на GPU
+
+                gpu::gpu_mem_32f scene_min(3), scene_max(3);
+                ocl_calc_centroid_bounds.exec(gpu::WorkSize(GROUP_SIZE, nfaces), vertices_gpu, faces_gpu, scene_min, scene_max, nfaces);
+
+                std::vector<float> vMin(3), vMax(3);
+                scene_min.readN(vMin.data(), 3);
+                scene_max.readN(vMax.data(), 3);
+
+                ocl_init_triangle_codes.exec(gpu::WorkSize(GROUP_SIZE, nfaces), codes_gpu, tri_indices_gpu, vertices_gpu, faces_gpu, nfaces, vMin[0], vMin[1], vMin[2], vMax[0], vMax[1], vMax[2]);
+
+                for (int bit = 0; (nfaces >> bit) > 0; ++bit) {
+                    ocl_merge_sort.exec(gpu::WorkSize(GROUP_SIZE, nfaces), codes_gpu, tri_indices_gpu, out_codes_gpu, out_tri_indices_gpu, bit, nfaces);
+                    std::swap(tri_indices_gpu, out_tri_indices_gpu);
+                    std::swap(codes_gpu, out_codes_gpu);
+                }
+                ocl_build_lbvh.exec(gpu::WorkSize(GROUP_SIZE, nfaces-1), codes_gpu, lbvh_nodes_gpu.clmem(), nfaces);
+                gpu::gpu_mem_32i ready_flags(nfaces-1 + nfaces);
+                ready_flags.fill(0);
+                for (int bit = 0; bit < 64; ++bit) {
+                    ocl_wave_calc_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces-1 + nfaces), lbvh_nodes_gpu.clmem(), ready_flags, tri_indices_gpu, vertices_gpu, faces_gpu, nfaces);
+                }
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -310,6 +350,7 @@ void run(int argc, char** argv)
             timer cleaning_framebuffers_t;
             framebuffer_face_id_gpu.fill(NO_FACE_ID);
             framebuffer_ambient_occlusion_gpu.fill(NO_AMBIENT_OCCLUSION);
+            framebuffer_ambient_occlusion_denoised_gpu.fill(NO_AMBIENT_OCCLUSION);
             cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
 
             std::vector<double> gpu_lbvh_rt_times;
@@ -318,7 +359,23 @@ void run(int argc, char** argv)
 
                 // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
 
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu.clmem(), tri_indices_gpu.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
+
                 gpu_lbvh_rt_times.push_back(t.elapsed());
+
+                // denoising
+                framebuffer_ambient_occlusion_gpu.copyToN(framebuffer_ambient_occlusion_denoised_gpu, (size_t)width * height);
+                for (int i = 0; i < 5; ++i) {
+                    ocl_denoise_facets.exec(gpu::WorkSize(16, 16, width, height),
+                        framebuffer_face_id_gpu,
+                        framebuffer_ambient_occlusion_denoised_gpu,
+                        camera_gpu.clmem());
+                }
             }
             rt_times_with_gpu_lbvh_sum = stats::sum(gpu_lbvh_rt_times);
             double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(gpu_lbvh_rt_times);
@@ -329,13 +386,16 @@ void run(int argc, char** argv)
             timer pcie_reading_t;
             image32i gpu_lbvh_framebuffer_face_ids(width, height, 1);
             image32f gpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
+            image32f gpu_lbvh_framebuffer_ambient_occlusion_denoised(width, height, 1);
             framebuffer_face_id_gpu.readN(gpu_lbvh_framebuffer_face_ids.ptr(), width * height);
             framebuffer_ambient_occlusion_gpu.readN(gpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
+            framebuffer_ambient_occlusion_denoised_gpu.readN(gpu_lbvh_framebuffer_ambient_occlusion_denoised.ptr(), width * height);
             pcie_reading_time += pcie_reading_t.elapsed();
 
             timer gpu_lbvh_images_saving_t;
             debug_io::dumpImage(results_dir + "/framebuffer_face_ids_with_gpu_lbvh.bmp", debug_io::randomMapping(gpu_lbvh_framebuffer_face_ids, NO_FACE_ID));
             debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_gpu_lbvh.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion));
+            debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_gpu_lbvh_denoised.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion_denoised));
             images_saving_time += gpu_lbvh_images_saving_t.elapsed();
             if (has_brute_force) {
                 unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);

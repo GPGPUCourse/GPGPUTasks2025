@@ -28,6 +28,13 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+
+const ProgramBinaries& getCalcCentroidBounds();
+const ProgramBinaries& getInitTriangleCodes();
+const ProgramBinaries& getMergeSortMorton();
+const ProgramBinaries& getBuildLBVH();
+const ProgramBinaries& getWaveCalculateAABB();
+const ProgramBinaries& getDenoiseFacets();
 }
 
 namespace avk2 {
