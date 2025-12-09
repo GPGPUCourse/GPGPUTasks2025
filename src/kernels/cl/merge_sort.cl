@@ -5,76 +5,6 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((always_inline))
-void pairByDiagAndNum(const int xStart, const int yStart, const int i, 
-    __private int* resX, 
-    __private int* resY) {
-    *resX = xStart - i;
-    *resY = yStart + i;
-}
-
-__attribute__((always_inline))
-int toRealIdxX(const int x, const int sorted_k, const int block) {
-    return (x / sorted_k) * sorted_k * 2 + x % sorted_k;
-}
-
-__attribute__((always_inline))
-int toRealIdxY(const int y, const int sorted_k, const int block) {
-    return sorted_k + (y / sorted_k) * sorted_k * 2 + y % sorted_k;
-}
-
-
-__attribute__((always_inline))
-void binarySearch(
-    int l, int r, int xStart, int yStart, int sorted_k, int block, int n, int blockStart,
-    __private int* x, __private int* y, __global const uint* input_data) {
-    while (r - l > 1) {
-        const int md = (l + r) / 2;
-
-        int xTmp, yTmp;
-        pairByDiagAndNum(xStart, yStart, md, &xTmp, &yTmp);
-        const int realX = toRealIdxX(xTmp, sorted_k, block);
-        const int realY = toRealIdxY(yTmp, sorted_k, block);
-        if (realX < n && realY < n && input_data[realX] > input_data[realY]) {
-            l = md;
-        } else {
-            r = md;
-        }
-    }
-
-    pairByDiagAndNum(xStart, yStart, l, x, y);
-    *x -= 1;
-    if (*y >= blockStart && 
-        (*x < blockStart || (input_data[toRealIdxX(*x, sorted_k, block)] <= input_data[toRealIdxY(*y, sorted_k, block)]))) {
-        ++(*x);
-    } else {
-        ++(*y);
-    }
-}
-
-__attribute__((always_inline))
-void writeToOutput(int x, int y, int sorted_k, int block, int blockStart, int n,
-    __global const uint* input_data, __global uint* output_data) {
-    const int realX = toRealIdxX(x, sorted_k, block);
-    const int realY = toRealIdxY(y, sorted_k, block);
-    
-    const uint inX = ((x - blockStart < sorted_k && realX < n && x >= 0) ? input_data[realX] : UINT_MAX);
-    const uint inY = ((y - blockStart < sorted_k && realY < n) ? input_data[realY] : UINT_MAX);
-    uint out;
-    uint inIdx;
-    if (inX <= inY) {
-        inIdx = x - blockStart;
-        out = inX;
-    } else {
-        inIdx = y - blockStart;
-        out = inY;
-    }
-    
-    if (inIdx < sorted_k){
-        output_data[x + y] = out;
-    }
-}
-
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void merge_sort(
     __global const uint* input_data,
@@ -95,6 +25,7 @@ __kernel void merge_sort(
     int xStart = sorted_k * block;
     int yStart = xStart;
 
+
     if (iInBlock >= sorted_k) {
         xStart += sorted_k - 1;
         yStart += iInBlock - sorted_k + 1;
@@ -103,11 +34,44 @@ __kernel void merge_sort(
     }
 
     const int mx = sorted_k - abs(sorted_k - (int)(iInBlock + 1));
-    int x, y;
-    binarySearch(-1, mx, 
-        xStart, yStart, sorted_k, block, n, blockStart,
-        &x, &y, input_data);
+    int l = -1, r = mx; // в l первый > второго
+    while (r - l > 1) {
+        const int md = (l + r) / 2;
 
+        int x = xStart - md, y = yStart + md;
+        const int realX = (x / sorted_k) * sorted_k * 2 + x % sorted_k;
+        const int realY = sorted_k + (y / sorted_k) * sorted_k * 2 + y % sorted_k;
+        if (realX < n && realY < n && input_data[realX] > input_data[realY]) {
+            l = md;
+        } else {
+            r = md;
+        }
+    }
 
-    writeToOutput(x, y, sorted_k, block, blockStart, n, input_data, output_data);
+    int x = xStart - l - 1, y = yStart + l;
+    if (y >= blockStart && 
+        (x < blockStart || (input_data[(x / sorted_k) * sorted_k * 2 + x % sorted_k] <= input_data[sorted_k + (y / sorted_k) * sorted_k * 2 + y % sorted_k]))) {
+        ++x;
+    } else {
+        ++y;
+    }
+    
+    const int realX = (x / sorted_k) * sorted_k * 2 + x % sorted_k;
+    const int realY = sorted_k + (y / sorted_k) * sorted_k * 2 + y % sorted_k;
+    
+    const uint inX = ((x - blockStart < sorted_k && realX < n) ? input_data[realX] : UINT_MAX);
+    const uint inY = ((y - blockStart < sorted_k && realY < n) ? input_data[realY] : UINT_MAX);
+    uint out;
+    uint inIdx;
+    if (inX <= inY) {
+        inIdx = x - blockStart;
+        out = inX;
+    } else {
+        inIdx = y - blockStart;
+        out = inY;
+    }
+
+    if (inIdx < sorted_k){
+        output_data[x + y] = out;
+    }
 }
