@@ -58,7 +58,7 @@ void writeToOutput(int x, int y, int sorted_k, int block, int blockStart, int n,
     const int realX = toRealIdxX(x, sorted_k, block);
     const int realY = toRealIdxY(y, sorted_k, block);
     
-    const uint inX = ((x - blockStart < sorted_k && realX < n) ? input_data[realX] : UINT_MAX);
+    const uint inX = ((x - blockStart < sorted_k && realX < n && x >= 0) ? input_data[realX] : UINT_MAX);
     const uint inY = ((y - blockStart < sorted_k && realY < n) ? input_data[realY] : UINT_MAX);
     uint out;
     uint inIdx;

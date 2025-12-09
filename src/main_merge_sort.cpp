@@ -43,7 +43,7 @@ void run(int argc, char** argv)
     FastRandom r;
 
     int n = 100 * 1000 * 1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    // int n = 1000000;
+    // int n = 1000;
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     // int max_value = 8;
@@ -113,13 +113,13 @@ void run(int argc, char** argv)
             // }
             // std::cout << '\n';
 
-            // if (sortedK <= GROUP_SIZE) {
+            if (sortedK <= GROUP_SIZE) {
                 ocl_mergeSort.exec(workSize,
                     buffer1_gpu, buffer_output_gpu, sortedK, n);
-            // } else {
-            //     ocl_mergeSortDoubleHierarchy.exec(workSize,
-            //         buffer1_gpu, buffer_output_gpu, sortedK, n);
-            // } 
+            } else {
+                ocl_mergeSortDoubleHierarchy.exec(workSize,
+                    buffer1_gpu, buffer_output_gpu, sortedK, n);
+            } 
             
             // std::cout << '\n';
             std::swap(buffer1_gpu, buffer_output_gpu);
