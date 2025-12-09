@@ -11,7 +11,43 @@ float sdPlane(vec3 p)
     return p.y;
 }
 
-// косинус который пропускает некоторые периоды, удобно чтобы махать ручкой не все время
+float smin( float a, float b, float k )
+{
+    k *= log(2.0);
+    float x = b-a;
+    return a + x/(1.0-exp2(x/k));
+}
+
+
+float sdCylinder(vec3 a, vec3 b, float r, vec3 p)
+{
+    vec3 ba = b - a;
+    float h = length(ba);
+    ba = normalize(ba);
+    vec3 pa = p - a;
+    float t = dot(pa, ba);
+    t = clamp(t, 0.0, h);
+    vec3 q = a + t * ba;
+    vec3 pq = p - q;
+    float d = length(pq);
+    return d - r;
+}
+
+float sdCapsule(vec3 a, vec3 b, float r, vec3 p)
+{
+    float topSphere = sdSphere(p - a, r);
+    float res = topSphere;
+    float bottomSphere = sdSphere(p - b, r);
+    if (res > bottomSphere) {
+        res = bottomSphere;
+    }
+    float cylinder = sdCylinder(a, b, r, p);
+    if (res > cylinder) {
+        res = cylinder;
+    }
+    return res;
+}
+
 float lazycos(float angle)
 {
     int nsleep = 10;
@@ -24,40 +60,57 @@ float lazycos(float angle)
     return 1.0;
 }
 
-// возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
-// способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d1 = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.4);
+    float d2 = sdSphere((p - vec3(0.0, 0.7, -0.7)), 0.3);
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(smin(d1, d2, 0.05), vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
-
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
-
+    vec4 res = vec4(sdSphere(p, 0.16), vec3(1.0, 1.0, 1.0));
+    p -= vec3(0.0, 0.0, 0.1);
+    vec4 zr = vec4(sdSphere(p, 0.08), vec3(0.0, 0.0, 1.0));
+    if (res.x > zr.x) {
+        res = zr;
+    }
+    p -= vec3(0.0, -0.025, 0.1);
+    vec4 hole = vec4(sdSphere(p, 0.03), vec3(0.0, 0.0, 0.0));
+    if (res.x > hole.x) {
+        res = hole;
+    }   
     return res;
 }
 
 vec4 sdMonster(vec3 p)
 {
-    // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
-    // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    p -= vec3(0, 0.08, 0.0);
 
-    vec4 res = sdBody(p);
-
-    vec4 eye = sdEye(p);
+    vec4 res = sdBody(p - vec3(0.0, 0.2, 0.0));
+    vec4 eye = sdEye(p + vec3(0.0, -0.88, 0.47));
     if (eye.x < res.x) {
         res = eye;
     }
-
+    vec4 rightLeg = vec4(sdCapsule(vec3(0.15, 0.0, -0.7), vec3(0.1, 0.45, -0.7), 0.06, p), vec3(0.0, 1.0, 0.0));
+    if (rightLeg.x < res.x) {
+        res = rightLeg;
+    }
+    vec4 leftLeg = vec4(sdCapsule(vec3(-0.15, 0.0, -0.7), vec3(-0.1, 0.45, -0.7), 0.06, p), vec3(0.0, 1.0, 0.0));
+    if (leftLeg.x < res.x) {
+        res = leftLeg;
+    }
+    vec4 rightArm = vec4(sdCapsule(vec3(0.28, 0.7, -0.55), vec3(0.5, 0.4, -0.6), 0.06, p), vec3(0.0, 1.0, 0.0));
+    if (rightArm.x < res.x) {
+        res = rightArm;
+    }
+    vec4 leftArm = vec4(sdCapsule(vec3(-0.28, 0.7, -0.55), vec3(-0.5, 0.4, -0.6), 0.06, p), vec3(0.0, 1.0, 0.0));
+    if (leftArm.x < res.x) {
+        res = leftArm;
+    }
     return res;
 }
 
