@@ -57,12 +57,6 @@ void writeToOutput(int x, int y, int sorted_k, int block, int blockStart, int n,
     __global const uint* input_data, __global uint* output_data) {
     const int realX = toRealIdxX(x, sorted_k, block);
     const int realY = toRealIdxY(y, sorted_k, block);
-    // if (x - blockStart < sorted_k && realX < n) {
-    //     rassert(realX >= 0, 7673645);
-    //     if (realX < 0) {
-    //         printf("%d %d\n", x, y);
-    //     }
-    // }
     
     const uint inX = ((x - blockStart < sorted_k && realX < n && x >= 0) ? input_data[realX] : UINT_MAX);
     const uint inY = ((y - blockStart < sorted_k && realY < n) ? input_data[realY] : UINT_MAX);
@@ -89,9 +83,6 @@ __kernel void merge_sort_double_hierarchy(
                    int  n)
 {
     const unsigned int i = get_global_id(0);
-    // if (i >= n) {
-    //     return;
-    // }
     const int sortedK2 = sorted_k * 2;
     const int block = i / sortedK2;
     const int iInBlock = i % sortedK2;
@@ -109,8 +100,6 @@ __kernel void merge_sort_double_hierarchy(
     }
 
     const uint localI = get_local_id(0); 
-
-    // rassert((i - localI) / sortedK2 == block, 8989);
 
     __local int xBorder, yBorder;
     const int mx = sorted_k - abs(sorted_k - (int)(iInBlock + 1));
@@ -134,22 +123,9 @@ __kernel void merge_sort_double_hierarchy(
         int l = max(xStart - xBorder - 1, -1);
         int r = min(yBorder - yStart + 1, mx);
 
-        // printf("%d %d   %d %d\n", xStart, xBorder, yStart, yBorder);
-        // printf("new borders: -1 | %d %d | %d\n\n", l, r, mx);
         binarySearch(l, r, 
             xStart, yStart, sorted_k, block, n, blockStart,
             &x, &y, input_data);
-
-        int rightX, rightY;
-        binarySearch(-1, mx,
-            xStart, yStart, sorted_k, block, n, blockStart,
-            &rightX, &rightY, input_data);
-        // if (x != rightX || y != rightY) {
-        //     printf("%d %d   %d %d\nwrong: %d %d   right: %d %d\nnew borders: -1 | %d %d | %d\n\n", 
-        //         xStart, xBorder, yStart, yBorder,
-        //         x, y, rightX, rightY,
-        //         l, r, mx);
-        // }
     }
 
     if (i < n) {
