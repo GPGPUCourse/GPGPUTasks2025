@@ -38,7 +38,7 @@ namespace vk {
 #define VMA_VULKAN_VERSION (VULKAN_MIN_VERSION_MAJOR*1000000+VULKAN_MIN_VERSION_MINOR*1000)
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 
 //______________________________________________________________________________________________________________________
 
