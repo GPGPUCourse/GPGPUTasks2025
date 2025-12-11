@@ -36,8 +36,10 @@ sparse_csr_matrix_vector_multiplication(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    for (int shift = GROUP_SIZE / 2; shift > 0; shift >>= 1) {
-        sums[localId] += ((localId + shift < GROUP_SIZE) ? sums[localId + shift] : 0);
+    for (int shift = 1; shift < GROUP_SIZE; shift <<= 1) {
+        uint tmp = ((localId + shift < GROUP_SIZE) ? sums[localId + shift] : 0);
+        barrier(CLK_LOCAL_MEM_FENCE);
+        sums[localId] += tmp;
         barrier(CLK_LOCAL_MEM_FENCE);
     }
     if (localId == 0 && groupId < nrows) {
