@@ -112,7 +112,7 @@ void run(int argc, char** argv)
 
     // const unsigned int nrows = 4;
     // const unsigned int ncols = 4;
-    // const unsigned int max_value = 100; 
+    // const unsigned int max_value = 100;
 
     std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " << max_value << "]" << std::endl;
 
@@ -149,7 +149,7 @@ void run(int argc, char** argv)
         std::cout << "CPU effective bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << nnz / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
 
         // Аллоцируем буферы в VRAM
-        gpu::gpu_mem_32u csr_row_offsets_gpu(nrows + 1), csr_columns_gpu(nnz), 
+        gpu::gpu_mem_32u csr_row_offsets_gpu(nrows + 1), csr_columns_gpu(nnz),
             csr_values_gpu(nnz), vector_values_gpu(ncols), output_vector_values_gpu(nrows);
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -168,7 +168,7 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
-            ocl_spvm.exec(workSize, csr_row_offsets_gpu, csr_columns_gpu, 
+            ocl_spvm.exec(workSize, csr_row_offsets_gpu, csr_columns_gpu,
                 csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows);
 
             times.push_back(t.elapsed());
