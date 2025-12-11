@@ -124,11 +124,11 @@ void run(int argc, char** argv)
         { 32, 128 }
     };
 
-    gpu::WorkSize workSize(GROUP_SIZE, nrows * GROUP_SIZE);
+    // gpu::WorkSize workSize(GROUP_SIZE, nrows * GROUP_SIZE);
 
-    for (auto [min_nnz_per_row, max_nnz_per_col] : evaluated_min_max_nnz_per_row) {
+    for (auto [min_nnz_per_row, max_nnz_per_row] : evaluated_min_max_nnz_per_row) {
         std::cout << "____________________________________________________________________________________________" << std::endl;
-        const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(nrows, ncols, min_nnz_per_row, max_nnz_per_col, max_value);
+        const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(nrows, ncols, min_nnz_per_row, max_nnz_per_row, max_value);
         const std::vector<unsigned int> vector_values = generate_vector(ncols, max_value);
         const unsigned int number_of_non_zero_values = csr_row_offsets[nrows];
         const unsigned int nnz = number_of_non_zero_values;
@@ -138,7 +138,7 @@ void run(int argc, char** argv)
             nnz_per_row[row] = csr_row_offsets[row + 1] - csr_row_offsets[row];
         }
 
-        std::cout << "Evaluating with NNZ per row in range [" << min_nnz_per_row << "; " << max_nnz_per_col << "], median NNZ per row=" << stats::median(nnz_per_row) << ", total NNZ=" << nnz << "..." << std::endl;
+        std::cout << "Evaluating with NNZ per row in range [" << min_nnz_per_row << "; " << max_nnz_per_row << "], median NNZ per row=" << stats::median(nnz_per_row) << ", total NNZ=" << nnz << "..." << std::endl;
 
         timer t;
         const std::vector<unsigned int> cpu_results = sparse_csr_matrix_vector_multiplication(csr_row_offsets, csr_columns, csr_values, vector_values, nrows, ncols);
@@ -168,7 +168,7 @@ void run(int argc, char** argv)
         for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
-            ocl_spvm.exec(workSize, csr_row_offsets_gpu, csr_columns_gpu,
+            ocl_spvm.exec(gpu::WorkSize(max_nnz_per_row, nrows * max_nnz_per_row), csr_row_offsets_gpu, csr_columns_gpu,
                 csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows);
 
             times.push_back(t.elapsed());
