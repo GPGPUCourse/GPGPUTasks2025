@@ -6,6 +6,7 @@
 
 #include "helpers/rassert.cu"
 #include "../defines.h"
+#include "helpers/indexes.cuh"
 
 __global__ void matrix_multiply_naive(
                        const float* a, // rows=h x cols=k
@@ -15,7 +16,15 @@ __global__ void matrix_multiply_naive(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+    int gx = global_index_axis_x();
+    int gy = global_index_axis_y();
+
+    float accumulated = 0;
+    for (int i = 0; i < k; i++) {
+        accumulated = accumulated + a[gy * k + i] * b[i * w + gx];
+    }
+
+    c[gy * w + gx] = accumulated;
 }
 
 namespace cuda {

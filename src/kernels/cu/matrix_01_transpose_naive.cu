@@ -6,6 +6,9 @@
 
 #include "helpers/rassert.cu"
 #include "../defines.h"
+#include "helpers/indexes.cuh"
+
+
 
 __global__ void matrix_transpose_naive(
                        const float* matrix,            // w x h
@@ -13,7 +16,11 @@ __global__ void matrix_transpose_naive(
                              unsigned int w,
                              unsigned int h)
 {
-    // TODO
+    int gx = global_index_axis_x();
+    int gy = global_index_axis_y();
+
+    float tmp = matrix[gy * w + gx];
+    transposed_matrix[gx * h + gy] = tmp;
 }
 
 namespace cuda {
