@@ -2,6 +2,7 @@
 
 #include <libgpu/vulkan/engine.h>
 
+#include "libgpu/opencl/engine.h"
 #include "shared_structs/camera_gpu_shared.h"
 #include "shared_structs/bvh_node_gpu_shared.h"
 
@@ -28,6 +29,15 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+
+const ProgramBinaries& getCalcCentroidsAABB();
+const ProgramBinaries& getCalcMorton();
+const ProgramBinaries& getCopyArray();
+const ProgramBinaries& getMaxReduction();
+const ProgramBinaries& getMergeSort();
+const ProgramBinaries& getMinReduction();
+const ProgramBinaries& getGetSortedMortonCodes();
+const ProgramBinaries& getBuildBVH();
 }
 
 namespace avk2 {

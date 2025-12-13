@@ -7,6 +7,7 @@
 #include <libgpu/vulkan/tests/test_utils.h>
 #include <libimages/debug_io.h>
 
+#include "CL/cl_platform.h"
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
 
@@ -14,9 +15,14 @@
 #include "io/scene_reader.h"
 
 #include "cpu_helpers/build_bvh_cpu.h"
+#include "kernels/shared_structs/morton_code_gpu_shared.h"
+#include "libgpu/opencl/engine.h"
+#include "libgpu/shared_device_buffer.h"
+#include "libgpu/work_size.h"
 
 #include <filesystem>
 #include <fstream>
+#include <sys/types.h>
 
 // Считает сколько непустых пикселей
 template <typename T>
@@ -54,6 +60,22 @@ size_t countDiffs(const TypedImage<T>& a, const TypedImage<T>& b, T threshold)
     return count;
 }
 
+void findMinMaxCoord(ocl::KernelSource& ocl_copy_array, ocl::KernelSource& ocl_minmax_reduction,
+    gpu::gpu_mem_32f& centroidsCoord,
+    gpu::gpu_mem_32f buff0, gpu::gpu_mem_32f buff1,
+    const unsigned int nfaces,
+    float* res)
+{
+    ocl_copy_array.exec(gpu::WorkSize(GROUP_SIZE, nfaces), centroidsCoord, buff0, nfaces);
+    uint sz = nfaces;
+    while (sz > 1) {
+        ocl_minmax_reduction.exec(gpu::WorkSize(GROUP_SIZE, sz), buff0, buff1, sz);
+        sz = (sz + GROUP_SIZE - 1) / GROUP_SIZE;
+        std::swap(buff0, buff1);
+    }
+    return buff0.readN(res, 1);
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -79,6 +101,14 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_calc_centroids_aabb(ocl::getCalcCentroidsAABB());
+    ocl::KernelSource ocl_calc_morton(ocl::getCalcMorton());
+    ocl::KernelSource ocl_copy_array(ocl::getCopyArray());
+    ocl::KernelSource ocl_max_reduction(ocl::getMaxReduction());
+    ocl::KernelSource ocl_merge_sort(ocl::getMergeSort());
+    ocl::KernelSource ocl_min_reduction(ocl::getMinReduction());
+    ocl::KernelSource ocl_get_sorted_morton_codes(ocl::getGetSortedMortonCodes());
+    ocl::KernelSource ocl_build_bvh(ocl::getBuildBVH());
 
     const std::string gnome_scene_path = "data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
@@ -255,12 +285,53 @@ void run(int argc, char** argv)
         bool gpu_lbvg_gpu_rt_done = false;
 
         if (gpu_lbvg_gpu_rt_done) {
+            gpu::gpu_mem_32u triIndexes(nfaces);
+            gpu::gpu_mem_32f centroidsX(nfaces), centroidsY(nfaces), centroidsZ(nfaces);
+            gpu::gpu_mem_32f aabbXMin(nfaces), aabbXMax(nfaces),
+                aabbYMin(nfaces), aabbYMax(nfaces),
+                aabbZMin(nfaces), aabbZMax(nfaces);
+
+            gpu::shared_device_buffer_typed<MortonCode> mortonCodes(nfaces);
+
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
                 // TODO постройте LBVH на GPU
-                
+                ocl_calc_centroids_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces), vertices_gpu, faces_gpu, nfaces,
+                    triIndexes,
+                    centroidsX, centroidsY, centroidsZ,
+                    aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax);
+                float cXMin, cXMax, cYMin, cYMax, cZMin, cZMax;
+                {
+                    gpu::gpu_mem_32f buff0(nfaces), buff1((nfaces + GROUP_SIZE - 1) / GROUP_SIZE);
+                    findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsX, buff0, buff1, nfaces, &cXMin);
+                    findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsX, buff0, buff1, nfaces, &cXMax);
+                    findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsY, buff0, buff1, nfaces, &cYMin);
+                    findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsY, buff0, buff1, nfaces, &cYMax);
+                    findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsZ, buff0, buff1, nfaces, &cZMin);
+                    findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsZ, buff0, buff1, nfaces, &cZMax);
+                }
+
+                ocl_calc_morton.exec(gpu::WorkSize(GROUP_SIZE, nfaces),
+                    centroidsX, centroidsY, centroidsZ,
+                    aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax,
+                    cXMin, cXMax, cYMin, cYMax, cZMin, cZMax,
+                    nfaces,
+                    mortonCodes);
+
+                {
+                    gpu::gpu_mem_32u triIndexesBuff(nfaces);
+                    for (int sortedK = 1; sortedK < nfaces; sortedK *= 2) {
+                        ocl_merge_sort.exec(gpu::WorkSize(GROUP_SIZE, nfaces), triIndexes, mortonCodes,
+                            triIndexesBuff, sortedK, nfaces);
+                        std::swap(triIndexes, triIndexesBuff);
+                    }
+                }
+                gpu::shared_device_buffer_typed<MortonCode> sortedCodes(nfaces);
+                ocl_get_sorted_morton_codes.exec(gpu::WorkSize(GROUP_SIZE, nfaces), triIndexes, mortonCodes, nfaces, sortedCodes);
+
+                gpu::shared_device_buffer<BVHNodeGPU> bvhNodes(nfaces * 2 - 1);
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
