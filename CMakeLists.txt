@@ -65,7 +65,7 @@ set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)
 foreach(CL_FILE IN LISTS OPENCL_SOURCES)
     compile_opencl(HEADERS ${CL_FILE} OPENCL_INCLUDES OPENCL_DEFINES)
-endforeach()
+endforeach() 
 
 # compile_vulkan CMake-функция объявлена в libs/gpu/libgpu/vulkan/CMakeLists.txt:97
 # Она считывает все байты из файла src/kernels/vk/aplusb.comp (т.е. весь исходный код кернела), компилирует с помощью glslc компилятора (в т.ч. выполняя все #include)
