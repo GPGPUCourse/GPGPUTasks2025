@@ -1,11 +1,11 @@
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
-#include <libbase/timer.h>
 #include <libbase/fast_random.h>
-#include <libimages/debug_io.h>
+#include <libbase/timer.h>
 #include <libgpu/vulkan/engine.h>
 #include <libgpu/vulkan/tests/test_utils.h>
+#include <libimages/debug_io.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
@@ -19,11 +19,12 @@
 #include <fstream>
 
 // Считает сколько непустых пикселей
-template<typename T>
-size_t countNonEmpty(const TypedImage<T> &image, T empty_value) {
+template <typename T>
+size_t countNonEmpty(const TypedImage<T>& image, T empty_value)
+{
     rassert(image.channels() == 1, 4523445132412, image.channels());
     size_t count = 0;
-    #pragma omp parallel for reduction(+:count)
+#pragma omp parallel for reduction(+ : count)
     for (ptrdiff_t j = 0; j < image.height(); ++j) {
         for (ptrdiff_t i = 0; i < image.width(); ++i) {
             if (image.ptr(j)[i] != empty_value) {
@@ -35,13 +36,14 @@ size_t countNonEmpty(const TypedImage<T> &image, T empty_value) {
 }
 
 // Считает сколько отличающихся пикселей (отличающихся > threshold)
-template<typename T>
-size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
+template <typename T>
+size_t countDiffs(const TypedImage<T>& a, const TypedImage<T>& b, T threshold)
+{
     rassert(a.channels() == 1, 5634532413241, a.channels());
     rassert(a.channels() == b.channels(), 562435231453243);
     rassert(a.width() == b.width() && a.height() == b.height(), 562435231453243);
     size_t count = 0;
-    #pragma omp parallel for reduction(+:count)
+#pragma omp parallel for reduction(+ : count)
     for (ptrdiff_t j = 0; j < a.height(); ++j) {
         for (ptrdiff_t i = 0; i < a.width(); ++i) {
             if (std::abs(a.ptr(j)[i] - b.ptr(j)[i]) > threshold) {
@@ -78,9 +80,6 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
 
-    avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
-    avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
-
     const std::string gnome_scene_path = "data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
         gnome_scene_path,
@@ -88,12 +87,12 @@ void run(int argc, char** argv)
         "data/san-miguel/san-miguel.obj",
     };
 
-    const int niters = 10; // при отладке удобно запускать одну итерацию
+    const int niters = 1; // при отладке удобно запускать одну итерацию
     std::vector<double> gpu_rt_perf_mrays_per_sec;
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
 
     std::cout << "Using " << AO_SAMPLES << " ray samples for ambient occlusion" << std::endl;
-    for (std::string scene_path: scenes) {
+    for (std::string scene_path : scenes) {
         std::cout << "____________________________________________________________________________________________" << std::endl;
         timer total_t;
         if (scene_path == gnome_scene_path) {
@@ -137,8 +136,8 @@ void run(int argc, char** argv)
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
         timer pcie_writing_t;
-        vertices_gpu.writeN((const float*) scene.vertices.data(), 3 * nvertices);
-        faces_gpu.writeN((const unsigned int*) scene.faces.data(), 3 * nfaces);
+        vertices_gpu.writeN((const float*)scene.vertices.data(), 3 * nvertices);
+        faces_gpu.writeN((const unsigned int*)scene.faces.data(), 3 * nfaces);
         camera_gpu.writeN(&camera, 1);
         double pcie_writing_time = pcie_writing_t.elapsed();
         double pcie_reading_time = 0.0;
@@ -157,28 +156,11 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    ocl_rt_brute_force.exec(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu.clmem(), nfaces);
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    cuda::ray_tracing_render_brute_force(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu, nfaces);
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    vk_rt_brute_force.exec(
-                        nfaces,
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu);
-                } else {
-                    rassert(false, 654724541234123);
-                }
+                ocl_rt_brute_force.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 brute_force_times.push_back(t.elapsed());
             }
@@ -230,33 +212,13 @@ void run(int argc, char** argv)
                 timer t;
 
                 // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    ocl_rt_with_lbvh.exec(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu.clmem(), nfaces);
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    cuda::ray_tracing_render_using_lbvh(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu, nfaces);
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    vk_rt_with_lbvh.exec(
-                        nfaces,
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu);
-                } else {
-                    rassert(false, 654724541234123);
-                }
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 rt_times_with_cpu_lbvh.push_back(t.elapsed());
             }
@@ -298,6 +260,7 @@ void run(int argc, char** argv)
                 timer t;
 
                 // TODO постройте LBVH на GPU
+                
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -382,7 +345,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
