@@ -498,6 +498,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         return;
     }
 
+
     vec3 col = res.yzw;
 
     vec3 surface_point = ray_origin + res.x * ray_direction;
