@@ -21,10 +21,6 @@ inline int match(__global const MortonCode* codes, const MortonCode a,
 // TODO try sorted AABB
 // TODO try arrays of structures
 __kernel void build_bvh(
-    __global const uint* triIndexes,
-    __global const float* aabbXMin, __global const float* aabbXMax,
-    __global const float* aabbYMin, __global const float* aabbYMax,
-    __global const float* aabbZMin, __global const float* aabbZMax,
     __global const MortonCode* sortedCodes,
     const uint nfaces,
     __global BVHNodeGPU* bvhNodes,
@@ -32,24 +28,10 @@ __kernel void build_bvh(
     __global uint* counters)
 {
     const int i = (int)get_global_id(0);
-    if (i >= nfaces * 2 - 1) {
-        return;
-    }
     if (i >= nfaces - 1) {
-        const uint triIdx = triIndexes[i + 1 - nfaces];
-        AABBGPU aabb;
-        aabb.min_x = aabbXMin[triIdx];
-        aabb.min_y = aabbYMin[triIdx];
-        aabb.min_z = aabbZMin[triIdx];
-        aabb.max_x = aabbXMax[triIdx];
-        aabb.max_y = aabbYMax[triIdx];
-        aabb.max_z = aabbZMax[triIdx];
-        bvhNodes[i].aabb = aabb;
-        bvhNodes[i].leftChildIndex = UINT_MAX;
-        bvhNodes[i].rightChildIndex = UINT_MAX;
         return;
     }
-
+    
     counters[i] = 0;
 
     int d = 1; // 1 - right, -1 - left

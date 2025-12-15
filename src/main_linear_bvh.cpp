@@ -360,11 +360,11 @@ void run(int argc, char** argv)
                     }
                 }
                 ocl_get_sorted_morton_codes.exec(gpu::WorkSize(GROUP_SIZE, nfaces),
-                    triIndexes, mortonCodes.clmem(), nfaces, sortedCodes.clmem());
-
-                ocl_build_bvh.exec(gpu::WorkSize(GROUP_SIZE, nfaces * 2 - 1),
-                    triIndexes,
+                    triIndexes, mortonCodes.clmem(), nfaces, sortedCodes.clmem(),
                     aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax,
+                    bvhNodes.clmem());
+
+                ocl_build_bvh.exec(gpu::WorkSize(GROUP_SIZE, nfaces - 1),
                     sortedCodes.clmem(),
                     nfaces,
                     bvhNodes.clmem(), parents, counters);
