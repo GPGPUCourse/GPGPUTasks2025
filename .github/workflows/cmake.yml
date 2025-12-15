@@ -28,9 +28,6 @@ jobs:
     - name: Show clinfo full output
       run: clinfo
 
-    - name: Install CUDA SDK
-      run: sudo bash scripts/linux/install_cuda_sdk.sh;
-
     - name: Install Vulkan SDK
       run: sudo bash scripts/linux/install_vulkan_sdk.sh --no-validation-layers; # we don't compile validation layers on each CI run because it is too slow
 
