@@ -36,7 +36,7 @@ merge_sort(
         int md = (r + l) / 2;
         MortonCode otherVal;
         if (md < n) {
-            otherVal = mortonCodes[input_data[md]];
+            otherVal = mortonCodes[triIndexes[md]];
         } else {
             otherVal = UINT_MAX;
         }
@@ -47,5 +47,5 @@ merge_sort(
         }
     }
 
-    output_data[r - beg[1 - isB] + i % sorted_k + beg[0]] = triIdx;
+    outputTriIndexes[r - beg[1 - isB] + i % sorted_k + beg[0]] = triIdx;
 }

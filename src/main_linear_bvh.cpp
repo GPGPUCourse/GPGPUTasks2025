@@ -1,3 +1,5 @@
+#include <cfloat>
+#include <cstdint>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -15,6 +17,8 @@
 #include "io/scene_reader.h"
 
 #include "cpu_helpers/build_bvh_cpu.h"
+#include "kernels/shared_structs/aabb_gpu_shared.h"
+#include "kernels/shared_structs/bvh_node_gpu_shared.h"
 #include "kernels/shared_structs/morton_code_gpu_shared.h"
 #include "libgpu/opencl/engine.h"
 #include "libgpu/shared_device_buffer.h"
@@ -76,6 +80,26 @@ void findMinMaxCoord(ocl::KernelSource& ocl_copy_array, ocl::KernelSource& ocl_m
     return buff0.readN(res, 1);
 }
 
+void checkBVH(const std::vector<BVHNodeGPU>& nodes, const uint nfaces, const std::vector<uint>& sortedMortonCodes, const uint cur = 0)
+{
+    if (cur >= nfaces - 1) {
+        return;
+    }
+    const uint leftChild = nodes[cur].leftChildIndex;
+    const uint rightChild = nodes[cur].rightChildIndex;
+    const AABBGPU leftAABB = nodes[leftChild].aabb;
+    const AABBGPU rightAABB = nodes[rightChild].aabb;
+
+    rassert(std::abs(nodes[cur].aabb.min_x - std::min(leftAABB.min_x, rightAABB.min_x)) < 1e-7, 1, nodes[cur].aabb.min_x, leftAABB.min_x, rightAABB.min_x);
+    rassert(std::abs(nodes[cur].aabb.min_y - std::min(leftAABB.min_y, rightAABB.min_y)) < 1e-7, 2, nodes[cur].aabb.min_y, leftAABB.min_y, rightAABB.min_y);
+    rassert(std::abs(nodes[cur].aabb.min_z - std::min(leftAABB.min_z, rightAABB.min_z)) < 1e-7, 3, nodes[cur].aabb.min_z, leftAABB.min_z, rightAABB.min_z);
+    rassert(std::abs(nodes[cur].aabb.max_x - std::max(leftAABB.max_x, rightAABB.max_x)) < 1e-7, 4, nodes[cur].aabb.max_x, leftAABB.max_x, rightAABB.max_x);
+    rassert(std::abs(nodes[cur].aabb.max_y - std::max(leftAABB.max_y, rightAABB.max_y)) < 1e-7, 5, nodes[cur].aabb.max_y, leftAABB.max_y, rightAABB.max_y);
+    rassert(std::abs(nodes[cur].aabb.max_z - std::max(leftAABB.max_z, rightAABB.max_z)) < 1e-7, 6, nodes[cur].aabb.max_z, leftAABB.max_z, rightAABB.max_z);
+    checkBVH(nodes, nfaces, sortedMortonCodes, leftChild);
+    checkBVH(nodes, nfaces, sortedMortonCodes, rightChild);
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -109,6 +133,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_min_reduction(ocl::getMinReduction());
     ocl::KernelSource ocl_get_sorted_morton_codes(ocl::getGetSortedMortonCodes());
     ocl::KernelSource ocl_build_bvh(ocl::getBuildBVH());
+    ocl::KernelSource ocl_calc_bvh_aabb(ocl::getCalcBvhAABB());
 
     const std::string gnome_scene_path = "data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
@@ -117,7 +142,7 @@ void run(int argc, char** argv)
         "data/san-miguel/san-miguel.obj",
     };
 
-    const int niters = 1; // при отладке удобно запускать одну итерацию
+    const int niters = 10; // при отладке удобно запускать одну итерацию
     std::vector<double> gpu_rt_perf_mrays_per_sec;
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
 
@@ -136,6 +161,7 @@ void run(int argc, char** argv)
         std::cout << "Loading scene " << scene_path << "..." << std::endl;
         timer loading_scene_t;
         SceneGeometry scene = loadScene(scene_path);
+        // scene.faces.resize(10000);
         // если на каком-то датасете падает - удобно взять подможество треугольников - например просто вызовите scene.faces.resize(10000);
         const unsigned int nvertices = scene.vertices.size();
         const unsigned int nfaces = scene.faces.size();
@@ -241,8 +267,6 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-
                 ocl_rt_with_lbvh.exec(
                     gpu::WorkSize(16, 16, width, height),
                     vertices_gpu, faces_gpu,
@@ -282,7 +306,7 @@ void run(int argc, char** argv)
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
             gpu::gpu_mem_32u triIndexes(nfaces);
@@ -291,13 +315,20 @@ void run(int argc, char** argv)
                 aabbYMin(nfaces), aabbYMax(nfaces),
                 aabbZMin(nfaces), aabbZMax(nfaces);
 
+            gpu::shared_device_buffer_typed<BVHNodeGPU> bvhNodes(nfaces * 2 - 1);
             gpu::shared_device_buffer_typed<MortonCode> mortonCodes(nfaces);
+
+            gpu::gpu_mem_32u triIndexesBuff(nfaces);
+
+            gpu::shared_device_buffer_typed<MortonCode> sortedCodes(nfaces);
+
+            gpu::gpu_mem_32u parents(nfaces * 2 - 1);
+            gpu::gpu_mem_32u counters(nfaces - 1);
 
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
                 ocl_calc_centroids_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces), vertices_gpu, faces_gpu, nfaces,
                     triIndexes,
                     centroidsX, centroidsY, centroidsZ,
@@ -318,20 +349,30 @@ void run(int argc, char** argv)
                     aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax,
                     cXMin, cXMax, cYMin, cYMax, cZMin, cZMax,
                     nfaces,
-                    mortonCodes);
+                    mortonCodes.clmem());
 
-                {
-                    gpu::gpu_mem_32u triIndexesBuff(nfaces);
+                { // merge sort сортирует по коду Мортона, так что triIndex могут не совпадать с CPU реализацией
+
                     for (int sortedK = 1; sortedK < nfaces; sortedK *= 2) {
-                        ocl_merge_sort.exec(gpu::WorkSize(GROUP_SIZE, nfaces), triIndexes, mortonCodes,
+                        ocl_merge_sort.exec(gpu::WorkSize(GROUP_SIZE, nfaces), triIndexes, mortonCodes.clmem(),
                             triIndexesBuff, sortedK, nfaces);
                         std::swap(triIndexes, triIndexesBuff);
                     }
                 }
-                gpu::shared_device_buffer_typed<MortonCode> sortedCodes(nfaces);
-                ocl_get_sorted_morton_codes.exec(gpu::WorkSize(GROUP_SIZE, nfaces), triIndexes, mortonCodes, nfaces, sortedCodes);
+                ocl_get_sorted_morton_codes.exec(gpu::WorkSize(GROUP_SIZE, nfaces),
+                    triIndexes, mortonCodes.clmem(), nfaces, sortedCodes.clmem());
 
-                gpu::shared_device_buffer<BVHNodeGPU> bvhNodes(nfaces * 2 - 1);
+                ocl_build_bvh.exec(gpu::WorkSize(GROUP_SIZE, nfaces * 2 - 1),
+                    triIndexes,
+                    aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax,
+                    sortedCodes.clmem(),
+                    nfaces,
+                    bvhNodes.clmem(), parents, counters);
+
+                ocl_calc_bvh_aabb.exec(gpu::WorkSize(GROUP_SIZE, nfaces), triIndexes,
+                    aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax,
+                    parents,
+                    counters, bvhNodes.clmem(), nfaces);
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -350,7 +391,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    bvhNodes.clmem(), triIndexes.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }

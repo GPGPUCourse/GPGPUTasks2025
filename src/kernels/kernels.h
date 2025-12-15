@@ -38,6 +38,7 @@ const ProgramBinaries& getMergeSort();
 const ProgramBinaries& getMinReduction();
 const ProgramBinaries& getGetSortedMortonCodes();
 const ProgramBinaries& getBuildBVH();
+const ProgramBinaries& getCalcBvhAABB();
 }
 
 namespace avk2 {

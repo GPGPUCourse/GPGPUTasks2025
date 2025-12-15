@@ -2,6 +2,7 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/build_bvh.h"
+#include "cl/generated_kernels/calc_bvh_aabb.h"
 #include "cl/generated_kernels/calc_centroids_aabb.h"
 #include "cl/generated_kernels/calc_morton.h"
 #include "cl/generated_kernels/copy_array.h"
@@ -95,6 +96,10 @@ const ProgramBinaries& getGetSortedMortonCodes()
 const ProgramBinaries& getBuildBVH()
 {
     return opencl_binaries_build_bvh;
+}
+const ProgramBinaries& getCalcBvhAABB()
+{
+    return opencl_binaries_calc_bvh_aabb;
 }
 } // namespace ocl
 

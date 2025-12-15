@@ -16,7 +16,7 @@
 
 inline float3 calcCentroid(const float3 v0, const float3 v1, const float3 v2)
 {
-    return (float3)((v0.x + v1.x + v2.x) / 3.0f, (v0.y + v1.y + v2.y) / 3.0f, (v0.z + v1.z + v2.z) / 3.0f);
+    return (float3)((v0.x + v1.x + v2.x) * (1.0f / 3.0f), (v0.y + v1.y + v2.y) * (1.0f / 3.0f), (v0.z + v1.z + v2.z) * (1.0f / 3.0f));
 }
 
 __kernel void calc_centroids_aabb(

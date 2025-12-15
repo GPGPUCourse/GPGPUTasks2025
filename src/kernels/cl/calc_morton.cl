@@ -56,9 +56,9 @@ __kernel void calc_morton(
         return;
     }
     const float eps = 1e-9f;
-    const float dx = fmax(cXMax - cXMin, eps);
-    const float dy = fmax(cYMax - cYMin, eps);
-    const float dz = fmax(cZMax - cZMin, eps);
+    const float dx = max(cXMax - cXMin, eps);
+    const float dy = max(cYMax - cYMin, eps);
+    const float dz = max(cZMax - cZMin, eps);
 
     const float3 c = (float3)(centroidsX[i], centroidsY[i], centroidsZ[i]);
 
@@ -67,9 +67,9 @@ __kernel void calc_morton(
     float nz = (c.z - cZMin) / dz;
 
     // Clamp to [0,1]
-    nx = fmin(fmax(nx, 0.0f), 1.0f);
-    ny = fmin(fmax(ny, 0.0f), 1.0f);
-    nz = fmin(fmax(nz, 0.0f), 1.0f);
+    nx = min(max(nx, 0.0f), 1.0f);
+    ny = min(max(ny, 0.0f), 1.0f);
+    nz = min(max(nz, 0.0f), 1.0f);
 
     codes[i] = morton3D(nx, ny, nz);
 }
