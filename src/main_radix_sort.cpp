@@ -13,8 +13,6 @@
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
 #include "libgpu/work_size.h"
 
-#include <fstream>
-
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:

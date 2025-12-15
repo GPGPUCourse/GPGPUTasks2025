@@ -6,7 +6,7 @@
 
 #include "helpers/rassert.cu"
 #include "../defines.h"
-#include <stdio.h>
+// #include <stdio.h>
 
 __global__ void prefix_sum_01_sum_reduction(
     const unsigned int* pow2_sum, // contains n values

@@ -6,7 +6,7 @@
 
 #include "helpers/rassert.cu"
 #include "../defines.h"
-#include <stdio.h>
+// #include <stdio.h>
 
 __global__ void radix_sort_01_local_counting0(
     const unsigned int* input,
