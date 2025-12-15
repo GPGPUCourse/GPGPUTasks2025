@@ -30,7 +30,7 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     const unsigned int transposed_x = group_y * GROUP_SIZE_Y + local_x;
-    const unsigned int transposed_y = group_x * GROUP_SIZE_X + local_y;)
+    const unsigned int transposed_y = group_x * GROUP_SIZE_X + local_y;
 
     if (transposed_x < h && transposed_y < w) {
         transposed_matrix[transposed_y * h + transposed_x] = tile[local_x][local_y];
