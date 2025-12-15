@@ -4,8 +4,6 @@
 
 #include <libbase/timer.h>
 #include <libbase/fast_random.h>
-#include <libgpu/vulkan/engine.h>
-#include <libgpu/vulkan/tests/test_utils.h>
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
@@ -35,18 +33,6 @@ void run(int argc, char** argv)
     //          если же вас это не останавливает - профилировщик (nsight-systems) при запуске на NVIDIA тоже работает (хоть и менее мощный чем nsight-compute)
     //          кроме того есть debugPrintfEXT(...) для вывода в консоль с видеокарты
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
-
-    ocl::KernelSource ocl_fillBufferWithZeros(ocl::getFillBufferWithZeros());
-    ocl::KernelSource ocl_radixSort01LocalCounting(ocl::getRadixSort01LocalCounting());
-    ocl::KernelSource ocl_radixSort02GlobalPrefixesScanSumReduction(ocl::getRadixSort02GlobalPrefixesScanSumReduction());
-    ocl::KernelSource ocl_radixSort03GlobalPrefixesScanAccumulation(ocl::getRadixSort03GlobalPrefixesScanAccumulation());
-    ocl::KernelSource ocl_radixSort04Scatter(ocl::getRadixSort04Scatter());
-
-    avk2::KernelSource vk_fillBufferWithZeros(avk2::getFillBufferWithZeros());
-    avk2::KernelSource vk_radixSort01LocalCounting(avk2::getRadixSort01LocalCounting());
-    avk2::KernelSource vk_radixSort02GlobalPrefixesScanSumReduction(avk2::getRadixSort02GlobalPrefixesScanSumReduction());
-    avk2::KernelSource vk_radixSort03GlobalPrefixesScanAccumulation(avk2::getRadixSort03GlobalPrefixesScanAccumulation());
-    avk2::KernelSource vk_radixSort04Scatter(avk2::getRadixSort04Scatter());
 
     FastRandom r;
 
