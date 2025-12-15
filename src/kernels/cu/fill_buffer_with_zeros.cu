@@ -12,8 +12,9 @@ __global__ void fill_buffer_with_zeros(
     unsigned int n)
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n)
+    if (i < n) {
         buffer[i] = 0;
+    }
 }
 
 namespace cuda {
