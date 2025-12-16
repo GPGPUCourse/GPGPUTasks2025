@@ -141,7 +141,7 @@ void run(int argc, char** argv)
         "data/powerplant/powerplant.obj",
         "data/san-miguel/san-miguel.obj",
     };
-
+ 
     const int niters = 10; // при отладке удобно запускать одну итерацию
     std::vector<double> gpu_rt_perf_mrays_per_sec;
     std::vector<double> gpu_lbvh_perfs_mtris_per_sec;
