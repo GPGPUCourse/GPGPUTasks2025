@@ -1,6 +1,6 @@
 #include "../../defines.h"
 
-#if RASSERT_ENABLED
+#if 1
     #define rassert(condition, error_code)					                    \
             do {									            \
                     if (!(condition)) {						                    \

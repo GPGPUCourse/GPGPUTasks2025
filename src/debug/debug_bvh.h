@@ -8,7 +8,7 @@
 #include <fstream>
 #include <limits>
 
-#include "scene_reader.h"
+// #include "scene_reader.h"
 #include "../kernels/shared_structs/bvh_node_gpu_shared.h"
 
 namespace debug {
