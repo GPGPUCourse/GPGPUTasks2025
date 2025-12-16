@@ -66,7 +66,7 @@ size_t countDiffs(const TypedImage<T>& a, const TypedImage<T>& b, T threshold)
 
 void findMinMaxCoord(ocl::KernelSource& ocl_copy_array, ocl::KernelSource& ocl_minmax_reduction,
     gpu::gpu_mem_32f& centroidsCoord,
-    gpu::gpu_mem_32f buff0, gpu::gpu_mem_32f buff1,
+    gpu::gpu_mem_32f& buff0, gpu::gpu_mem_32f& buff1,
     const unsigned int nfaces,
     float* res)
 {
@@ -315,6 +315,8 @@ void run(int argc, char** argv)
                 aabbYMin(nfaces), aabbYMax(nfaces),
                 aabbZMin(nfaces), aabbZMax(nfaces);
 
+            gpu::gpu_mem_32f buff0(nfaces), buff1(nfaces);
+
             gpu::shared_device_buffer_typed<BVHNodeGPU> bvhNodes(nfaces * 2 - 1);
             gpu::shared_device_buffer_typed<MortonCode> mortonCodes(nfaces);
 
@@ -334,15 +336,13 @@ void run(int argc, char** argv)
                     centroidsX, centroidsY, centroidsZ,
                     aabbXMin, aabbXMax, aabbYMin, aabbYMax, aabbZMin, aabbZMax);
                 float cXMin, cXMax, cYMin, cYMax, cZMin, cZMax;
-                {
-                    gpu::gpu_mem_32f buff0(nfaces), buff1((nfaces + GROUP_SIZE - 1) / GROUP_SIZE);
-                    findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsX, buff0, buff1, nfaces, &cXMin);
-                    findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsX, buff0, buff1, nfaces, &cXMax);
-                    findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsY, buff0, buff1, nfaces, &cYMin);
-                    findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsY, buff0, buff1, nfaces, &cYMax);
-                    findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsZ, buff0, buff1, nfaces, &cZMin);
-                    findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsZ, buff0, buff1, nfaces, &cZMax);
-                }
+
+                findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsX, buff0, buff1, nfaces, &cXMin);
+                findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsX, buff0, buff1, nfaces, &cXMax);
+                findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsY, buff0, buff1, nfaces, &cYMin);
+                findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsY, buff0, buff1, nfaces, &cYMax);
+                findMinMaxCoord(ocl_copy_array, ocl_min_reduction, centroidsZ, buff0, buff1, nfaces, &cZMin);
+                findMinMaxCoord(ocl_copy_array, ocl_max_reduction, centroidsZ, buff0, buff1, nfaces, &cZMax);
 
                 ocl_calc_morton.exec(gpu::WorkSize(GROUP_SIZE, nfaces),
                     centroidsX, centroidsY, centroidsZ,
