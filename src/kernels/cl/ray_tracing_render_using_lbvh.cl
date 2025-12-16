@@ -31,9 +31,54 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[32];
+    int stackPtr = 0;
 
-    return false;
+    int nodeIdx = rootIndex;
+
+    bool found = false;
+
+    while (nodeIdx != -1 || stackPtr > 0) {
+        if (nodeIdx == -1) {
+            nodeIdx = stack[--stackPtr];
+        }
+
+        __global const BVHNodeGPU* node = &nodes[nodeIdx];
+
+        float tNear = 0.0f;
+        float tFar = FLT_MAX;
+
+        bool hitBox = intersect_ray_aabb(orig, dir, node->aabb, tMin, *outT, &tNear, &tFar);
+
+        if (!hitBox) {
+            nodeIdx = -1;
+            continue;
+        }
+
+        if (nodeIdx >= leafStart) {
+            int triIdx = leafTriIndices[nodeIdx - leafStart];
+
+            uint3 f = loadFace(faces, triIdx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, *outT, false, &t, &u, &v)) {
+                *outT = t;
+                *outU = u;
+                *outV = v;
+                *outFaceId = triIdx;
+                found = true;
+            }
+            nodeIdx = -1;
+        } else {
+            stack[stackPtr++] = (int)node->rightChildIndex;
+            nodeIdx = (int)node->leftChildIndex;
+        }
+    }
+
+    return found;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -50,7 +95,49 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[32];
+    int stackPtr = 0;
+
+    int nodeIdx = rootIndex;
+
+    float tMin = 1e-3f;
+
+    while (nodeIdx != -1 || stackPtr > 0) {
+        if (nodeIdx == -1) {
+            nodeIdx = stack[--stackPtr];
+        }
+
+        __global const BVHNodeGPU* node = &nodes[nodeIdx];
+
+        float tNear = 0.0f;
+        float tFar = FLT_MAX;
+
+        bool hitBox = intersect_ray_aabb(orig, dir, node->aabb, tMin, FLT_MAX, &tNear, &tFar);
+
+        if (!hitBox) {
+            nodeIdx = -1;
+            continue;
+        }
+
+        if (nodeIdx >= leafStart) {
+            int triIdx = leafTriIndices[nodeIdx - leafStart];
+            if (triIdx != ignore_face) {
+                uint3 f = loadFace(faces, triIdx);
+                float3 v0 = loadVertex(vertices, f.x);
+                float3 v1 = loadVertex(vertices, f.y);
+                float3 v2 = loadVertex(vertices, f.z);
+
+                float t, u, v;
+                if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, FLT_MAX, false, &t, &u, &v)) {
+                    return true;
+                }
+            }
+            nodeIdx = -1;
+        } else {
+            stack[stackPtr++] = (int)node->rightChildIndex;
+            nodeIdx = (int)node->leftChildIndex;
+        }
+    }
 
     return false;
 }
