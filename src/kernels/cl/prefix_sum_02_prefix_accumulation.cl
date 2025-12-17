@@ -16,9 +16,11 @@ __kernel void prefix_sum_02_prefix_accumulation(
 {
     unsigned int i = get_global_id(0);
 
-    unsigned int orig_i = (i + 1) / pow2 - 1;
+    if (i < n) {
+        unsigned int orig_i = (i + 1) / pow2 - 1;
 
-    if (!(orig_i & 1)) {
-        prefix_sum_accum[i] += pow2_sum[orig_i];
-    } 
+        if (!(orig_i & 1)) {
+            prefix_sum_accum[i] += pow2_sum[orig_i];
+        } 
+    }
 }
