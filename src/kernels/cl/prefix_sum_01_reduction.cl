@@ -16,7 +16,9 @@ __kernel void prefix_sum_01_reduction(
     unsigned int i = get_global_id(0);
 
     if (i < n) {
-        next_pow2_sum[i] = pow2_sum[i * 2];
+        if (i * 2 < n) {
+            next_pow2_sum[i] = pow2_sum[i * 2];
+        }
         if (i * 2 + 1 < n) {
             next_pow2_sum[i] += pow2_sum[i * 2 + 1];
         }
