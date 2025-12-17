@@ -55,13 +55,14 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
-        gpu::gpu_mem_32u* buf1_ptr = std::addressof(buffer1_pow2_sum_gpu);
-        gpu::gpu_mem_32u* buf2_ptr = std::addressof(buffer2_pow2_sum_gpu);
 
         if (context.type() == gpu::Context::TypeOpenCL) {
-            (*buf1_ptr).writeN(as.data(), n);
-            (*buf2_ptr).fill(0);
-            prefix_sum_accum_gpu.writeN(as.data(), n);
+            input_gpu.copyToN(buffer1_pow2_sum_gpu, n);
+            buffer2_pow2_sum_gpu.fill(0);
+            input_gpu.copyToN(prefix_sum_accum_gpu, n);
+            
+            gpu::gpu_mem_32u* buf1_ptr = std::addressof(buffer1_pow2_sum_gpu);
+            gpu::gpu_mem_32u* buf2_ptr = std::addressof(buffer2_pow2_sum_gpu);
             ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1), *buf1_ptr, prefix_sum_accum_gpu, n, 0);
 
             for (unsigned int k = 0; k < floor(log2(n)); k++) {
