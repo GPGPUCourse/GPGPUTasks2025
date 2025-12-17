@@ -41,7 +41,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -64,11 +64,52 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            buffer1_pow2_sum_gpu.writeN(as.data(), n);
+            buffer2_pow2_sum_gpu.fill(0);
+            prefix_sum_accum_gpu.writeN(as.data(), n);
+
+            // for (auto&& i : buffer1_pow2_sum_gpu.readVector()) {
+            //     std::cout << i << " ";
+            // }
+            // std::cout << "\n";
+            // for (auto&& i : buffer2_pow2_sum_gpu.readVector()) {
+            //     std::cout << i << " ";
+            // }
+            // std::cout << "\n";
+            // for (auto&& i : prefix_sum_accum_gpu.readVector()) {
+            //     std::cout << i << " ";
+            // }
+            // std::cout << "\n";
+
+            ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1), buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, 0);
+            // std::cout << "acc [";
+            // for (auto&& i : prefix_sum_accum_gpu.readVector()) {
+            //     std::cout << i << ", ";
+            // }
+            // std::cout << "]\n";
+
+            for (unsigned int k = 0; k < floor(log2(n)); k++) {
+                unsigned int reduction_size = n / (1 << (k + 1));
+
+                ocl_sum_reduction.exec(gpu::WorkSize(GROUP_SIZE, 1, reduction_size, 1), buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, reduction_size);
+                // std::cout << "reduce [";
+                // for (auto&& i : buffer2_pow2_sum_gpu.readVector()) {
+                //     if (reduction_size-- == 0) {
+                //         break;
+                //     }
+                //     std::cout << i << ", ";
+                // }
+                // std::cout << "]\n";
+
+                    ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1), buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, k + 1);
+                // std::cout << "acc [";
+                // for (auto&& i : prefix_sum_accum_gpu.readVector()) {
+                //     std::cout << i << ", ";
+                // }
+                // std::cout << "]\n";
+
+                std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -97,6 +138,12 @@ void run(int argc, char** argv)
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
 
     // Сверяем результат
+    // std::cout << "====\n";
+    // for (auto&& i : gpu_prefix_sum) {
+    //     std::cout << i << " ";
+    // }
+    // std::cout << "\n";
+
     size_t cpu_sum = 0;
     for (size_t i = 0; i < n; ++i) {
         cpu_sum += as[i];
@@ -119,7 +166,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
