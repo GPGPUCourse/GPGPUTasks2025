@@ -11,11 +11,10 @@
 
 #include <fstream>
 
-std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<unsigned int>> generate_csr_matrix(
+std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<unsigned int> > generate_csr_matrix(
     unsigned int nrows, unsigned int ncols,
     unsigned int min_non_zero_values_per_row, unsigned int max_non_zero_values_per_row,
-    unsigned int max_value)
-{
+    unsigned int max_value) {
     std::vector<unsigned int> csr_row_offsets(nrows + 1, 0);
     for (unsigned int row = 0; row < nrows; ++row) {
         FastRandom r(239 * row);
@@ -27,7 +26,7 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
     std::vector<unsigned int> csr_columns(number_of_non_zero_values, 0);
     std::vector<unsigned int> csr_values(number_of_non_zero_values, 0);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int row = 0; row < nrows; ++row) {
         FastRandom r(239 * row);
         unsigned int non_zero_row_values = csr_row_offsets[row + 1] - csr_row_offsets[row];
@@ -44,8 +43,7 @@ std::tuple<std::vector<unsigned int>, std::vector<unsigned int>, std::vector<uns
 }
 
 std::vector<unsigned int> generate_vector(
-    unsigned int n, unsigned int max_value=10000)
-{
+    unsigned int n, unsigned int max_value = 10000) {
     FastRandom r(2391);
 
     std::vector<unsigned int> data(n, 0);
@@ -57,13 +55,13 @@ std::vector<unsigned int> generate_vector(
 }
 
 std::vector<unsigned int> sparse_csr_matrix_vector_multiplication(
-    const std::vector<unsigned int> &csr_row_offsets, const std::vector<unsigned int> &csr_columns, const std::vector<unsigned int> &csr_values,
+    const std::vector<unsigned int> &csr_row_offsets, const std::vector<unsigned int> &csr_columns,
+    const std::vector<unsigned int> &csr_values,
     const std::vector<unsigned int> &vector_values,
-    unsigned int nrows, unsigned int ncols)
-{
+    unsigned int nrows, unsigned int ncols) {
     std::vector<unsigned int> result_vector_values(nrows, 0);
 
-    #pragma omp parallel for schedule(dynamic, 128)
+#pragma omp parallel for schedule(dynamic, 128)
     for (int row = 0; row < nrows; ++row) {
         size_t accumulator = 0;
         unsigned int row_from = csr_row_offsets[row];
@@ -78,8 +76,7 @@ std::vector<unsigned int> sparse_csr_matrix_vector_multiplication(
     return result_vector_values;
 }
 
-void run(int argc, char** argv)
-{
+void run(int argc, char **argv) {
     // chooseGPUVkDevices:
     // - Если не доступо ни одного устройства - кинет ошибку
     // - Если доступно ровно одно устройство - вернет это устройство
@@ -93,7 +90,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -107,12 +104,14 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    const unsigned int nrows = 1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    const unsigned int ncols = 1000*1000;
+    const unsigned int nrows = 1000 * 1000;
+    // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    const unsigned int ncols = 1000 * 1000;
     const unsigned int max_value = 1000;
-    std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " << max_value << "]" << std::endl;
+    std::cout << "Evaluating CSR matrix nrows x ncols=" << nrows << "x" << ncols << " with values in range [0; " <<
+            max_value << "]" << std::endl;
 
-    std::vector<std::pair<unsigned int, unsigned int>> evaluated_min_max_nnz_per_row = {
+    std::vector<std::pair<unsigned int, unsigned int> > evaluated_min_max_nnz_per_row = {
         {32, 32},
         {128, 128},
         {1, 32},
@@ -120,8 +119,10 @@ void run(int argc, char** argv)
         {32, 128},
     };
     for (auto [min_nnz_per_row, max_nnz_per_col]: evaluated_min_max_nnz_per_row) {
-        std::cout << "____________________________________________________________________________________________" << std::endl;
-        const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(nrows, ncols, min_nnz_per_row, max_nnz_per_col, max_value);
+        std::cout << "____________________________________________________________________________________________" <<
+                std::endl;
+        const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(
+            nrows, ncols, min_nnz_per_row, max_nnz_per_col, max_value);
         const std::vector<unsigned int> vector_values = generate_vector(ncols, max_value);
         const unsigned int number_of_non_zero_values = csr_row_offsets[nrows];
         const unsigned int nnz = number_of_non_zero_values;
@@ -131,18 +132,23 @@ void run(int argc, char** argv)
             nnz_per_row[row] = csr_row_offsets[row + 1] - csr_row_offsets[row];
         }
 
-        std::cout << "Evaluating with NNZ per row in range [" << min_nnz_per_row << "; " << max_nnz_per_col << "], median NNZ per row=" << stats::median(nnz_per_row) << ", total NNZ=" << nnz << "..." << std::endl;
+        std::cout << "Evaluating with NNZ per row in range [" << min_nnz_per_row << "; " << max_nnz_per_col <<
+                "], median NNZ per row=" << stats::median(nnz_per_row) << ", total NNZ=" << nnz << "..." << std::endl;
 
         timer t;
-        const std::vector<unsigned int> cpu_results = sparse_csr_matrix_vector_multiplication(csr_row_offsets, csr_columns, csr_values, vector_values, nrows, ncols);
+        const std::vector<unsigned int> cpu_results = sparse_csr_matrix_vector_multiplication(
+            csr_row_offsets, csr_columns, csr_values, vector_values, nrows, ncols);
         // Вычисляем достигнутую эффективную пропускную способность видеопамяти
         // (из соображений что мы отработали идеально - считали один раз каждое ненулевое число из матрицы + из вектора + записали результаты)
-        double memory_size_gb = sizeof(unsigned int) * (nnz + vector_values.size() + cpu_results.size()) / 1024.0 / 1024.0 / 1024.0;
+        double memory_size_gb = sizeof(unsigned int) * (nnz + vector_values.size() + cpu_results.size()) / 1024.0 /
+                                1024.0 / 1024.0;
         std::cout << "CPU (multi-threaded via OpenMP) finished in " << t.elapsed() << " sec" << std::endl;
-        std::cout << "CPU effective bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << nnz / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
+        std::cout << "CPU effective bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << nnz / 1000 / 1000 / t.
+                elapsed() << " uint millions/s)" << std::endl;
 
         // Аллоцируем буферы в VRAM
-        gpu::gpu_mem_32u csr_row_offsets_gpu(nrows + 1), csr_columns_gpu(nnz), csr_values_gpu(nnz), vector_values_gpu(ncols), output_vector_values_gpu(nrows);
+        gpu::gpu_mem_32u csr_row_offsets_gpu(nrows + 1), csr_columns_gpu(nnz), csr_values_gpu(nnz),
+                vector_values_gpu(ncols), output_vector_values_gpu(nrows);
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
         csr_row_offsets_gpu.writeN(csr_row_offsets.data(), csr_row_offsets.size());
@@ -157,31 +163,32 @@ void run(int argc, char** argv)
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
-        for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+        for (int iter = 0; iter < 10; ++iter) {
+            // TODO при отладке запускайте одну итерацию
             t.restart();
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeCUDA) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeVulkan) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else {
-                rassert(false, 4531412341, context.type());
-            }
+            cuda::sparse_csr_matrix_vector_multiplication(
+                gpu::WorkSize{GROUP_SIZE, nnz * GROUP_SIZE},
+                csr_row_offsets_gpu,
+                csr_columns_gpu,
+                csr_values_gpu,
+                vector_values_gpu,
+                output_vector_values_gpu,
+                nrows
+            );
+
 
             times.push_back(t.elapsed());
         }
 
-        std::cout << "GPU SpMV (sparse matrix-vector multiplication) times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
+        std::cout << "GPU SpMV (sparse matrix-vector multiplication) times (in seconds) - " <<
+                stats::valuesStatsLine(times) << std::endl;
 
         // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
-        std::cout << "GPU SpMV median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << nnz / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
+        std::cout << "GPU SpMV median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s ("
+                << nnz / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
         // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
         std::vector<unsigned int> gpu_results = output_vector_values_gpu.readVector();
@@ -195,16 +202,16 @@ void run(int argc, char** argv)
     }
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
     try {
         run(argc, argv);
-    } catch (std::exception& e) {
+    } catch (std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
