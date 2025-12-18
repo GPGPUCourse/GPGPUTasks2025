@@ -54,7 +54,7 @@ __global__ void GPUMerge(u32* in_buf, u32* out_buf, u32 n, u32 new_chunk_size) {
         u32 mid = l + ((r - l) >> 1);
         u32 mid_value = in_buf[mid];
 
-        bool go_right = is_left_half ? (mid_value < curr_value) : (mid_value <= curr_value);
+        bool go_right = is_left_half * (mid_value < curr_value) + !is_left_half * (mid_value <= curr_value);
         l = go_right * (mid+1) + !go_right * (l);
         r = go_right * (r) + !go_right * (mid);
     }
@@ -74,7 +74,7 @@ void MergeSort(gpu::gpu_mem_32u& b1, gpu::gpu_mem_32u& b2, int n) {
     cudaStream_t stream = context.cudaStream();
     gpu::WorkSize ws(GROUP_SIZE, n);
     bool invert = false;
-    for (std::size_t new_chunk_size = 2; (new_chunk_size / 2) < n; new_chunk_size <<= 1) {
+    for (std::size_t new_chunk_size = 2; (new_chunk_size >> 1) < n; new_chunk_size <<= 1) {
         ::GPUMerge<<<ws.cuGridSize(), ws.cuBlockSize(), 0, stream>>>
                   (b1.cuptr(), b2.cuptr(), n, new_chunk_size);
         CUDA_CHECK_KERNEL(stream);
