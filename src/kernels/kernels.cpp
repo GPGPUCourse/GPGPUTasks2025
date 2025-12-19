@@ -3,6 +3,13 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/lbvh_build_morton.h"
+#include "cl/generated_kernels/lbvh_build_hierarchy.h"
+#include "cl/generated_kernels/lbvh_build_leaves.h"
+#include "cl/generated_kernels/lbvh_refit_aabbs.h"
+#include "cl/generated_kernels/radix_histogram_6bit.h"
+#include "cl/generated_kernels/radix_scan_groups_6bit.h"
+#include "cl/generated_kernels/radix_scatter_6bit.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -46,16 +53,53 @@ const ocl::ProgramBinaries& getAplusB()
     return opencl_binaries_aplusb;
 }
 
-const ProgramBinaries& getRTBruteForce()
+const ocl::ProgramBinaries& getRTBruteForce()
 {
     return opencl_binaries_ray_tracing_render_brute_force;
 }
 
-const ProgramBinaries& getRTWithLBVH()
+const ocl::ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getLBVHBuildMorton()
+{
+    return opencl_binaries_lbvh_build_morton;
+}
+
+const ProgramBinaries& getLBVHBuildHierarchy()
+{
+    return opencl_binaries_lbvh_build_hierarchy;
+}
+
+const ProgramBinaries& getLBVHBuildLeaves()
+{
+    return opencl_binaries_lbvh_build_leaves;
+}
+
+const ProgramBinaries& getLBVHRefitAABBs()
+{
+    return opencl_binaries_lbvh_refit_aabbs;
+}
+
+const ProgramBinaries& getRadixHistogram6()
+{
+    return opencl_binaries_radix_histogram_6bit;
+}
+
+const ProgramBinaries& getRadixScanGroups6()
+{
+    return opencl_binaries_radix_scan_groups_6bit;
+}
+
+const ProgramBinaries& getRadixScatter6()
+{
+    return opencl_binaries_radix_scatter_6bit;
+}
+
 } // namespace ocl
+
 
 namespace avk2 {
 const ProgramBinaries& getAplusB()
@@ -73,3 +117,5 @@ const ProgramBinaries& getRTWithLBVH()
     return vulkan_binaries_ray_tracing_render_using_lbvh_comp;
 }
 } // namespace avk2
+
+

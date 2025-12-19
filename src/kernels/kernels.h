@@ -24,11 +24,22 @@ void ray_tracing_render_using_lbvh(const gpu::WorkSize &workSize,
 }
 
 namespace ocl {
-const ProgramBinaries& getAplusB();
 
+const ProgramBinaries& getAplusB();
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
-}
+
+const ProgramBinaries& getLBVHBuildMorton();
+const ProgramBinaries& getLBVHBuildHierarchy();
+const ProgramBinaries& getLBVHBuildLeaves();
+const ProgramBinaries& getLBVHRefitAABBs();
+
+const ProgramBinaries& getRadixHistogram6();
+const ProgramBinaries& getRadixScanGroups6();
+const ProgramBinaries& getRadixScatter6();
+
+} // namespace ocl
+
 
 namespace avk2 {
 const ProgramBinaries& getAplusB();

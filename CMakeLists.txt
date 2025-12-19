@@ -18,10 +18,18 @@ else ()
 endif ()
 
 # GTest позволяет писать удобные unit-test-ы
-find_package(GTest REQUIRED)
-set(GTEST_LIBRARIES GTest::gtest)
-set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
-set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+#find_package(GTest REQUIRED)
+#set(GTEST_LIBRARIES GTest::gtest)
+#set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
+#set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+option(ENABLE_TESTS "Build unit tests" OFF)
+
+if (ENABLE_TESTS)
+    find_package(GTest REQUIRED)
+    set(GTEST_LIBRARIES GTest::gtest)
+    set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
+    set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+endif()
 
 # OpenMP позволит распараллеливать циклы на все ядра процессора простыми директивами
 find_package(OpenMP)
@@ -45,6 +53,7 @@ set(SOURCES
         src/kernels/kernels.cpp
         src/io/camera_reader.cpp
         src/io/scene_reader.cpp
+
 )
 
 set(LIBRARIES
@@ -64,13 +73,37 @@ set(LIBRARIES
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/ray_tracing_render_brute_force.cl
-        src/kernels/cl/ray_tracing_render_using_lbvh.cl)
+        src/kernels/cl/ray_tracing_render_using_lbvh.cl
 
-set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl src/kernels/cl/camera_helpers.cl src/kernels/cl/geometry_helpers.cl src/kernels/cl/random_helpers.cl src/kernels/shared_structs/aabb_gpu_shared.h src/kernels/shared_structs/bvh_node_gpu_shared.h src/kernels/shared_structs/camera_gpu_shared.h src/kernels/shared_structs/morton_code_gpu_shared.h src/kernels/shared_structs/struct_helpers.h)
+        src/kernels/cl/lbvh_build_morton.cl
+        src/kernels/cl/lbvh_build_hierarchy.cl
+        src/kernels/cl/lbvh_build_leaves.cl
+        src/kernels/cl/lbvh_refit_aabbs.cl
+
+        src/kernels/cl/radix_histogram_6bit.cl
+        src/kernels/cl/radix_scan_groups_6bit.cl
+        src/kernels/cl/radix_scatter_6bit.cl
+)
+
+set(OPENCL_INCLUDES
+        src/kernels/defines.h
+        src/kernels/cl/helpers/rassert.cl
+        src/kernels/cl/camera_helpers.cl
+        src/kernels/cl/geometry_helpers.cl
+        src/kernels/cl/random_helpers.cl
+        src/kernels/shared_structs/aabb_gpu_shared.h
+        src/kernels/shared_structs/bvh_node_gpu_shared.h
+        src/kernels/shared_structs/camera_gpu_shared.h
+        src/kernels/shared_structs/morton_code_gpu_shared.h
+        src/kernels/shared_structs/struct_helpers.h
+)
+
 set(OPENCL_DEFINES)
+
 foreach(CL_FILE IN LISTS OPENCL_SOURCES)
     compile_opencl(HEADERS ${CL_FILE} OPENCL_INCLUDES OPENCL_DEFINES)
 endforeach()
+
 
 # compile_vulkan CMake-функция объявлена в libs/gpu/libgpu/vulkan/CMakeLists.txt:97
 # Она считывает все байты из файла src/kernels/vk/aplusb.comp (т.е. весь исходный код кернела), компилирует с помощью glslc компилятора (в т.ч. выполняя все #include)

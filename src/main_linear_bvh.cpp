@@ -54,6 +54,8 @@ size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
 
 void run(int argc, char** argv)
 {
+    std::cout << "cwd: " << std::filesystem::current_path() << std::endl;
+
     // chooseGPUVkDevices:
     // - Если не доступо ни одного устройства - кинет ошибку
     // - Если доступно ровно одно устройство - вернет это устройство
@@ -77,6 +79,14 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+//    ocl::KernelSource ocl_lbvh_build_hierarchy(ocl::getLBVHBuildHierarchy());
+//    ocl::KernelSource ocl_lbvh_build_leaves(ocl::getLBVHBuildLeaves());
+//    ocl::KernelSource ocl_lbvh_refit_aabbs(ocl::getLBVHRefitAABBs());
+//    ocl::KernelSource ocl_lbvh_build_morton(ocl::getLBVHBuildMorton());
+//
+//    ocl::KernelSource ocl_radix_hist(ocl::getRadixHistogram6());
+//    ocl::KernelSource ocl_radix_scan(ocl::getRadixScanGroups6());
+//    ocl::KernelSource ocl_radix_scatter(ocl::getRadixScatter6());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -107,9 +117,39 @@ void run(int argc, char** argv)
         std::cout << "Loading scene " << scene_path << "..." << std::endl;
         timer loading_scene_t;
         SceneGeometry scene = loadScene(scene_path);
+        float scene_aabb6[6] = { +1e30f, +1e30f, +1e30f, -1e30f, -1e30f, -1e30f };
+        for (auto &v : scene.vertices) {
+            scene_aabb6[0] = std::min(scene_aabb6[0], v.x);
+            scene_aabb6[1] = std::min(scene_aabb6[1], v.y);
+            scene_aabb6[2] = std::min(scene_aabb6[2], v.z);
+            scene_aabb6[3] = std::max(scene_aabb6[3], v.x);
+            scene_aabb6[4] = std::max(scene_aabb6[4], v.y);
+            scene_aabb6[5] = std::max(scene_aabb6[5], v.z);
+        }
+
+        gpu::gpu_mem_32f scene_aabb_gpu(6);
+        scene_aabb_gpu.writeN(scene_aabb6, 6);
+
         // если на каком-то датасете падает - удобно взять подможество треугольников - например просто вызовите scene.faces.resize(10000);
         const unsigned int nvertices = scene.vertices.size();
         const unsigned int nfaces = scene.faces.size();
+        const uint32_t n = (uint32_t)nfaces;
+        if (n < 2) continue;
+
+        gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(2 * n - 1);
+        gpu::gpu_mem_32u leaf_faces_indices_gpu(n);
+
+        gpu::gpu_mem_32u mortonA(n), mortonB(n);
+        gpu::gpu_mem_32u triA(n), triB(n);
+
+        gpu::gpu_mem_32i parent_gpu(2 * n - 1);
+        gpu::gpu_mem_32u visit_gpu(n - 1);
+
+        const uint32_t WG = 256;
+        const uint32_t numGroups = (n + WG - 1) / WG;
+        gpu::gpu_mem_32u groupHist(numGroups * 64);
+        gpu::gpu_mem_32u groupPrefix(numGroups * 64);
+
         rassert(nvertices > 0, 546345423523143);
         rassert(nfaces > 0, 54362452342);
         std::string scene_name = std::filesystem::path(scene_path).parent_path().filename().string();
@@ -229,8 +269,8 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+//                 TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
+//                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
 
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
@@ -239,23 +279,6 @@ void run(int argc, char** argv)
                         lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
                         framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
                         camera_gpu.clmem(), nfaces);
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    cuda::ray_tracing_render_using_lbvh(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu, nfaces);
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    vk_rt_with_lbvh.exec(
-                        nfaces,
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu);
-                } else {
-                    rassert(false, 654724541234123);
                 }
 
                 rt_times_with_cpu_lbvh.push_back(t.elapsed());
@@ -292,58 +315,136 @@ void run(int argc, char** argv)
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
         bool gpu_lbvg_gpu_rt_done = false;
 
-        if (gpu_lbvg_gpu_rt_done) {
-            std::vector<double> gpu_lbvh_times;
-            for (int iter = 0; iter < niters; ++iter) {
-                timer t;
-
-                // TODO постройте LBVH на GPU
-
-                gpu_lbvh_times.push_back(t.elapsed());
-            }
-            gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
-            double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
-            std::cout << "GPU LBVH build times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_times) << std::endl;
-            std::cout << "GPU LBVH build performance: " << build_mtris_per_sec << " MTris/s" << std::endl;
-            gpu_lbvh_perfs_mtris_per_sec.push_back(build_mtris_per_sec);
-
-            timer cleaning_framebuffers_t;
-            framebuffer_face_id_gpu.fill(NO_FACE_ID);
-            framebuffer_ambient_occlusion_gpu.fill(NO_AMBIENT_OCCLUSION);
-            cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
-
-            std::vector<double> gpu_lbvh_rt_times;
-            for (int iter = 0; iter < niters; ++iter) {
-                timer t;
-
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-
-                gpu_lbvh_rt_times.push_back(t.elapsed());
-            }
-            rt_times_with_gpu_lbvh_sum = stats::sum(gpu_lbvh_rt_times);
-            double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(gpu_lbvh_rt_times);
-            std::cout << "GPU with GPU LBVH ray tracing frame render times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_rt_times) << std::endl;
-            std::cout << "GPU with GPU LBVH ray tracing performance: " << mrays_per_sec << " MRays/s" << std::endl;
-            gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
-
-            timer pcie_reading_t;
-            image32i gpu_lbvh_framebuffer_face_ids(width, height, 1);
-            image32f gpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
-            framebuffer_face_id_gpu.readN(gpu_lbvh_framebuffer_face_ids.ptr(), width * height);
-            framebuffer_ambient_occlusion_gpu.readN(gpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
-            pcie_reading_time += pcie_reading_t.elapsed();
-
-            timer gpu_lbvh_images_saving_t;
-            debug_io::dumpImage(results_dir + "/framebuffer_face_ids_with_gpu_lbvh.bmp", debug_io::randomMapping(gpu_lbvh_framebuffer_face_ids, NO_FACE_ID));
-            debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_gpu_lbvh.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion));
-            images_saving_time += gpu_lbvh_images_saving_t.elapsed();
-            if (has_brute_force) {
-                unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
-                unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
-                rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
-                rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
-            }
-        }
+//        if (gpu_lbvg_gpu_rt_done) {
+//            std::vector<double> gpu_lbvh_times;
+//            for (int iter = 0; iter < niters; ++iter) {
+//                timer t;
+//
+//                std::cout << "morton\n";
+//
+//                ocl_lbvh_build_morton.exec(
+//                    gpu::WorkSize(WG, 1, numGroups * WG, 1),
+//                    vertices_gpu,
+//                    faces_gpu,
+//                    mortonA,
+//                    triA,
+//                    scene_aabb_gpu,
+//                    n
+//                );
+//
+//                auto radix_pass = [&](uint32_t shift,
+//                                      gpu::gpu_mem_32u &kIn, gpu::gpu_mem_32u &vIn,
+//                                      gpu::gpu_mem_32u &kOut, gpu::gpu_mem_32u &vOut)
+//                {
+//                    ocl_radix_hist.exec(
+//                        gpu::WorkSize(WG, 1, numGroups * WG, 1),
+//                        kIn, groupHist, n, shift
+//                    );
+//
+//                    ocl_radix_scan.exec(
+//                        gpu::WorkSize(64, 1, 64, 1),
+//                        groupHist, groupPrefix, numGroups
+//                    );
+//
+//                    ocl_radix_scatter.exec(
+//                        gpu::WorkSize(WG, 1, numGroups * WG, 1),
+//                        kIn, vIn, kOut, vOut, groupPrefix, n, shift
+//                    );
+//                };
+//                std::cout << "sort\n";
+//
+//                radix_pass(0,  mortonA, triA, mortonB, triB);
+//                radix_pass(6,  mortonB, triB, mortonA, triA);
+//                radix_pass(12, mortonA, triA, mortonB, triB);
+//                radix_pass(18, mortonB, triB, mortonA, triA);
+//                radix_pass(30, mortonB, triB, mortonA, triA);
+//                std::cout << "hier\n";
+//
+//                parent_gpu.fill(-1);
+//                leaf_faces_indices_gpu.fill(0);
+//                ocl_lbvh_build_hierarchy.exec(
+//                    gpu::WorkSize(WG, 1, ((n - 1 + WG - 1) / WG) * WG, 1),
+//                    mortonA, lbvh_nodes_gpu.clmem(), parent_gpu, n
+//                );
+//                std::cout << "leaves\n";
+//
+//                ocl_lbvh_build_leaves.exec(
+//                    gpu::WorkSize(WG, 1, numGroups * WG, 1),
+//                    vertices_gpu, faces_gpu,
+//                    triA,
+//                    lbvh_nodes_gpu.clmem(),
+//                    leaf_faces_indices_gpu,
+//                    n
+//                );
+//                std::cout << "refit\n";
+//
+//                visit_gpu.fill(0);
+//                ocl_lbvh_refit_aabbs.exec(
+//                    gpu::WorkSize(WG, 1, numGroups * WG, 1),
+//                    lbvh_nodes_gpu.clmem(),
+//                    parent_gpu,
+//                    visit_gpu,
+//                    n
+//                );
+//                std::cout << "done iter\n";
+//
+//                gpu_lbvh_times.push_back(t.elapsed());
+//            }
+//
+//            gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
+//            double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
+//            std::cout << "GPU LBVH build times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_times) << std::endl;
+//            std::cout << "GPU LBVH build performance: " << build_mtris_per_sec << " MTris/s" << std::endl;
+//            gpu_lbvh_perfs_mtris_per_sec.push_back(build_mtris_per_sec);
+//
+//            timer cleaning_framebuffers_t;
+//            framebuffer_face_id_gpu.fill(NO_FACE_ID);
+//            framebuffer_ambient_occlusion_gpu.fill(NO_AMBIENT_OCCLUSION);
+//            cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
+//
+//            std::vector<double> gpu_lbvh_rt_times;
+//            for (int iter = 0; iter < niters; ++iter) {
+//                timer t;
+//
+//                if (context.type() == gpu::Context::TypeOpenCL) {
+//                    ocl_rt_with_lbvh.exec(
+//                        gpu::WorkSize(16, 16, width, height),
+//                        vertices_gpu, faces_gpu,
+//                        lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
+//                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+//                        camera_gpu.clmem(), n
+//                    );
+//                } else {
+//                    rassert(false, 123456789);
+//                }
+//
+//                gpu_lbvh_rt_times.push_back(t.elapsed());
+//            }
+//
+//            rt_times_with_gpu_lbvh_sum = stats::sum(gpu_lbvh_rt_times);
+//            double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(gpu_lbvh_rt_times);
+//            std::cout << "GPU with GPU LBVH ray tracing frame render times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_rt_times) << std::endl;
+//            std::cout << "GPU with GPU LBVH ray tracing performance: " << mrays_per_sec << " MRays/s" << std::endl;
+//            gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
+//
+//            timer pcie_reading_t;
+//            image32i gpu_lbvh_framebuffer_face_ids(width, height, 1);
+//            image32f gpu_lbvh_framebuffer_ambient_occlusion(width, height, 1);
+//            framebuffer_face_id_gpu.readN(gpu_lbvh_framebuffer_face_ids.ptr(), width * height);
+//            framebuffer_ambient_occlusion_gpu.readN(gpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
+//            pcie_reading_time += pcie_reading_t.elapsed();
+//
+//            timer gpu_lbvh_images_saving_t;
+//            debug_io::dumpImage(results_dir + "/framebuffer_face_ids_with_gpu_lbvh.bmp", debug_io::randomMapping(gpu_lbvh_framebuffer_face_ids, NO_FACE_ID));
+//            debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_with_gpu_lbvh.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion));
+//            images_saving_time += gpu_lbvh_images_saving_t.elapsed();
+//            if (has_brute_force) {
+//                unsigned int count_ao_errors = countDiffs(brute_force_framebuffer_ambient_occlusion, gpu_lbvh_framebuffer_ambient_occlusion, 0.01f);
+//                unsigned int count_face_id_errors = countDiffs(brute_force_framebuffer_face_ids, gpu_lbvh_framebuffer_face_ids, 1);
+//                rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
+//                rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
+//            }
+//        }
 
         double total_time = total_t.elapsed();
         std::cout << "Scene processed in " << total_t.elapsed() << " sec = ";
