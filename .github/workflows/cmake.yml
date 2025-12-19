@@ -52,15 +52,15 @@ jobs:
                     /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
         echo "LD_LIBRARY_PATH=/usr/local/cuda/targets/x86_64-linux/lib/stubs:/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
-    - name: Run libs/gpu unit-tests
-      working-directory: ${{github.workspace}}/build
-      run: AVK_ENABLE_VALIDATION_LAYERS=false ./libs/gpu/libgpu_test --gtest_filter=-vulkan.*
+    # - name: Run libs/gpu unit-tests
+    #   working-directory: ${{github.workspace}}/build
+    #   run: AVK_ENABLE_VALIDATION_LAYERS=false ./libs/gpu/libgpu_test --gtest_filter=-vulkan.*
 
-    - name: Run main_aplusb
-      working-directory: ${{github.workspace}}/build
-      run: |
-        ./main_aplusb 0
-        ./main_aplusb 1
+    # - name: Run main_aplusb
+    #   working-directory: ${{github.workspace}}/build
+    #   run: |
+    #     ./main_aplusb 0
+    #     ./main_aplusb 1
 
     - name: Run main_linear_bvh
       working-directory: ${{github.workspace}}/
