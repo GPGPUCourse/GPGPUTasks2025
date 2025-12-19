@@ -65,6 +65,11 @@ void run(int argc, char** argv)
         rassert(!all_attempts_missed, 4353245123412);
     }
 
+    // for (size_t i = 0; i < n; ++i) {
+    //     std::cout << as[i] << " | ";
+    // }
+    // std::cout << std::endl;
+
     {
         sorted = as;
         std::cout << "sorting on CPU..." << std::endl;
@@ -75,6 +80,11 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort finished in " << t.elapsed() << " sec" << std::endl;
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
+
+    // for (size_t i = 0; i < n; ++i) {
+    //     std::cout << sorted[i] << " | ";
+    // }
+    // std::cout << std::endl;
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
@@ -98,8 +108,12 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            buffer1_gpu.writeN(as.data(), n);
+            for (int k = 0; (1 << k) < n; k++) {
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, k, n);
+                buffer1_gpu.swap(buffer2_gpu);
+            }
+            buffer1_gpu.copyToN(buffer_output_gpu, n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -120,6 +134,11 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+
+    // for (size_t i = 0; i < n; ++i) {
+    //     std::cout << gpu_sorted[i] << " | ";
+    // }
+    // std::cout << std::endl;
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
