@@ -151,7 +151,7 @@ void shared_device_buffer::decref()
 	if (!count) {
 		if(clmem_ != nullptr) {
 			OCL_SAFE_CALL(clReleaseMemObject(clmem()));
-			if(type_ == Context::TypeVulkan) {
+			if(type_ == Context::TypeVulkan && glbuf_ != -1u && glmem_ != -1u) {
 				glDeleteBuffers(1, &glbuf_);
 				glDeleteMemoryObjectsEXT(1, &glmem_);
 			}
@@ -584,23 +584,29 @@ bool shared_device_buffer::checkMagicGuardBytes(const unsigned int* found_data, 
 void shared_device_buffer::export_acquire()
 {
 	Context context;
-	context.cl()->exportAcquire(clmem());
+	context.cl()->exportAcquire(clmem(), context.cl()->hasGlSharing());
 }
 
 void shared_device_buffer::export_release()
 {
 	Context context;
-	context.cl()->exportRelease(clmem());
+	context.cl()->exportRelease(clmem(), context.cl()->hasGlSharing());
 }
 
 void shared_device_buffer::opencl_import()
 {
-	glCreateMemoryObjectsEXT(1, &glmem_);
-	glImportMemoryFdEXT(glmem_, size_, GL_HANDLE_TYPE_OPAQUE_FD_EXT, clfd_);
-	glCreateBuffers(1, &glbuf_);
-	glNamedBufferStorageMemEXT(glbuf_, size_, glmem_, 0);
 	Context context;
-	clmem_ = context.cl()->importBuffer(glbuf_, size_);
+	if(context.cl()->hasGlSharing()) {
+		glCreateMemoryObjectsEXT(1, &glmem_);
+		glImportMemoryFdEXT(glmem_, size_, GL_HANDLE_TYPE_OPAQUE_FD_EXT, clfd_);
+		glCreateBuffers(1, &glbuf_);
+		glNamedBufferStorageMemEXT(glbuf_, size_, glmem_, 0);
+		clmem_ = context.cl()->importBuffer(glbuf_, size_, true);
+	} else {
+		clmem_ = context.cl()->importBuffer(clfd_, size_, false);
+		glbuf_ = -1u;
+		glmem_ = -1u;
+	}
 }
 
 }

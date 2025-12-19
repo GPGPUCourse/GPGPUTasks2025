@@ -158,9 +158,10 @@ namespace ocl {
 		cl_mem				createImage2D(size_t width, size_t height, size_t cn, DataType data_type);
 		cl_sampler			createImageSampler();
 		cl_mem				createBuffer(cl_mem_flags flags, size_t size);
-		cl_mem				importBuffer(unsigned glbuf, size_t size);
-		void				exportAcquire(cl_mem mem);
-		void				exportRelease(cl_mem mem);
+		cl_mem				importBuffer(unsigned glbuf, size_t size, bool isgl);
+		void				exportAcquire(cl_mem mem, bool isgl);
+		void				exportRelease(cl_mem mem, bool isgl);
+		bool				hasGlSharing() { return has_gl_sharing_; };
 		void				writeBuffer(cl_mem buffer, cl_bool blocking_write, size_t offset, size_t cb, const void *ptr);
 		void				memsetBuffer(cl_mem buffer, size_t offset, size_t size, char value);
 		void				writeBufferRect(cl_mem buffer, cl_bool blocking_write, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3],
@@ -250,6 +251,7 @@ namespace ocl {
 
 		static ContextMap	contexts_;
 		static std::mutex	contexts_mutex_;
+		bool has_gl_sharing_;
 	};
 
 	void		oclPrintBuildLog(cl_program program);

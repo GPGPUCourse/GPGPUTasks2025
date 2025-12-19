@@ -35,6 +35,48 @@ typedef unsigned long long uint64_t;
 
 using namespace ocl;
 
+typedef cl_context_properties cl_mem_properties_intel;
+
+typedef cl_mem CL_API_CALL
+clCreateBufferWithPropertiesINTEL_t(
+	cl_context context,
+	const cl_mem_properties_intel* properties,
+	cl_mem_flags flags,
+	size_t size,
+	void* host_ptr,
+	cl_int* errcode_ret);
+
+typedef clCreateBufferWithPropertiesINTEL_t *
+clCreateBufferWithPropertiesINTEL_fn CL_API_SUFFIX__VERSION_1_0;
+clCreateBufferWithPropertiesINTEL_fn clCreateBufferWithPropertiesINTEL;
+
+typedef cl_int CL_API_CALL
+clEnqueueAcquireExternalMemObjectsKHR_t(
+	cl_command_queue command_queue,
+	cl_uint num_mem_objects,
+	const cl_mem* mem_objects,
+	cl_uint num_events_in_wait_list,
+	const cl_event* event_wait_list,
+	cl_event* event);
+
+typedef clEnqueueAcquireExternalMemObjectsKHR_t *
+clEnqueueAcquireExternalMemObjectsKHR_fn CL_API_SUFFIX__VERSION_3_0;
+clEnqueueAcquireExternalMemObjectsKHR_fn clEnqueueAcquireExternalMemObjectsKHR;
+
+typedef cl_int CL_API_CALL
+clEnqueueReleaseExternalMemObjectsKHR_t(
+	cl_command_queue command_queue,
+	cl_uint num_mem_objects,
+	const cl_mem* mem_objects,
+	cl_uint num_events_in_wait_list,
+	const cl_event* event_wait_list,
+	cl_event* event);
+
+typedef clEnqueueReleaseExternalMemObjectsKHR_t *
+clEnqueueReleaseExternalMemObjectsKHR_fn CL_API_SUFFIX__VERSION_3_0;
+clEnqueueReleaseExternalMemObjectsKHR_fn clEnqueueReleaseExternalMemObjectsKHR;
+
+
 // Gets the platform ID for NVIDIA if available, otherwise default
 cl_platform_id oclGetPlatformID(void)
 {
@@ -154,16 +196,25 @@ void OpenCLEngine::createContext(cl_platform_id platform_id, cl_device_id device
 
 		context = it->second.context;
 	} else {
-		cl_context_properties context_props[] = { //CL_CONTEXT_PLATFORM, (cl_context_properties) platform_id,
+		bool isgl = deviceInfo().extensions.count("cl_khr_gl_sharing");
+		cl_context_properties context_props[] = {CL_CONTEXT_PLATFORM, (cl_context_properties) platform_id, 0 };
+		cl_context_properties context_props_gl[] = {
 			CL_GL_CONTEXT_KHR,
 			(long)eglGetCurrentContext(),
 			CL_EGL_DISPLAY_KHR,
 			(long)eglGetCurrentDisplay(),
 			0 };
+		fprintf(stderr, "Using GL: %d\n", (int)isgl);
 
 		cl_int ciErrNum;
-		OCL_TRACE(context = clCreateContext(context_props, 1, &device_id, NULL, NULL, &ciErrNum));
+		OCL_TRACE(context = clCreateContext(isgl ? context_props_gl : context_props, 1, &device_id, NULL, NULL, &ciErrNum));
 		OCL_SAFE_CALL(ciErrNum);
+		fprintf(stderr, "Create context ok\n");
+		has_gl_sharing_ = isgl;
+		clCreateBufferWithPropertiesINTEL = (clCreateBufferWithPropertiesINTEL_fn)clGetExtensionFunctionAddress("clCreateBufferWithPropertiesINTEL");
+		clEnqueueAcquireExternalMemObjectsKHR = (clEnqueueAcquireExternalMemObjectsKHR_fn)clGetExtensionFunctionAddress("clEnqueueAcquireExternalMemObjectsKHR");
+		clEnqueueReleaseExternalMemObjectsKHR = (clEnqueueReleaseExternalMemObjectsKHR_fn)clGetExtensionFunctionAddress("clEnqueueReleaseExternalMemObjectsKHR");
+		fprintf(stderr, "Loaded sharing extensions: %p %p %p\n", clCreateBufferWithPropertiesINTEL, clEnqueueAcquireExternalMemObjectsKHR, clEnqueueReleaseExternalMemObjectsKHR);
 
 		bool opencl_share_context = true;
 		if (opencl_share_context) {
@@ -459,26 +510,37 @@ cl_mem OpenCLEngine::createBuffer(cl_mem_flags flags, size_t size)
 	return res;
 }
 
-cl_mem OpenCLEngine::importBuffer(unsigned glbuf, size_t size)
+cl_mem OpenCLEngine::importBuffer(unsigned glbuf, size_t size, bool isgl)
 {
 	cl_mem res;
 	cl_int status = CL_SUCCESS;
-	OCL_TRACE(res = clCreateFromGLBuffer(context_, CL_MEM_READ_WRITE, glbuf, &status));
+	if(isgl) {
+		OCL_TRACE(res = clCreateFromGLBuffer(context_, CL_MEM_READ_WRITE, glbuf, &status));
+	} else {
+		cl_mem_properties_intel props[] { CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR, glbuf, 0 };
+		OCL_TRACE(res = clCreateBufferWithPropertiesINTEL(context_, props, CL_MEM_READ_WRITE, size, nullptr, &status));
+	}
 	OCL_SAFE_CALL(status);
 	return res;
 }
 
-void OpenCLEngine::exportAcquire(cl_mem mem)
+void OpenCLEngine::exportAcquire(cl_mem mem, bool isgl)
 {
 	cl_event ev;
-	OCL_SAFE_CALL(clEnqueueAcquireGLObjects(queue(), 1, &mem, 0, NULL, &ev));
+	if(isgl)
+		OCL_SAFE_CALL(clEnqueueAcquireGLObjects(queue(), 1, &mem, 0, NULL, &ev));
+	else
+		OCL_SAFE_CALL(clEnqueueAcquireExternalMemObjectsKHR(queue(), 1, &mem, 0, NULL, &ev));
 	trackEvent(ev);
 }
 
-void OpenCLEngine::exportRelease(cl_mem mem)
+void OpenCLEngine::exportRelease(cl_mem mem, bool isgl)
 {
 	cl_event ev;
-	OCL_SAFE_CALL(clEnqueueReleaseGLObjects(queue(), 1, &mem, 0, NULL, &ev));
+	if(isgl)
+		OCL_SAFE_CALL(clEnqueueReleaseGLObjects(queue(), 1, &mem, 0, NULL, &ev));
+	else
+		OCL_SAFE_CALL(clEnqueueReleaseExternalMemObjectsKHR(queue(), 1, &mem, 0, NULL, &ev));
 	trackEvent(ev);
 }
 

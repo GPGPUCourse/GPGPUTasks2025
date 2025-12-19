@@ -818,6 +818,8 @@ clSetKernelExecInfoARM(cl_kernel            kernel,
 /* cl_command_queue_properties */
 #define CL_QUEUE_JOB_SLOT_ARM                     0x41E1
 
+#define CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR             0x2060
+
 #ifdef __cplusplus
 }
 #endif
