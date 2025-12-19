@@ -9,7 +9,7 @@ int binary_search(__global const uint* input, int block_size, int offset, uint v
     int left = -1;
     int right = block_size;
     while (left + 1 < right) { 
-        int mid = (left + right) / 2;
+        int mid = (left + right) >> 1;
         if (input[offset + mid] < value || (input[offset + mid] == value && is_left)) {
             left = mid;
         } else {
@@ -32,7 +32,7 @@ __kernel void merge_sort(
     }
 
     int block_size = 1 << sorted_k;
-    int block_id = i / block_size;
+    int block_id = i >> block_size;
     bool is_cur_block_left = 1 - (block_id & 1);
     
     int block_start = block_id * block_size;
