@@ -62,7 +62,7 @@ jobs:
         ./main_aplusb 0
         ./main_aplusb 1
 
-    - name: Run main_merge_sort
+    - name: Run main_radix_sort
       working-directory: ${{github.workspace}}/build
       run: |
-        ./main_merge_sort 0
+        ./main_radix_sort 0
