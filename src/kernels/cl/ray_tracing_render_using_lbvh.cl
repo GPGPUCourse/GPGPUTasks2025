@@ -13,6 +13,8 @@
 #include "geometry_helpers.cl"
 #include "random_helpers.cl"
 
+#define MAX_STACK_SIZE 128
+
 // BVH traversal: closest hit along ray
 static inline bool bvh_closest_hit(
     const float3              orig,
@@ -31,9 +33,49 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    float best_t = FLT_MAX;
 
-    return false;
+    int nodes_stack[MAX_STACK_SIZE];
+    int stack_idx = 0;
+
+    nodes_stack[stack_idx] = rootIndex;
+    stack_idx++;
+
+    while (stack_idx > 0) {
+        int cur_node_idx = nodes_stack[--stack_idx];
+        const BVHNodeGPU cur_node = nodes[cur_node_idx];
+
+        float t_hit_near, t_hit_far;
+        if  (!intersect_ray_aabb(orig, dir, cur_node.aabb, tMin, best_t, &t_hit_near, &t_hit_far)) {
+            continue;
+        }
+
+        if (cur_node_idx < leafStart) {
+            nodes_stack[stack_idx++] = cur_node.leftChildIndex;
+            nodes_stack[stack_idx++] = cur_node.rightChildIndex;
+        } else {
+            uint tri_idx = leafTriIndices[cur_node_idx - leafStart];
+
+            uint3 f = loadFace(faces, tri_idx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, best_t, false, &t, &u, &v)) {
+                if (t < best_t) {
+                    best_t = t;
+
+                    *outT = t;
+                    *outFaceId = tri_idx;
+                    *outU = u;
+                    *outV = v;
+                }
+            }
+        }
+    }
+
+    return best_t != FLT_MAX;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -50,7 +92,39 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int nodes_stack[MAX_STACK_SIZE];
+    int stack_idx = 0;
+
+    nodes_stack[stack_idx] = rootIndex;
+    stack_idx++;
+
+    while (stack_idx > 0) {
+        int cur_node_idx = nodes_stack[--stack_idx];
+        const BVHNodeGPU cur_node = nodes[cur_node_idx];
+
+        float t_hit_near, t_hit_far;
+        if  (!intersect_ray_aabb_any(orig, dir, cur_node.aabb, &t_hit_near, &t_hit_far)) {
+            continue;
+        }
+
+        if (cur_node_idx < leafStart) {
+            nodes_stack[stack_idx++] = cur_node.leftChildIndex;
+            nodes_stack[stack_idx++] = cur_node.rightChildIndex;
+        } else {
+            uint tri_idx = leafTriIndices[cur_node_idx - leafStart];
+            if (tri_idx != ignore_face) {
+                uint3 f = loadFace(faces, tri_idx);
+                float3 v0 = loadVertex(vertices, f.x);
+                float3 v1 = loadVertex(vertices, f.y);
+                float3 v2 = loadVertex(vertices, f.z);
+
+                float t, u, v;
+                if (intersect_ray_triangle_any(orig, dir, v0, v1, v2, false, &t, &u, &v)) {
+                    return true;
+                }
+            }
+        }
+    }
 
     return false;
 }
