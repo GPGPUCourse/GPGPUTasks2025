@@ -5,10 +5,25 @@ float sdSphere(vec3 p, float r)
     return length(p) - r;
 }
 
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
 // XZ plane
 float sdPlane(vec3 p)
 {
     return p.y;
+}
+
+// circular approximation
+float smin( float a, float b, float k )
+{
+    k *= 16.0/3.0;
+    float h = max( k-abs(a-b), 0.0 )/k;
+    return min(a,b) - h*h*h*(4.0-h)*k*(1.0/16.0);
 }
 
 // косинус который пропускает некоторые периоды, удобно чтобы махать ручкой не все время
@@ -24,23 +39,62 @@ float lazycos(float angle)
     return 1.0;
 }
 
+float lazysin(float angle)
+{
+    int nsleep = 10;
+
+    int iperiod = int(angle / 6.28318530718) % nsleep;
+    if (iperiod < 3) {
+        return sin(angle);
+    }
+
+    return 0.0;
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    // body
+    float top = sdSphere((p - vec3(0.0, 0.7, -0.7)), 0.15);
+    float bottom = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float body = smin(top, bottom, 0.1);
+
+    // arms
+    float waveX = 0.05 * abs(lazysin(iTime * 5.0));
+    float waveY = 0.14 * (1.0 - lazycos(iTime * 5.0));
+    float leftArm = sdCapsule(p, vec3(-0.27, 0.5, -0.7), vec3(-0.4 - waveX, 0.3 + waveY, -0.7), 0.035);
+    float rightArm = sdCapsule(p, vec3(0.27, 0.5, -0.7), vec3(0.4, 0.3, -0.7), 0.035);
+
+    body = smin(body, leftArm, 0.005);
+    body = smin(body, rightArm, 0.005);
+
+    // legs
+    float leftLeg = sdCapsule(p, vec3(-0.1, 0.2, -0.7), vec3(-0.12, 0.0, -0.7), 0.05);
+    float rightLeg = sdCapsule(p, vec3(0.1, 0.5, -0.7), vec3(0.12, 0.0, -0.7), 0.05);
+
+    body = smin(body, leftLeg, 0.005);
+    body = smin(body, rightLeg, 0.005);
 
     // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    return vec4(body, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
+    float white = sdSphere(p - vec3(0.0, 0.6, -0.51), 0.18);
+    vec4 res = vec4(white, vec3(1.0, 1.0, 1.0));
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float blue = sdSphere(p - vec3(0.0, 0.61, -0.41), 0.105);
+    if (blue < res.x) {
+        res = vec4(blue, vec3(0.0, 0.5, 1.0));
+    }
+
+    float black = sdSphere(p - vec3(0.0, 0.61, -0.33), 0.06);
+    if (black < res.x) {
+        res = vec4(black, vec3(0.0, 0.0, 0.0));
+    }
 
     return res;
 }
