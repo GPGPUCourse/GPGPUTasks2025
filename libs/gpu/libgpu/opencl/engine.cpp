@@ -211,10 +211,19 @@ void OpenCLEngine::createContext(cl_platform_id platform_id, cl_device_id device
 		OCL_SAFE_CALL(ciErrNum);
 		fprintf(stderr, "Create context ok\n");
 		has_gl_sharing_ = isgl;
-		clCreateBufferWithPropertiesINTEL = (clCreateBufferWithPropertiesINTEL_fn)clGetExtensionFunctionAddress("clCreateBufferWithPropertiesINTEL");
-		clEnqueueAcquireExternalMemObjectsKHR = (clEnqueueAcquireExternalMemObjectsKHR_fn)clGetExtensionFunctionAddress("clEnqueueAcquireExternalMemObjectsKHR");
-		clEnqueueReleaseExternalMemObjectsKHR = (clEnqueueReleaseExternalMemObjectsKHR_fn)clGetExtensionFunctionAddress("clEnqueueReleaseExternalMemObjectsKHR");
-		fprintf(stderr, "Loaded sharing extensions: %p %p %p\n", clCreateBufferWithPropertiesINTEL, clEnqueueAcquireExternalMemObjectsKHR, clEnqueueReleaseExternalMemObjectsKHR);
+		if(!isgl) {
+			cl_platform_id platform;
+			unsigned num_platforms;
+			OCL_SAFE_CALL(clGetPlatformIDs (0, NULL, &num_platforms));
+			std::vector<cl_platform_id> clPlatformIDs(num_platforms);
+			OCL_SAFE_CALL(clGetPlatformIDs (num_platforms, clPlatformIDs.data(), NULL));
+			platform = clPlatformIDs[0]; // apparently no api to recover platform id from EGL but there's only one platform on the server
+			fprintf(stderr, "Got %zu platforms, first is %zu\n", clPlatformIDs.size(), clPlatformIDs[0]);
+			clCreateBufferWithPropertiesINTEL = (clCreateBufferWithPropertiesINTEL_fn)clGetExtensionFunctionAddressForPlatform(platform, "clCreateBufferWithPropertiesINTEL");
+			clEnqueueAcquireExternalMemObjectsKHR = (clEnqueueAcquireExternalMemObjectsKHR_fn)clGetExtensionFunctionAddressForPlatform(platform, "clEnqueueAcquireExternalMemObjectsKHR");
+			clEnqueueReleaseExternalMemObjectsKHR = (clEnqueueReleaseExternalMemObjectsKHR_fn)clGetExtensionFunctionAddressForPlatform(platform, "clEnqueueReleaseExternalMemObjectsKHR");
+			fprintf(stderr, "Loaded sharing extensions: %p %p %p\n", clCreateBufferWithPropertiesINTEL, clEnqueueAcquireExternalMemObjectsKHR, clEnqueueReleaseExternalMemObjectsKHR);
+		}
 
 		bool opencl_share_context = true;
 		if (opencl_share_context) {
