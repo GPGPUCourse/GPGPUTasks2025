@@ -1,4 +1,3 @@
-#include <execution>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -66,8 +65,7 @@ void run(int argc, char** argv)
         sorted = as;
         std::cout << "sorting on CPU..." << std::endl;
         timer t;
-        // Most efficient sorting
-        std::sort(std::execution::par_unseq, sorted.begin(), sorted.end());
+        std::sort(sorted.begin(), sorted.end());
         // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
         double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
         std::cout << "CPU std::sort finished in " << t.elapsed() << " sec" << std::endl;
