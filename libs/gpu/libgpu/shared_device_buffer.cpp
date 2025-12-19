@@ -17,7 +17,9 @@
 #include "vulkan/engine.h"
 #include "vulkan/data_buffer.h"
 #include "vulkan/vulkan_api_headers.h"
-#include "GL/glew.h"
+#include "EGL/egl.h"
+#include "GL/gl.h"
+#include "GL/glext.h"
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -25,6 +27,14 @@
 #endif
 
 namespace gpu {
+
+static PFNGLCREATEBUFFERSPROC glCreateBuffers;
+static PFNGLCREATEMEMORYOBJECTSEXTPROC glCreateMemoryObjectsEXT;
+static PFNGLIMPORTMEMORYFDEXTPROC glImportMemoryFdEXT;
+static PFNGLNAMEDBUFFERSTORAGEMEMEXTPROC glNamedBufferStorageMemEXT;
+static PFNGLDELETEBUFFERSPROC glDeleteBuffers;
+static PFNGLDELETEMEMORYOBJECTSEXTPROC glDeleteMemoryObjectsEXT;
+static bool initialized = false;
 
 shared_device_buffer::shared_device_buffer()
 {
@@ -36,6 +46,15 @@ shared_device_buffer::shared_device_buffer()
 	offset_	= 0;
 	nbytes_guard_prefix_	= 0;
 	nbytes_guard_suffix_	= 0;
+	if(!initialized) {
+		glCreateBuffers = (PFNGLCREATEBUFFERSPROC)eglGetProcAddress("glCreateBuffers");
+		glCreateMemoryObjectsEXT = (PFNGLCREATEMEMORYOBJECTSEXTPROC)eglGetProcAddress("glCreateMemoryObjectsEXT");
+		glImportMemoryFdEXT = (PFNGLIMPORTMEMORYFDEXTPROC)eglGetProcAddress("glImportMemoryFdEXT");
+		glNamedBufferStorageMemEXT = (PFNGLNAMEDBUFFERSTORAGEMEMEXTPROC)eglGetProcAddress("glNamedBufferStorageMemEXT");
+		glDeleteBuffers = (PFNGLDELETEBUFFERSPROC)eglGetProcAddress("glDeleteBuffers");
+		glDeleteMemoryObjectsEXT = (PFNGLDELETEMEMORYOBJECTSEXTPROC)eglGetProcAddress("glDeleteMemoryObjectsEXT");
+		initialized = true;
+	}
 }
 
 shared_device_buffer::~shared_device_buffer()

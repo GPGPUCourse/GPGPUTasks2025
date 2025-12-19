@@ -23,7 +23,6 @@
 #include <libgpu/context.h>
 #include <libgpu/shared_device_buffer.h>
 #include <libgpu/device.h>
-#include "GL/glew.h"
 #include "EGL/egl.h"
 
 #define LOAD_KERNEL_BINARIES_FROM_FILE ""

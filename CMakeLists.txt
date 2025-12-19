@@ -17,10 +17,6 @@ else ()
     message(STATUS "Vulkan glslc compiler is specified")
 endif ()
 
-find_package(GLEW REQUIRED)
-include_directories(${GLEW_INCLUDE_DIRS})
-link_libraries(${GLEW_LIBRARIES})
-
 find_package(OpenGL COMPONENTS EGL)
 include_directories(${OPENGL_INCLUDE_DIRS})
 link_libraries(${OPENGL_LIBRARY})

@@ -15,7 +15,6 @@
 
 #include "cpu_helpers/build_bvh_cpu.h"
 
-#include "GL/glew.h"
 #include "EGL/egl.h"
 
 #include <cfloat>
@@ -295,7 +294,6 @@ void run(int argc, char** argv)
     eglBindAPI(EGL_OPENGL_API);
     EGLContext eglCtx = eglCreateContext(eglDpy, eglCfg, EGL_NO_CONTEXT, NULL);
     eglMakeCurrent(eglDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, eglCtx);
-    int ret = glewInit();
     // chooseGPUVkDevices:
     // - Если не доступо ни одного устройства - кинет ошибку
     // - Если доступно ровно одно устройство - вернет это устройство
