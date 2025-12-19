@@ -32,10 +32,10 @@ __kernel void merge_sort(
     }
 
     int block_size = 1 << sorted_k;
-    int block_id = i >> block_size;
+    int block_id = i >> sorted_k;
     bool is_cur_block_left = 1 - (block_id & 1);
     
-    int block_start = block_id * block_size;
+    int block_start = block_id << sorted_k;
     int pair_block_start = block_start + (is_cur_block_left ? block_size : -block_size);
     int pair_count = max(0, min(block_size, n - pair_block_start));
 
