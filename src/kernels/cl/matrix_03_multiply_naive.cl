@@ -13,5 +13,14 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
+    const uint row = get_global_id(1);
+    const uint col = get_global_id(0);
+
+    if (row >= h || col >= w) return;
+
+    float acc = 0;
+    for (uint t = 0; t < k; ++t) {
+        acc += a[row * k + t] * b[t * w + col];
+    }
+    c[row * w + col] = acc;
 }
