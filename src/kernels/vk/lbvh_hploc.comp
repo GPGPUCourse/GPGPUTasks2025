@@ -1,0 +1,293 @@
+#version 450
+
+#extension GL_EXT_control_flow_attributes: require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64: require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8: require
+#extension GL_KHR_shader_subgroup_arithmetic: require
+#extension GL_KHR_shader_subgroup_basic: require
+#extension GL_KHR_shader_subgroup_ballot: require
+#extension GL_KHR_shader_subgroup_shuffle: require
+#extension GL_KHR_shader_subgroup_shuffle_relative: require
+#extension GL_KHR_shader_subgroup_vote: require
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "../defines.h"
+#include "../shared_structs/bvh_node_gpu_shared.h"
+
+// "Fused Collapsing for Wide BVH Construction"
+
+// sorted morton codes
+layout (std430, binding = 0) restrict readonly buffer MortonsIn
+{
+	uint mortons[];
+};
+
+// corresponding indices of original triangles. overwritten by algorithm,
+// as cluster element indices are stored here as well
+layout (std430, binding = 1) restrict coherent buffer IndicesIn
+{
+	uint indices[];
+};
+
+// (AABB, 2 children) pairs.
+// if the second child pointer is negative, there are no children and ~children[1] is the BVH offset of the corresponding triangle/box4 node
+layout (std430, binding = 2) restrict coherent buffer NodesThin
+{
+    BVHThinNodeGPU nodes_thin[];
+};
+
+// output BVH4's box nodes. starts at offset 64*nfaces within overall BVH
+layout (std430, binding = 3) restrict buffer NodesWide
+{
+    BVHBoxGPU nodes_wide[];
+};
+
+// output BVH4's triangle nodes. used only to save parent information
+layout (std430, binding = 4) restrict writeonly buffer NodesTri
+{
+    BVHTriangleGPU nodes_tri[];
+};
+
+// auxiliary buffer used for radix tree traversal, starts at -1, overwritten with parent list
+layout (std430, binding = 5) restrict coherent buffer ParentId
+{
+    uint parent_id[];
+};
+
+// atomic counters for allocating thin/wide nodes in nodes_thin/nodes_wide
+layout (std430, binding = 6) restrict buffer NodeCounter
+{
+    uint thin_offset;
+    uint wide_offset;
+};
+
+layout (push_constant) uniform PushConstants
+{
+    uint N; // number of faces
+} params;
+
+layout (local_size_x = HPLOC_GROUP_SIZE, local_size_y = 1) in;
+
+#define SUBGROUP 32 // might work on others but not tested
+
+uint64_t delta(uint a, uint b) {
+    return uint64_t(mortons[a] ^ mortons[b]) << 32 | a ^ b;
+}
+
+uint findParentId(uint L, uint R) {
+    if(L == 0 || (R != params.N - 1 && delta(R, R+1) < delta(L-1, L)))
+        return R;
+    else
+        return L - 1;
+}
+
+float aabb_dist(vec3 xmin, vec3 xmax, vec3 ymin, vec3 ymax) // half surface area
+{
+    vec3 dims = max(xmax, ymax) - min(xmin, ymin);
+    rassert(dims.x >= 0.0 && dims.y >= 0.0 && dims.z >= 0.0, 13338);
+    return dims.x * dims.y + dims.x * dims.z + dims.y * dims.z;
+}
+
+shared uint best_neighbor_info[HPLOC_GROUP_SIZE];
+
+int decode_rel_offset(uint x) {
+    int y = int(x & 15);
+    return y < 8 ? y + 1 : 7 - y;
+}
+
+void record_parent(uint child, uint parent) {
+    rassert(child % 8 == 5 || child % 8 == 0, 1338);
+    if(child % 8 == 5) { // box
+        nodes_wide[(child - 8 * params.N) / 16].reserved[2] = parent;
+    }
+    else {
+        nodes_tri[child / 8].id = parent;
+    }
+}
+
+void try_merge(uint lane, uint L, uint R, uint S, bool final)
+{
+    uint id = gl_SubgroupInvocationID.x;
+    L = subgroupShuffle(L, lane);
+    R = subgroupShuffle(R, lane) + 1;
+    S = subgroupShuffle(S, lane);
+    final = subgroupShuffle(final, lane);
+    bool doLoad1 = id < min(SUBGROUP / 2, S - L);
+    uint ci = doLoad1 ? indices[id + L] : -1;
+    uint numL = subgroupBallotBitCount(subgroupBallot(ci != -1));
+    bool doLoad2 = id >= numL && id - numL < min(SUBGROUP / 2, R - S);
+    ci = doLoad2 ? indices[id - numL + S] : ci;
+    uint inps = subgroupBallotBitCount(subgroupBallot(ci != -1));
+    uint ballot_res = subgroupBallot(ci != -1).x;
+    rassert(bitCount(ballot_res + 1) <= 1, 13337); // ci must be compact
+    uint threshold = final ? 1 : SUBGROUP / 2;
+    uint cur = inps;
+    uint ar_start = gl_SubgroupID * SUBGROUP;
+    //while(cur > threshold) {
+    for(uint it = 0; it < 100; it++) {
+        if(cur <= threshold)
+            break;
+        rassert(it < 90, 13333333);
+        vec3 xmin = vec3(nodes_thin[ci].aabb.min_x, nodes_thin[ci].aabb.min_y, nodes_thin[ci].aabb.min_z);
+        vec3 xmax = vec3(nodes_thin[ci].aabb.max_x, nodes_thin[ci].aabb.max_y, nodes_thin[ci].aabb.max_z);
+        int child0 = nodes_thin[ci].children[0]; // always exists
+        int child1 = nodes_thin[ci].children[1]; 
+        best_neighbor_info[ar_start + id] = -1;
+        subgroupBarrier();
+        uint min_self = -1;
+        for(uint r = 1; r <= 8; r++) {
+            vec3 ymin = subgroupShuffleDown(xmin, r);
+            vec3 ymax = subgroupShuffleDown(xmax, r);
+            int n_child1 = subgroupShuffleDown(child1, r);
+            if(id + r >= cur)
+                continue;
+            float dist = aabb_dist(xmin, xmax, ymin, ymax);
+            if((child1 < 0) != (n_child1 < 0)) // prefer merging 1+1 and 2+2 over 1+2
+                dist *= 1.3f;
+            uint d_enc = floatBitsToUint(dist);
+            d_enc = d_enc &~ 15u | r - 1;
+            min_self = min(min_self, d_enc);
+            atomicMin(best_neighbor_info[ar_start + id + r], d_enc | 8);
+
+        //if(gl_WorkGroupID.x == 0 && gl_SubgroupID == 1)
+        //    debugPrintfEXT("id %d: to %d dist %f\n", id, id + r, dist);
+        }
+        subgroupBarrier();
+        int rel = decode_rel_offset(min(best_neighbor_info[ar_start + id], min_self));
+        uint other = subgroupShuffle(rel, id + rel);
+        bool symm = rel == -other;
+        bool is_left = rel > 0;
+        rassert(subgroupBallotBitCount(subgroupBallot(symm && id >= cur)) == 0, 133340); // unused lanes are not matched
+        int n_child0 = subgroupShuffle(child0, id + rel);
+        int n_child1 = subgroupShuffle(child1, id + rel);
+
+        vec3 ymin = subgroupShuffle(xmin, id + rel);
+        vec3 ymax = subgroupShuffle(xmax, id + rel);
+        xmin = min(xmin, ymin);
+        xmax = max(xmax, ymax);
+        // first child is always present, but there may be more
+        rassert(subgroupBallotBitCount(subgroupBallot(symm && is_left && child0 == -1)) == 0, 133341);
+        rassert(subgroupBallotBitCount(subgroupBallot(symm && is_left && n_child0 == -1)) == 0, 133341);
+        uint extra_c = uint(child1 >= 0) + uint(n_child1 >= 0);
+        bool is_add = symm && is_left;
+        uint other_ci = subgroupShuffle(ci, id + rel);
+        bool is_add_wide = is_add && (extra_c > 0 || final && cur == 2); // always make the very top level a wide box even if only 2 needed
+        uvec4 add_ballot = subgroupBallot(is_add);
+        uvec4 wide_ballot = subgroupBallot(is_add_wide);
+        uint n_add = subgroupBallotBitCount(add_ballot);
+        uint n_add_wide = subgroupBallotBitCount(wide_ballot);
+        rassert(n_add != 0, 133339); // need at least 1 match
+        uint i_thin = 0, i_wide = 0;
+        if(id == 0) {
+//            debugPrintfEXT("wi %d bi %d: alloc %d thin %d wide\n", gl_WorkGroupID.x, gl_SubgroupID.x, n_add, n_add_wide);
+            i_thin = atomicAdd(thin_offset, n_add);
+            i_wide = atomicAdd(wide_offset, n_add_wide);
+        }
+        i_thin = subgroupBroadcast(i_thin, 0) + subgroupBallotExclusiveBitCount(add_ballot);
+        i_wide = subgroupBroadcast(i_wide, 0) + subgroupBallotExclusiveBitCount(wide_ballot);
+        uint tc0 = ci, tc1 = other_ci;
+        if(is_add_wide) {
+            uint self_ptr = params.N * (64 / 8) + i_wide * (128 / 8) | 5;
+            // child1 < 0 means it should be treated as a 1-childed node (note that we can't embed box4 in box4, only box2)
+            if(nodes_thin[child0].children[1] > 0 || nodes_thin[n_child0].children[1] > 0 || nodes_thin[child1].children[1] > 0 || nodes_thin[n_child1].children[1] > 0) {
+                rassert(false, 1999);
+            }
+            BVHBoxGPU box;
+            // a wide node only stores AABBs of children, but not of itself
+            uint c0_ptr = 0xffffFFFF ^ nodes_thin[child0].children[1];
+            uint cn0_ptr = 0xffffFFFF ^ nodes_thin[n_child0].children[1];
+            box.children[0] = c0_ptr;
+            box.children[1] = cn0_ptr;
+            box.coords[0] = nodes_thin[child0].aabb;
+            box.coords[1] = nodes_thin[n_child0].aabb;
+            record_parent(c0_ptr, self_ptr);
+            record_parent(cn0_ptr, self_ptr);
+            uint j = 2;
+            if(child1 >= 0) {
+                uint c1_ptr = 0xffffFFFF ^ nodes_thin[child1].children[1];
+                box.children[j] = c1_ptr;
+                box.coords[j] = nodes_thin[child1].aabb;
+                record_parent(c1_ptr, self_ptr);
+                j++;
+            }
+            if(n_child1 >= 0) {
+                uint cn1_ptr = 0xffffFFFF ^ nodes_thin[n_child1].children[1];
+                box.children[j] = cn1_ptr;
+                box.coords[j] = nodes_thin[n_child1].aabb;
+                record_parent(cn1_ptr, self_ptr);
+                j++;
+            }
+            AABBGPU zero = AABBGPU(0,0,0,0,0,0);
+            if(j != 4) { box.children[j] = -1; box.coords[j] = zero; j++; }
+            if(j != 4) { box.children[j] = -1; box.coords[j] = zero; j++; }
+            nodes_wide[i_wide] = box;
+            tc0 = i_thin;//ci;
+            tc1 = int(self_ptr ^ 0xffffFFFF);
+        }
+        if(is_add) {
+            nodes_thin[i_thin].aabb.min_x = xmin.x;
+            nodes_thin[i_thin].aabb.min_y = xmin.y;
+            nodes_thin[i_thin].aabb.min_z = xmin.z;
+            nodes_thin[i_thin].aabb.max_x = xmax.x;
+            nodes_thin[i_thin].aabb.max_y = xmax.y;
+            nodes_thin[i_thin].aabb.max_z = xmax.z;
+            nodes_thin[i_thin].children[0] = int(tc0);
+            nodes_thin[i_thin].children[1] = int(tc1);
+            
+            ci = i_thin;
+        } else if(symm) {
+            ci = -1;
+        } // else keep old ci
+
+        subgroupBarrier();
+        uvec4 nz_ballot = subgroupBallot(ci != -1);
+        uint nzs = subgroupBallotExclusiveBitCount(nz_ballot);
+        // this could be done better with RDNA3 DS_PERMUTE_B32 but it's not exposed through GLSL
+        if(ci != -1)
+            best_neighbor_info[ar_start + nzs] = ci;
+        cur = subgroupBallotBitCount(nz_ballot);
+        subgroupBarrier();
+        ci = id < cur ? best_neighbor_info[ar_start + id] : -1;
+    }
+    // write cluster data back to indices
+    if(id < inps)
+        indices[id + L] = ci;
+    memoryBarrierBuffer();
+}
+
+void main()
+{
+    rassert(gl_SubgroupSize == SUBGROUP, 1337);
+    uint i = gl_GlobalInvocationID.x;
+    bool lane_active = i < params.N;
+    uint L = i, R = i;
+    while(subgroupAny(lane_active)) {
+        uint split = -1u;
+        if(lane_active) {
+            uint prev;
+            if(findParentId(L, R) == R) {
+                prev = atomicExchange(parent_id[R], L);
+                if(prev != -1) {
+                    split = R + 1;
+                    R = prev;
+                }
+            } else {
+                prev = atomicExchange(parent_id[L - 1], R);
+                if(prev != -1) {
+                    split = L;
+                    L = prev;
+                }
+            }
+            if(prev == -1)
+                lane_active = false;
+        }
+        uint len = R - L + 1;
+        bool final = lane_active && len == params.N;
+        uint to_merge = subgroupBallot((lane_active && len > SUBGROUP / 2) || final).x;
+        while(to_merge != 0) {
+            uint lane = findLSB(to_merge);
+            try_merge(lane, L, R, split, final);
+            to_merge &= to_merge - 1;
+        }
+    }
+}

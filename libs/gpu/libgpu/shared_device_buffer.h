@@ -28,14 +28,14 @@ class shared_device_buffer {
 public:
 	shared_device_buffer();
 	~shared_device_buffer();
-	explicit shared_device_buffer(size_t size) : shared_device_buffer() { resize(size); }
+	explicit shared_device_buffer(size_t size, bool exported = false) : shared_device_buffer() { resize(size, exported); }
 	shared_device_buffer(const shared_device_buffer &other, size_t offset = 0);
 	shared_device_buffer &operator= (const shared_device_buffer &other);
 
 	void			swap(shared_device_buffer &other);
 	void			reset();
 	size_t			size() const;
-	void			resize(size_t size);
+	void			resize(size_t size, bool exported=false);
 	void			grow(size_t size, float reserveMultiplier=1.1f);
 	bool 			isNull() const;
 
@@ -53,11 +53,16 @@ public:
 	void			read(void *data, size_t size, ptrdiff_t offset = 0) const;
 	void 			read2D(size_t spitch, void *dst, size_t dpitch, size_t width, size_t height) const;
 
+	void 			memset(char value);
+
 	void 			copyTo(shared_device_buffer &that, size_t size) const;
 
 	bool			checkMagicGuards(const std::string &info) const;
 
 	static shared_device_buffer create(size_t size);
+	void opencl_import();
+    void export_acquire();
+    void export_release();
 
 protected:
 	void	incref();
@@ -69,6 +74,10 @@ protected:
 
 	unsigned char *	buffer_;
 	void *			data_;
+	void *			clmem_;
+	int				clfd_;
+	unsigned		glmem_;
+	unsigned		glbuf_;
 	int				type_;
 	size_t			size_;
 	size_t			offset_;
@@ -80,16 +89,16 @@ template <typename T>
 class shared_device_buffer_typed : public shared_device_buffer {
 public:
 	shared_device_buffer_typed() : shared_device_buffer() {}
-	explicit shared_device_buffer_typed(size_t number) : shared_device_buffer() { resizeN(number); }
+	explicit shared_device_buffer_typed(size_t number, bool exported = false) : shared_device_buffer() { resizeN(number, exported); }
 	shared_device_buffer_typed(const shared_device_buffer_typed &other, size_t offset) : shared_device_buffer(other, offset * sizeof(T)) {}
 	explicit shared_device_buffer_typed(const shared_device_buffer &other) : shared_device_buffer(other) {}
 
 	size_t			number() const		{ return size_ / elementSize(); }
 	size_t			elementSize() const	{ return sizeof(T); }
 
-	void			resizeN(size_t number)
+	void			resizeN(size_t number, bool exported = false)
 	{
-		this->resize(number * elementSize());
+		this->resize(number * elementSize(), exported);
 	}
 	void			growN(size_t number, float reserveMultiplier=1.1f)
 	{

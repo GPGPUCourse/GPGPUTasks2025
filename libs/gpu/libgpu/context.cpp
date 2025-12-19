@@ -276,6 +276,11 @@ void Context::activate()
 	data_current_	= data_;
 }
 
+void Context::deactivate()
+{
+    data_current_ = nullptr;
+}
+
 Context::Data *Context::data() const
 {
 	if (!data_)

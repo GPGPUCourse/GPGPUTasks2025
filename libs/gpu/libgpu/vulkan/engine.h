@@ -315,9 +315,11 @@ namespace avk2 {
 
 		void							init(uint64_t vk_device_id, bool enable_validation_layers);
 
-		avk2::raii::BufferData*			createBuffer(size_t size);
+		avk2::raii::BufferData*			createBuffer(size_t size, bool exported = false);
+		void							memsetBuffer(const avk2::raii::BufferData &buffer_dst, size_t offset, size_t size, char value);
 		void							writeBuffer(const avk2::raii::BufferData &buffer_dst, size_t offset, size_t size, const void *src);
 		void							readBuffer(const avk2::raii::BufferData &buffer_src, size_t offset, size_t size, void *dst);
+		int							 	exportBuffer(const avk2::raii::BufferData &buffer);
 
 		avk2::raii::ImageData*			createDepthImage(unsigned int width, unsigned int height);
 		avk2::raii::ImageData*			createImage2DArray(unsigned int width, unsigned int height, size_t cn, DataType data_type);

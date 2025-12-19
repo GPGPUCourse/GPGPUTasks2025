@@ -71,7 +71,7 @@ function (compile_vulkan_spir outfiles program defines)
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/${VK_DIR} # mkdir generated_kernels
 
 		# compile shader kernel into SPIR-V assembly binary file
-		COMMAND ${GLSLC_BIN} -MD -MF ${INCLUDE_DEPENDENCIES} -I${libgpu_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/${program} ${defines_separated} ${GLSLC_DEBUG_FLAG} -O -mfmt=bin -o ${SPIR_BINARY}
+		COMMAND ${GLSLC_BIN} -MD -MF ${INCLUDE_DEPENDENCIES} -I${libgpu_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/${program} ${defines_separated} ${GLSLC_DEBUG_FLAG} -O -mfmt=bin -o ${SPIR_BINARY} --target-env=vulkan1.3 -O
 	)
 	add_custom_command (
 		OUTPUT ${VK_HEADER}

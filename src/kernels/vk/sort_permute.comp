@@ -1,0 +1,201 @@
+#version 450
+
+#extension GL_EXT_control_flow_attributes: require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64: require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8: require
+#extension GL_KHR_shader_subgroup_arithmetic: require
+#extension GL_KHR_shader_subgroup_basic: require
+#extension GL_KHR_shader_subgroup_ballot: require
+#extension GL_KHR_shader_subgroup_shuffle: require
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "../defines.h"
+
+// Buffers: adjust binding indices to match your host side
+layout (std430, binding = 0) restrict readonly buffer NumsIn
+{
+	uint inputs[];
+};
+
+layout (std430, binding = 1) restrict writeonly buffer NumsOut
+{
+	uint outputs[];
+};
+
+layout (std430, binding = 2) restrict coherent buffer BlockIndex
+{
+    uint blockIndex[];
+};
+
+layout (std430, binding = 3) restrict readonly buffer BinStart
+{
+    uint binStart[4][256];
+};
+
+layout (std430, binding = 4) restrict coherent buffer Hists
+{
+    uint hists[][256];
+};
+
+layout (std430, binding = 5) restrict readonly buffer TagsIn
+{
+	uint input_tags[];
+};
+
+layout (std430, binding = 6) restrict writeonly buffer TagsOut
+{
+	uint output_tags[];
+};
+
+layout (local_size_x = GROUP_SIZE, local_size_y = 1) in;
+
+// Push constants: number of faces
+layout (push_constant) uniform PushConstants
+{
+    uint N;
+    uint digit_i;
+} params;
+
+#define SUBGROUP 32
+shared uint bi;
+shared uint hist[256];
+shared uint whist[(256 / SUBGROUP) * 256];
+shared uint lsum[256];
+shared uint prevhist[256];
+
+void main()
+{
+    rassert(gl_SubgroupSize == SUBGROUP, 1337);
+    uint li = gl_LocalInvocationID.x;
+    if(li == 0) {
+        bi = atomicAdd(blockIndex[params.digit_i], 1);
+    }
+    hist[li] = 0;
+    for(uint j = 0; j < 256/SUBGROUP; j++)
+        whist[j * 256 + li] = 0;
+    memoryBarrierShared(); barrier();
+    uint i0 = bi * GROUP_SIZE * SORT_DIGITS_PER_THREAD + li % SUBGROUP + li / SUBGROUP * SUBGROUP * SORT_DIGITS_PER_THREAD;
+    uint invals[SORT_DIGITS_PER_THREAD];
+    [[unroll]]
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++)
+        invals[di] = i0 + SUBGROUP * di < params.N ? inputs[i0 + SUBGROUP * di] : -uint(1);
+    uint8_t digits[SORT_DIGITS_PER_THREAD];
+    [[unroll]]
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++)
+        digits[di] = uint8_t(invals[di] >> (8 * params.digit_i) & 255);
+    // compute histogram and local offset within this block
+    // - for each element compute mask of others in same warp colliding with it
+    // - count those earlier than self to get offfset relative to block-wise bin
+    // - also add overall popcnt to block-wise histogram. resolve conflicts by only adding for the first one
+    
+    uint block_offsets[SORT_DIGITS_PER_THREAD];
+    [[unroll]]
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++)
+    {
+        uint mask = 0xffffFFFF;
+        [[unroll]]
+        for(uint sh = 0; sh < 8; sh++) {
+            bool bit = bool(digits[di] >> sh & 1);
+            mask &= (bit ? 0 : 0xffffFFFF) ^ subgroupBallot(bit).x;
+        }
+        uint bc = bitCount(mask & gl_SubgroupLtMask.x);
+        uint old;
+        if(bc == 0) {
+            old = atomicAdd(whist[gl_SubgroupID * 256 + digits[di]], bitCount(mask));
+        }
+        block_offsets[di] = subgroupShuffle(old, findLSB(mask)) + bc;
+    }
+    memoryBarrierShared(); barrier();
+    uint hist_val = 0;
+    for(uint j = 0; j < 256/SUBGROUP; j++) { 
+        uint tmp = hist_val;
+        hist_val += whist[256 * j + li];
+        whist[256 * j + li] = tmp;
+    }
+    hist[li] = hist_val;
+    if(bi == 0) {
+        prevhist[li] = binStart[params.digit_i][li];
+        hists[bi][li] = hist[li] + prevhist[li] | 1u << 31;
+    } else {
+        prevhist[li] = 0;
+        hists[bi][li] = hist[li] | 1u << 30;
+    }
+
+    // now prefix-sum the warp histogram to get block bin starts
+    
+    lsum[li] = subgroupInclusiveAdd(hist[li]); // inclusive prefix sum groups of 32
+    memoryBarrierShared(); barrier();
+    if(li * gl_SubgroupSize < 256) {
+        lsum[(li + 1) * gl_SubgroupSize - 1] = subgroupInclusiveAdd(lsum[(li + 1) * gl_SubgroupSize - 1]);
+        // now elt 31 has sum of 0..31, 63 has 0..63, 95 has 0..95, etc.
+    }
+    memoryBarrierShared(); barrier();
+    
+    if(li >= gl_SubgroupSize && (li & (gl_SubgroupSize - 1)) != 31)
+        lsum[li] += lsum[(li &~ (gl_SubgroupSize - 1)) - 1];
+    memoryBarrierShared(); barrier();
+    [[unroll]]
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++)
+        block_offsets[di] += whist[gl_SubgroupID * 256 + digits[di]] + (digits[di] == 0 ? 0 : lsum[digits[di] - 1]);
+    
+    // look back to get prevhist
+    for(uint cbi = bi; cbi --> 0;) {
+        uint prev = hists[cbi][li];
+        if((prev & (1u << 30)) != 0) { // local available
+            prevhist[li] += prev & (1u << 30) - 1;
+        } else if((prev & (1u << 31)) != 0) { // global available
+            prevhist[li] += prev & (1u << 30) - 1;
+            hists[bi][li] = (prevhist[li] + hist[li]) | (1u << 31);
+            break;
+        } else { // neither. must wait
+            cbi++;
+        }
+    }
+    hist[li] = prevhist[li] - (li == 0 ? 0 : lsum[li - 1]);
+
+    memoryBarrierShared(); barrier();
+
+#define tmpbuf whist // reuse whist as temporary buffer for applying permutation as it's not needed anymore
+    [[unroll]]
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++) {
+        tmpbuf[block_offsets[di]] = invals[di];
+    }
+    memoryBarrierShared(); barrier();
+        
+    // given this local sorted data, scatter into global
+    // to get target offset, subtract local bin start and add global bin start. we've already subtracted local bin start in lsum
+    
+    [[unroll]]
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++) {
+        uint8_t digit = uint8_t(tmpbuf[SORT_DIGITS_PER_THREAD * li + di] >> (8 * params.digit_i) & 255);
+        digits[di] = digit;
+        uint to = hist[digit] + SORT_DIGITS_PER_THREAD * li + di;
+        if(to < params.N)
+            outputs[hist[digit] + SORT_DIGITS_PER_THREAD * li + di]
+                        = tmpbuf[SORT_DIGITS_PER_THREAD * li + di];
+    }
+    
+    memoryBarrierShared(); barrier();
+
+    if(params.digit_i != 0) {
+        [[unroll]]
+        for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++) {
+            tmpbuf[block_offsets[di]] = i0 + SUBGROUP * di < params.N ? input_tags[i0 + SUBGROUP * di] : -uint(1);
+            if(params.digit_i == 0 && i0 * SUBGROUP + di < params.N)
+                rassert(tmpbuf[block_offsets[di]] == i0 + SUBGROUP * di, 144);
+        }
+    }
+    else {
+        for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++) {
+            tmpbuf[block_offsets[di]] = i0 + SUBGROUP * di;
+        }
+    }
+    memoryBarrierShared(); barrier();
+
+    for(uint di = 0; di < SORT_DIGITS_PER_THREAD; di++) {
+        uint to = hist[digits[di]] + SORT_DIGITS_PER_THREAD * li + di;
+        if(to < params.N)
+            output_tags[to]
+                        = tmpbuf[SORT_DIGITS_PER_THREAD * li + di];
+    }
+}

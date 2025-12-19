@@ -3,10 +3,16 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/ray_tracing_render_using_bvh4.h"
+#include "cl/generated_kernels/lbvh_prim.h"
+#include "cl/generated_kernels/sort_psum.h"
+#include "cl/generated_kernels/denoise.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_using_lbvh_comp.h"
+#include "vk/generated_kernels/sort_permute_comp.h"
+#include "vk/generated_kernels/lbvh_hploc_comp.h"
 
 #ifndef CUDA_SUPPORT
 namespace cuda {
@@ -55,7 +61,28 @@ const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
 }
+
+const ProgramBinaries& getRTWithBVH4()
+{
+    return opencl_binaries_ray_tracing_render_using_bvh4;
+}
+
+const ProgramBinaries& getLBVHPrim()
+{
+    return opencl_binaries_lbvh_prim;
+}
+
+const ProgramBinaries& getSortPsum()
+{
+    return opencl_binaries_sort_psum;
+}
+
+const ProgramBinaries& getDenoise()
+{
+    return opencl_binaries_denoise;
+}
 } // namespace ocl
+
 
 namespace avk2 {
 const ProgramBinaries& getAplusB()
@@ -71,5 +98,15 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return vulkan_binaries_ray_tracing_render_using_lbvh_comp;
+}
+
+const ProgramBinaries& getSortPermute()
+{
+    return vulkan_binaries_sort_permute_comp;
+}
+
+const ProgramBinaries& getLbvhHploc()
+{
+    return vulkan_binaries_lbvh_hploc_comp;
 }
 } // namespace avk2

@@ -367,6 +367,7 @@ public:
 		// We require VK_EXT_shader_atomic_float extension to use atomicAdd(float[], float),
 		// it has wide support - https://vulkan.gpuinfo.org/listdevicescoverage.php?extension=VK_EXT_shader_atomic_float
 		device_enabled_extensions.push_back(VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME);
+		device_enabled_extensions.push_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
 		vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT atomic_float_features;
 		atomic_float_features.setShaderBufferFloat32AtomicAdd(true);
 		atomic_float_features.setPNext(pNextFeature);
@@ -426,6 +427,31 @@ public:
 		vma_ = std::shared_ptr<VmaAllocator>(new VmaAllocator());
 		VK_CHECK_RESULT(vmaCreateAllocator(&allocatorCreateInfo, vma_.get()), 56748938637);
 
+		// create pool for exported memory
+		vk::BufferUsageFlags usage_flags = vk::BufferUsageFlagBits::eStorageBuffer;
+		usage_flags |= vk::BufferUsageFlagBits::eTransferDst; // required for usage as DST in copyBuffer(src, DST) - i.e. for shared_device_buffer::write
+		usage_flags |= vk::BufferUsageFlagBits::eTransferSrc; // required for usage as SRC in copyBuffer(SRC, dst) - i.e. for shared_device_buffer::read
+		usage_flags |= vk::BufferUsageFlagBits::eVertexBuffer;// required for usage as vertices buffer - i.e. can be used via vkCmdBindVertexBuffers
+		usage_flags |= vk::BufferUsageFlagBits::eIndexBuffer; // required for usage as indices (i.e. faces) buffer - i.e. can be used via vkCmdBindIndexBuffer
+		vk::BufferCreateInfo raii_buffer_create_info{vk::BufferCreateFlags(), 0x1000, usage_flags, vk::SharingMode::eExclusive, 1, &queue_family_index_};
+		VkBufferCreateInfo buffer_create_info = raii_buffer_create_info;
+		VmaAllocationCreateInfo allocation_info = {};
+		allocation_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+		allocation_info.flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
+		uint32_t mti;
+		VK_CHECK_RESULT(vmaFindMemoryTypeIndexForBufferInfo(*vma_, &buffer_create_info, &allocation_info, &mti), 56748938638);
+		static VkExportMemoryAllocateInfoKHR exportMemAllocInfo = {
+			VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR,
+			nullptr,
+			VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT
+		};
+		VmaPoolCreateInfo poolCreateInfo = {};
+		poolCreateInfo.memoryTypeIndex = mti;
+		poolCreateInfo.pMemoryAllocateNext = &exportMemAllocInfo;
+		VmaPool exportPool = nullptr;
+		VK_CHECK_RESULT(vmaCreatePool(*vma_, &poolCreateInfo, &exportPool), 56748938639);
+		exportPool_ = std::make_shared<VmaPool>(exportPool);
+
 		queue_ = std::make_shared<vk::raii::Queue>(device_->getQueue(*queue_family_index, 0));
 
 		vk::CommandPoolCreateInfo command_pool_create_info({}, *queue_family_index);
@@ -462,6 +488,7 @@ public:
 	unsigned int								queue_family_index_;
 	std::shared_ptr<vk::raii::Device>			device_;
 	std::shared_ptr<VmaAllocator>				vma_;
+	std::shared_ptr<VmaPool>					exportPool_;
 	std::shared_ptr<vk::raii::Queue>			queue_;
 	std::shared_ptr<vk::raii::CommandPool>		command_pool_;
 	std::shared_ptr<vk::raii::DescriptorPool>	descriptor_pool_; // TODO allocate them when needed with exponentially increasing size? (on per-type basis) or even use VK_KHR_push_descriptors
@@ -604,7 +631,7 @@ void avk2::VulkanEngine::init(uint64_t vk_device_id, bool enable_validation_laye
 	allocateStagingReadBuffers();
 }
 
-avk2::raii::BufferData* avk2::VulkanEngine::createBuffer(size_t size)
+avk2::raii::BufferData* avk2::VulkanEngine::createBuffer(size_t size, bool exported)
 {
 	rassert(size > 0, 435172894312);
 	vk::BufferUsageFlags usage_flags = vk::BufferUsageFlagBits::eStorageBuffer;
@@ -618,6 +645,10 @@ avk2::raii::BufferData* avk2::VulkanEngine::createBuffer(size_t size)
 	VmaAllocationCreateInfo allocation_info = {};
 	allocation_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	allocation_info.flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
+	if(exported) {
+		allocation_info.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+		allocation_info.pool = *avk2_context_->exportPool_;
+	}
 
 	VkBuffer buffer;
 	VmaAllocation buffer_allocation;
@@ -937,6 +968,29 @@ void avk2::VulkanEngine::allocateStagingReadBuffers()
 		VK_CHECK_RESULT(vmaCreateBuffer(getVma(), &buffer_create_info, &allocation_info, &staging_buffer, &staging_buffer_allocation, &staging_alloc_info), 308375350495318);
 		staging_read_buffers_[i] = std::unique_ptr<avk2::raii::BufferData>(new avk2::raii::BufferData(staging_buffer, staging_buffer_allocation, staging_alloc_info));
 	}
+}
+
+int avk2::VulkanEngine::exportBuffer(const avk2::raii::BufferData &buffer) {
+	VkMemoryGetFdInfoKHR info = {};
+	info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+	info.pNext = nullptr;
+	VmaAllocationInfo alloc;
+	vmaGetAllocationInfo(*avk2_context_->vma_, buffer.allocation_, &alloc);
+	//printf("Export buffer: VkDeviceMemory %p offset %p size %p\n", alloc.deviceMemory, alloc.offset, alloc.size);
+	info.memory = alloc.deviceMemory;
+	info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
+	auto ret = getDevice().getMemoryFdKHR(info);
+	return ret;
+}
+
+void avk2::VulkanEngine::memsetBuffer(const avk2::raii::BufferData &buffer_dst, size_t offset, size_t size, char value)
+{
+	auto command_buffer = std::make_shared<vk::raii::CommandBuffer>(createCommandBuffer());
+	command_buffer->begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+	command_buffer->fillBuffer(buffer_dst.getBuffer(), offset, size, uint32_t(uint8_t(value)) * 0x1010101);
+	command_buffer->end();
+
+	submitCommandBuffer(*command_buffer, findFence("memsetBuffer"));
 }
 
 void avk2::VulkanEngine::writeBuffer(const avk2::raii::BufferData &buffer_dst, size_t offset, size_t size, const void *src)

@@ -9,8 +9,9 @@
 #define VK_RASSERT_CODE_MAGIC_GUARDS	(239239239)
 #define VK_RASSERT_LINE_EMPTY			0
 
-
 #ifndef HOST_CODE
+#if RASSERT_ENABLED
+
 //______________________________________________Device-only code________________________________________________________
 
 layout (std430, set = VK_RASSERT_CODE_SET, binding = VK_RASSERT_CODE_BINDING_SLOT) restrict buffer RassertCodeOut {
@@ -32,6 +33,10 @@ void rassert_set_code(uint code, uint line)
 		}												\
 	} while (false)
 
+
+#else // RASSERT_ENABLED
+#define rassert(condition, error_code)
+#endif // RASSERT_ENABLED
 #endif // not HOST_CODE
 
 #endif // pragma once

@@ -45,6 +45,7 @@ public:
 	bool	isMemoryGuardsChecksAfterKernelsEnabled();
 
 	void	activate();
+	void	deactivate();
 
 	size_t 				getCoresEstimate();
 	uint64_t			getTotalMemory();

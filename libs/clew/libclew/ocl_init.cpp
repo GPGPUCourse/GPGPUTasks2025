@@ -136,6 +136,7 @@ typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clFinish)						(cl_command_q
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueReadBuffer)			(cl_command_queue, cl_mem, cl_bool, size_t, size_t, void *, cl_uint, const cl_event *, cl_event *);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueReadBufferRect)		(cl_command_queue, cl_mem, cl_bool, const size_t *, const size_t *, const size_t *, size_t, size_t, size_t, size_t, const void *, cl_uint, const cl_event *, cl_event *);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueWriteBuffer)			(cl_command_queue, cl_mem, cl_bool, size_t, size_t, const void *, cl_uint, const cl_event *, cl_event *);
+typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueFillBuffer)			(cl_command_queue, cl_mem, const void*, size_t, size_t, size_t, cl_uint, const cl_event*, cl_event*);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueWriteBufferRect)		(cl_command_queue, cl_mem, cl_bool, const size_t *, const size_t *, const size_t *, size_t, size_t, size_t, size_t, const void *, cl_uint, const cl_event *, cl_event *);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueCopyBuffer)			(cl_command_queue, cl_mem, cl_mem, size_t, size_t, size_t, cl_uint, const cl_event *, cl_event *);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueReadImage)			(cl_command_queue, cl_mem, cl_bool, const size_t *, const size_t *, size_t, size_t, void *, cl_uint, const cl_event *, cl_event *);
@@ -152,6 +153,9 @@ typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueNativeKernel)		(cl_
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueMarker)				(cl_command_queue, cl_event *);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueWaitForEvents)		(cl_command_queue, cl_uint, const cl_event *);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueBarrier)				(cl_command_queue);
+typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueAcquireGLObjects)	(cl_command_queue, cl_uint, const cl_mem*, cl_uint, const cl_event*, cl_event*);
+typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueReleaseGLObjects)	(cl_command_queue, cl_uint, const cl_mem*, cl_uint, const cl_event*, cl_event*);
+typedef cl_mem				(CL_API_ENTRY CL_API_CALL * p_pfn_clCreateFromGLBuffer)         (cl_context, cl_mem_flags, cl_GLuint, cl_int*);
 
 // Extension function access
 //
@@ -217,6 +221,7 @@ p_pfn_clFinish						pfn_clFinish						= 0;
 p_pfn_clEnqueueReadBuffer			pfn_clEnqueueReadBuffer				= 0;
 p_pfn_clEnqueueReadBufferRect		pfn_clEnqueueReadBufferRect			= 0;
 p_pfn_clEnqueueWriteBuffer			pfn_clEnqueueWriteBuffer			= 0;
+p_pfn_clEnqueueFillBuffer			pfn_clEnqueueFillBuffer			= 0;
 p_pfn_clEnqueueWriteBufferRect		pfn_clEnqueueWriteBufferRect		= 0;
 p_pfn_clEnqueueCopyBuffer			pfn_clEnqueueCopyBuffer				= 0;
 p_pfn_clEnqueueReadImage			pfn_clEnqueueReadImage				= 0;
@@ -233,6 +238,9 @@ p_pfn_clEnqueueNativeKernel			pfn_clEnqueueNativeKernel			= 0;
 p_pfn_clEnqueueMarker				pfn_clEnqueueMarker					= 0;
 p_pfn_clEnqueueWaitForEvents		pfn_clEnqueueWaitForEvents			= 0;
 p_pfn_clEnqueueBarrier				pfn_clEnqueueBarrier				= 0;
+p_pfn_clEnqueueAcquireGLObjects		pfn_clEnqueueAcquireGLObjects		= 0;
+p_pfn_clEnqueueReleaseGLObjects		pfn_clEnqueueReleaseGLObjects		= 0;
+p_pfn_clCreateFromGLBuffer pfn_clCreateFromGLBuffer = 0;
 p_pfn_clGetExtensionFunctionAddress	pfn_clGetExtensionFunctionAddress	= 0;
 p_pfn_clGetExtensionFunctionAddressForPlatform	pfn_clGetExtensionFunctionAddressForPlatform	= 0;
 
@@ -305,6 +313,7 @@ bool ocl_init_1_0(const OclLibrary &lib)
 	INIT_FUNC_PTR(clFinish);
 	INIT_FUNC_PTR(clEnqueueReadBuffer);
 	INIT_FUNC_PTR(clEnqueueWriteBuffer);
+	INIT_FUNC_PTR(clEnqueueFillBuffer);
 	INIT_FUNC_PTR(clEnqueueCopyBuffer);
 	INIT_FUNC_PTR(clEnqueueReadImage);
 	INIT_FUNC_PTR(clEnqueueWriteImage);
@@ -320,6 +329,9 @@ bool ocl_init_1_0(const OclLibrary &lib)
 	INIT_FUNC_PTR(clEnqueueMarker);
 	INIT_FUNC_PTR(clEnqueueWaitForEvents);
 	INIT_FUNC_PTR(clEnqueueBarrier);
+	INIT_FUNC_PTR(clEnqueueAcquireGLObjects);
+	INIT_FUNC_PTR(clEnqueueReleaseGLObjects);
+	INIT_FUNC_PTR(clCreateFromGLBuffer);
 	INIT_FUNC_PTR(clGetExtensionFunctionAddress);
 	return result;
 }
@@ -976,6 +988,22 @@ clEnqueueWriteBuffer(cl_command_queue   command_queue,
 }
 
 extern CL_API_ENTRY cl_int CL_API_CALL
+clEnqueueFillBuffer(cl_command_queue   command_queue,
+                    cl_mem             buffer,
+                    const void*            blocking_write,
+                    size_t             offset,
+                    size_t             cb,
+                    size_t             xx,
+                    cl_uint         ptr,
+                    const cl_event *   event_wait_list,
+                    cl_event *         event) CL_API_SUFFIX__VERSION_1_0
+{
+	if (!pfn_clEnqueueFillBuffer) return CL_INVALID_OPERATION;
+
+	return pfn_clEnqueueFillBuffer(command_queue, buffer, blocking_write, offset, cb, xx, ptr, event_wait_list, event);
+}
+
+extern CL_API_ENTRY cl_int CL_API_CALL
 clEnqueueWriteBufferRect(cl_command_queue	command_queue,
                          cl_mem				buffer,
                          cl_bool			blocking_write,
@@ -1215,6 +1243,45 @@ clEnqueueBarrier(cl_command_queue command_queue) CL_API_SUFFIX__VERSION_1_0
 	if (!pfn_clEnqueueBarrier) return CL_INVALID_OPERATION;
 
 	return pfn_clEnqueueBarrier(command_queue);
+}
+
+extern "C" // я понятия не имею что происходит
+{
+extern CL_API_ENTRY cl_int CL_API_CALL
+clEnqueueAcquireGLObjects(cl_command_queue      command_queue,
+                          cl_uint               num_objects,
+                          const cl_mem *        mem_objects,
+                          cl_uint               num_events_in_wait_list,
+                          const cl_event *      event_wait_list,
+                          cl_event *            event) CL_API_SUFFIX__VERSION_1_0
+{
+    if(!pfn_clEnqueueAcquireGLObjects) return CL_INVALID_OPERATION;
+
+    return pfn_clEnqueueAcquireGLObjects(command_queue, num_objects, mem_objects, num_events_in_wait_list, event_wait_list, event);
+}
+
+extern CL_API_ENTRY cl_int CL_API_CALL
+clEnqueueReleaseGLObjects(cl_command_queue      command_queue,
+                          cl_uint               num_objects,
+                          const cl_mem *        mem_objects,
+                          cl_uint               num_events_in_wait_list,
+                          const cl_event *      event_wait_list,
+                          cl_event *            event) CL_API_SUFFIX__VERSION_1_0
+{
+    if(!pfn_clEnqueueReleaseGLObjects) return CL_INVALID_OPERATION;
+
+    return pfn_clEnqueueReleaseGLObjects(command_queue, num_objects, mem_objects, num_events_in_wait_list, event_wait_list, event);
+}
+
+extern CL_API_ENTRY cl_mem CL_API_CALL
+clCreateFromGLBuffer(
+    cl_context context,
+    cl_mem_flags flags,
+    cl_GLuint bufobj,
+    cl_int* errcode_ret) {
+    return pfn_clCreateFromGLBuffer(context, flags, bufobj, errcode_ret);
+}
+
 }
 
 // Extension function access

@@ -17,6 +17,16 @@ else ()
     message(STATUS "Vulkan glslc compiler is specified")
 endif ()
 
+find_package(GLEW REQUIRED)
+include_directories(${GLEW_INCLUDE_DIRS})
+link_libraries(${GLEW_LIBRARIES})
+
+find_package(OpenGL COMPONENTS EGL)
+include_directories(${OPENGL_INCLUDE_DIRS})
+link_libraries(${OPENGL_LIBRARY})
+include_directories(${OPENGL_egl_INCLUDE_DIRS})
+link_libraries(${OPENGL_egl_LIBRARY})
+
 # GTest позволяет писать удобные unit-test-ы
 find_package(GTest REQUIRED)
 set(GTEST_LIBRARIES GTest::gtest)
@@ -64,7 +74,11 @@ set(LIBRARIES
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/ray_tracing_render_brute_force.cl
-        src/kernels/cl/ray_tracing_render_using_lbvh.cl)
+        src/kernels/cl/ray_tracing_render_using_lbvh.cl
+        src/kernels/cl/ray_tracing_render_using_bvh4.cl
+        src/kernels/cl/lbvh_prim.cl
+        src/kernels/cl/sort_psum.cl
+        src/kernels/cl/denoise.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl src/kernels/cl/camera_helpers.cl src/kernels/cl/geometry_helpers.cl src/kernels/cl/random_helpers.cl src/kernels/shared_structs/aabb_gpu_shared.h src/kernels/shared_structs/bvh_node_gpu_shared.h src/kernels/shared_structs/camera_gpu_shared.h src/kernels/shared_structs/morton_code_gpu_shared.h src/kernels/shared_structs/struct_helpers.h)
 set(OPENCL_DEFINES)
@@ -82,7 +96,9 @@ endforeach()
 set(VULKAN_SOURCES
         src/kernels/vk/aplusb.comp
         src/kernels/vk/ray_tracing_render_brute_force.comp
-        src/kernels/vk/ray_tracing_render_using_lbvh.comp)
+        src/kernels/vk/ray_tracing_render_using_lbvh.comp
+        src/kernels/vk/sort_permute.comp
+        src/kernels/vk/lbvh_hploc.comp)
 
 set(VULKAN_DEFINES)
 foreach(VK_FILE IN LISTS VULKAN_SOURCES)

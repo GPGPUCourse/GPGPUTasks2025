@@ -123,7 +123,7 @@ std::vector<std::optional<vk::DescriptorType>> avk2::ShaderModuleInfo::getDescri
 	// check that set has N=set_size continuous bindings from 0 and up to (set_size-1)
 	// TODO when it will make sense - remove this requirement with just skipping such bindings/args
 	for (size_t binding = 0; binding < set_size; ++binding) {
-		//rassert(used_set_bindings.count(binding), "kernel " + name_ + ": binding=", binding, " is missing (probably is unused in kernel), but bindings in range [0, ", set_size - 1, "] expected");
+		rassert(used_set_bindings.count(binding), "kernel " + name_ + ": binding=", binding, " is missing (probably is unused in kernel), but bindings in range [0, ", set_size - 1, "] expected");
 	}
 
 	// rassert(set_size > 0, 837871549);

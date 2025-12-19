@@ -161,8 +161,15 @@ namespace {
 
 		std::unordered_map<int32_t, point3uc> random_mapping;
 
+		auto hash_color = [](uint32_t id) { // 0 becomes 0 but not fixing (seems convenient)
+			id *= 1337133713;
+			id ^= id >> 16;
+			id *= 1337133713;
+			id ^= id >> 16;
+			return point3uc(id % 256, id / 256 % 256, id / 65536 % 256);
+		};
 		point3uc nodata_color = point3uc(0, 255, 0); // green color
-		FastRandom r(239); // seed is fixed for reproducibility
+		//FastRandom r(239); // seed is fixed for reproducibility
 		LOOP_XY(ids_map32) {
 			int32_t id = ids_map32(y, x);
 
@@ -170,10 +177,11 @@ namespace {
 			if (id == nodata_value) {
 				color = nodata_color;
 			} else {
-				if (random_mapping.find(id) == random_mapping.end()) {
-					random_mapping[id] = r.nextColor();
-				}
-				color = random_mapping[id];
+				color = hash_color(id);
+				//if (random_mapping.find(id) == random_mapping.end()) {
+				//	random_mapping[id] = r.nextColor();
+				//}
+				//color = random_mapping[id];
 			}
  
 			if (!bg_img_path.empty()) {

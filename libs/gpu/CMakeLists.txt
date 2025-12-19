@@ -134,7 +134,7 @@ function (compile_opencl_nospir newoutfiles program includefiles defines ocl_maj
             COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/${CL_DIR}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/${CL_DIR}
 
-            COMMAND ${OPENCL_CXX_COMPILER} -x c++ -E ${${defines}} -D__OPENCL_VERSION__=${ocl_major}${ocl_minor}0 -DSTATIC_KEYWORD=static ${PROJECT_SOURCE_DIR}/${program} -I${PROJECT_SOURCE_DIR} -o ${SPIR_BINARY}
+            COMMAND ${OPENCL_CXX_COMPILER} -x assembler-with-cpp -E ${${defines}} -D__OPENCL_VERSION__=${ocl_major}${ocl_minor}0 -DSTATIC_KEYWORD=static ${PROJECT_SOURCE_DIR}/${program} -I${PROJECT_SOURCE_DIR} -o ${SPIR_BINARY}
 
             COMMAND ${CMAKE_COMMAND} -E remove ${CL_HEADER}
 

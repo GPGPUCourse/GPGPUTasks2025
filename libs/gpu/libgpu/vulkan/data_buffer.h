@@ -29,7 +29,6 @@ namespace avk2 {
 			vk::Buffer &getBuffer() const;
 			void *getMappedDataPointer();
 
-		protected:
 			std::unique_ptr<vk::Buffer>			buffer_;
 			VmaAllocation						allocation_;
 			std::unique_ptr<VmaAllocationInfo>	staging_alloc_info_;

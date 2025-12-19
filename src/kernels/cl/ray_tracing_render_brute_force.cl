@@ -71,7 +71,7 @@ __kernel void ray_tracing_render_brute_force(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    rassert(camera.magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 646435342);
+    rassert(camera->magic_bits_guard == CAMERA_VIEW_GPU_MAGIC_BITS_GUARD, 646435342);
     if (i >= camera->K.width || j >= camera->K.height)
         return;
 
@@ -155,8 +155,9 @@ __kernel void ray_tracing_render_brute_force(
             float f32;
             uint  u32;
         } tBestUnion;
-        tBestUnion.f32 = tBest;
-        uint rng = 0x9E3779B9u ^ idx ^ tBestUnion.u32;
+        // tBestUnion.f32 = tBest; // not stable, tBest depends on computation method
+        //uint rng = (uint)(0x9E3779B9u ^ idx ^ tBestUnion.u32);
+        uint rng = (uint)(0x9E3779B9u ^ idx * 13371337);
 
         int hits = 0;
         for (int s = 0; s < AO_SAMPLES; ++s) {

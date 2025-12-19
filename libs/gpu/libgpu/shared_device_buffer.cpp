@@ -17,6 +17,7 @@
 #include "vulkan/engine.h"
 #include "vulkan/data_buffer.h"
 #include "vulkan/vulkan_api_headers.h"
+#include "GL/glew.h"
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -29,6 +30,7 @@ shared_device_buffer::shared_device_buffer()
 {
 	buffer_	= 0;
 	data_	= 0;
+	clmem_	= 0;
 	type_	= Context::TypeUndefined;
 	size_	= 0;
 	offset_	= 0;
@@ -50,6 +52,7 @@ shared_device_buffer::shared_device_buffer(const shared_device_buffer &other, si
 {
 	buffer_	= other.buffer_;
 	data_	= other.data_;
+	clmem_	= other.clmem_;
 	type_	= other.type_;
 	size_	= other.size_ - offset;
 	offset_	= other.offset_ + offset;
@@ -64,6 +67,7 @@ shared_device_buffer &shared_device_buffer::operator= (const shared_device_buffe
 		decref();
 		buffer_	= other.buffer_;
 		data_	= other.data_;
+		clmem_	= other.clmem_;
 		type_	= other.type_;
 		size_	= other.size_;
 		offset_	= other.offset_;
@@ -79,6 +83,7 @@ void shared_device_buffer::swap(shared_device_buffer &other)
 {
 	std::swap(buffer_,	other.buffer_);
 	std::swap(data_,	other.data_);
+	std::swap(clmem_,	other.clmem_);
 	std::swap(type_,	other.type_);
 	std::swap(size_,	other.size_);
 	std::swap(offset_,	other.offset_);
@@ -125,6 +130,13 @@ void shared_device_buffer::decref()
 	}
 
 	if (!count) {
+		if(clmem_ != nullptr) {
+			OCL_SAFE_CALL(clReleaseMemObject(clmem()));
+			if(type_ == Context::TypeVulkan) {
+				glDeleteBuffers(1, &glbuf_);
+				glDeleteMemoryObjectsEXT(1, &glmem_);
+			}
+		}
 		switch (type_) {
 #ifdef CUDA_SUPPORT
 		case Context::TypeCUDA:
@@ -132,7 +144,6 @@ void shared_device_buffer::decref()
 			break;
 #endif
 		case Context::TypeOpenCL:
-			OCL_SAFE_CALL(clReleaseMemObject((cl_mem) data_));
 			break;
 		case Context::TypeVulkan:
 		{
@@ -149,6 +160,7 @@ void shared_device_buffer::decref()
 
 	buffer_ = 0;
 	data_	= 0;
+	clmem_ = 0;
 	type_	= Context::TypeUndefined;
 	size_	= 0;
 	offset_	= 0;
@@ -173,10 +185,7 @@ void *shared_device_buffer::cuptr() const
 
 cl_mem shared_device_buffer::clmem() const
 {
-	if (type_ == Context::TypeCUDA)
-		throw gpu_exception("GPU buffer type mismatch");
-
-	return (cl_mem) data_;
+	return (cl_mem)clmem_;
 }
 
 avk2::raii::BufferData *shared_device_buffer::vkBufferData() const
@@ -216,7 +225,7 @@ void shared_device_buffer::reset()
 	decref();
 }
 
-void shared_device_buffer::resize(size_t size)
+void shared_device_buffer::resize(size_t size, bool exported)
 {
 	if (size == size_)
 		return;
@@ -254,13 +263,16 @@ void shared_device_buffer::resize(size_t size)
 		break;
 #endif
 	case Context::TypeOpenCL:
-		data_ = context.cl()->createBuffer(CL_MEM_READ_WRITE, size_with_magic_bytes_guards);
+		clmem_ = context.cl()->createBuffer(CL_MEM_READ_WRITE, size_with_magic_bytes_guards);
 		break;
 	case Context::TypeVulkan:
-		data_ = context.vk()->createBuffer(size_with_magic_bytes_guards);
+		data_ = context.vk()->createBuffer(size_with_magic_bytes_guards, exported);
 		break;
 	default:
 		gpu::raiseException(_SHORT_FILE_, __LINE__, "No GPU context");
+	}
+	if(exported) {
+		clfd_ = context.vk()->exportBuffer(*((avk2::raii::BufferData*) data_));
 	}
 
 	buffer_	= new unsigned char [8];
@@ -296,7 +308,7 @@ void shared_device_buffer::write(const void *data, size_t size)
 		break;
 #endif
 	case Context::TypeOpenCL:
-		context.cl()->writeBuffer((cl_mem) data_, CL_TRUE, offset_, size, data);
+		context.cl()->writeBuffer(clmem(), CL_TRUE, offset_, size, data);
 		break;
 	case Context::TypeVulkan:
 	{
@@ -347,7 +359,7 @@ void shared_device_buffer::write(const shared_host_buffer &buffer, size_t size)
 		break;
 #endif
 	case Context::TypeOpenCL:
-		context.cl()->writeBuffer((cl_mem) data_, CL_TRUE, offset_, size, buffer.get());
+		context.cl()->writeBuffer(clmem(), CL_TRUE, offset_, size, buffer.get());
 		break;
 	default:
 		gpu::raiseException(_SHORT_FILE_, __LINE__, "No GPU context");
@@ -373,7 +385,7 @@ void shared_device_buffer::write2D(size_t dpitch, const void *src, size_t spitch
 			size_t buffer_origin[3] = { offset_, 0, 0 };
 			size_t host_origin[3] = { 0, 0, 0 };
 			size_t region[3] = { width, height, 1 };
-			context.cl()->writeBufferRect((cl_mem) data_, CL_TRUE, buffer_origin, host_origin, region, dpitch, 0, spitch, 0, src);
+			context.cl()->writeBufferRect(clmem(), CL_TRUE, buffer_origin, host_origin, region, dpitch, 0, spitch, 0, src);
 		}
 		break;
 	default:
@@ -400,7 +412,7 @@ void shared_device_buffer::read(void *data, size_t size, ptrdiff_t offset) const
 #endif
 	{
 		Context context;
-		switch (type_) {
+		switch (context.type()) {
 #ifdef CUDA_SUPPORT
 		case Context::TypeCUDA:
 			// this is an impossible case - CUDA handled above without thread-local context usage
@@ -408,7 +420,7 @@ void shared_device_buffer::read(void *data, size_t size, ptrdiff_t offset) const
 			break;
 #endif
 		case Context::TypeOpenCL:
-			context.cl()->readBuffer((cl_mem) data_, CL_TRUE, offset_ + offset, size, data);
+			context.cl()->readBuffer(clmem(), CL_TRUE, offset_ + offset, size, data);
 			break;
 		case Context::TypeVulkan:
 			context.vk()->readBuffer(*((avk2::raii::BufferData*) data_), offset_ + offset, size, data);
@@ -438,11 +450,27 @@ void shared_device_buffer::read2D(size_t spitch, void *dst, size_t dpitch, size_
 			size_t buffer_origin[3] = { offset_, 0, 0 };
 			size_t host_origin[3] = { 0, 0, 0 };
 			size_t region[3] = { width, height, 1 };
-			context.cl()->readBufferRect((cl_mem) data_, CL_TRUE, buffer_origin, host_origin, region, spitch, 0, dpitch, 0, dst);
+			context.cl()->readBufferRect(clmem(), CL_TRUE, buffer_origin, host_origin, region, spitch, 0, dpitch, 0, dst);
 		}
 			break;
 		default:
 			gpu::raiseException(_SHORT_FILE_, __LINE__, "No GPU context");
+	}
+}
+
+void shared_device_buffer::memset(char value)
+{
+	Context context;
+
+	switch (context.type()) {
+		case Context::TypeOpenCL:
+			context.cl()->memsetBuffer(clmem(), offset_, size_, value);
+			break;
+		case Context::TypeVulkan:
+			context.vk()->memsetBuffer(*((avk2::raii::BufferData*) data_), offset_, size_, value);
+			break;
+		default:
+			gpu::raiseException(_SHORT_FILE_, __LINE__, "Unknown context type for zero()");
 	}
 }
 
@@ -532,6 +560,28 @@ bool shared_device_buffer::checkMagicGuardBytes(const unsigned int* found_data, 
 		}
 	}
 	return true;
+}
+
+void shared_device_buffer::export_acquire()
+{
+	Context context;
+	context.cl()->exportAcquire(clmem());
+}
+
+void shared_device_buffer::export_release()
+{
+	Context context;
+	context.cl()->exportRelease(clmem());
+}
+
+void shared_device_buffer::opencl_import()
+{
+	glCreateMemoryObjectsEXT(1, &glmem_);
+	glImportMemoryFdEXT(glmem_, size_, GL_HANDLE_TYPE_OPAQUE_FD_EXT, clfd_);
+	glCreateBuffers(1, &glbuf_);
+	glNamedBufferStorageMemEXT(glbuf_, size_, glmem_, 0);
+	Context context;
+	clmem_ = context.cl()->importBuffer(glbuf_, size_);
 }
 
 }

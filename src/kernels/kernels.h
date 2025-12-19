@@ -28,6 +28,10 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+const ProgramBinaries& getRTWithBVH4();
+const ProgramBinaries& getLBVHPrim();
+const ProgramBinaries& getSortPsum();
+const ProgramBinaries& getDenoise();
 }
 
 namespace avk2 {
@@ -35,4 +39,6 @@ const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getRTBruteForce();
 const ProgramBinaries& getRTWithLBVH();
+const ProgramBinaries& getSortPermute();
+const ProgramBinaries& getLbvhHploc();
 }

@@ -15,8 +15,231 @@
 
 #include "cpu_helpers/build_bvh_cpu.h"
 
+#include "GL/glew.h"
+#include "EGL/egl.h"
+
+#include <cfloat>
 #include <filesystem>
 #include <fstream>
+#include <unordered_set>
+
+// для самого быстрого построения BVH нужно использовать операции на подгруппах
+// операции на подгруппах в opencl требуют очень редкие расширения cl_khr_subgroup_*
+// их нету ни в одном из двух драйверов для моего GPU, которые я нашёл
+// остаётся vulkan
+// но для трассировки лучей нужно использовать инструкции от amd, которых нету в spir-v*
+// остаётся opencl
+// вводим в гугл запрос "vulkan opencl interop" и обнаруживаем что нужно cl_khr_external_memory
+// его нет у amd
+// к счастью, у amd есть cl_khr_gl_sharing и GL_EXT_memory_object_fd!
+// *на самом деле был вариант использовать встроенные построение/обход BVH из vulkan, но это слишком безболезненный путь.
+gpu::Context opencl, vulkan;
+
+static bool inside(AABBGPU a, AABBGPU b) {
+    bool ok = true;
+    ok &= b.min_x <= a.min_x && a.max_x <= b.max_x;
+    ok &= b.min_y <= a.min_y && a.max_y <= b.max_y;
+    ok &= b.min_z <= a.min_z && a.max_z <= b.max_z;
+    return ok;
+}
+static bool inside(float* pt, AABBGPU b) {
+    bool ok = true;
+    ok &= b.min_x <= pt[0] && pt[0] <= b.max_x;
+    ok &= b.min_y <= pt[1] && pt[1] <= b.max_y;
+    ok &= b.min_z <= pt[2] && pt[2] <= b.max_z;
+    return ok;
+}
+static double surface_area(AABBGPU a) {
+    double x = a.max_x - a.min_x, y = a.max_y - a.min_y, z = a.max_z - a.min_z;
+    return 2 * (x * y + x * z + y * z);
+}
+
+static void validate_bvh(uint8_t* data, size_t size, size_t nfaces, size_t nboxes)
+{
+    assert(size >= 64 * nfaces + 128 * nboxes);
+    assert(nboxes <= (nfaces + 1) / 2);
+    std::unordered_set<size_t> seen;
+    size_t boxes = 0, dups = 0;
+    printf("Verify BVH\n");
+    uint64_t total_depth = 0;
+    double total_sah = 0;
+    auto dfs = [&](auto&& dfs, size_t at, size_t depth, AABBGPU cur_aabb) {
+        if(at == -1u)
+            return;
+        auto[it, is_new] = seen.insert(at);
+        if(!is_new) {
+            dups++;
+            return;
+        }
+        if(depth != 0)
+            total_sah += surface_area(cur_aabb);
+        if(at % 8 == 5) {
+            boxes++;
+            //printf("Box at %zu: %zu\n", depth, at);
+            at = (at - 5) * 8;
+            assert(at + sizeof(BVHBoxGPU) <= size);
+            BVHBoxGPU* box = (BVHBoxGPU*)(data + at);
+            assert(box->children[0] == -1u || inside(box->coords[0], cur_aabb));
+            assert(box->children[1] == -1u || inside(box->coords[1], cur_aabb));
+            assert(box->children[2] == -1u || inside(box->coords[2], cur_aabb));
+            assert(box->children[3] == -1u || inside(box->coords[3], cur_aabb));
+            //printf("children: %zu %zu %zu %zu\n", box->children[0], box->children[1], box->children[2], box->children[3]);
+            dfs(dfs, box->children[0], depth + 1, box->coords[0]);
+            dfs(dfs, box->children[1], depth + 1, box->coords[1]);
+            dfs(dfs, box->children[2], depth + 1, box->coords[2]);
+            dfs(dfs, box->children[3], depth + 1, box->coords[3]);
+        }
+        else { // triangle
+            total_depth += depth;
+            assert(at % 8 == 0);
+            at = at * 8;
+            assert(at + sizeof(BVHTriangleGPU) <= size);
+            BVHTriangleGPU* tri = (BVHTriangleGPU*)(data + at);
+            assert(inside(tri->a, cur_aabb));
+            assert(inside(tri->b, cur_aabb));
+            assert(inside(tri->c, cur_aabb));
+        }
+    };
+    dfs(dfs, (64 * nfaces + 128 * (nboxes - 1)) / 8 + 5, 0, {-FLT_MAX,-FLT_MAX,-FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX});
+    assert(boxes == nboxes);
+    printf("total %zu dups %zu\n", seen.size(), dups);
+    printf("mean depth %lf sah %lf\n", double(total_depth) / nfaces, total_sah / (nfaces + nboxes));
+    assert(seen.size() == nboxes + nfaces);
+}
+
+static size_t buildLBVH_GPU(
+                ocl::KernelSource& ocl_lbvh_prim,
+                ocl::KernelSource& ocl_sort_psum,
+                avk2::KernelSource& vk_sort_permute,
+                avk2::KernelSource& vk_lbvh_hploc,
+                unsigned nfaces,
+                gpu::gpu_mem_32f& vertices,
+                gpu::gpu_mem_32u& faces,
+                gpu::shared_device_buffer& lbvh_vk,
+                gpu::shared_device_buffer& lbvh_thin_vk,
+                gpu::shared_device_buffer& lbvh_boxes_vk,
+                gpu::shared_device_buffer_typed<uint32_t>& mortons_vk,
+                gpu::shared_device_buffer_typed<uint32_t>& perm_vk,
+                SceneGeometry& scene,
+                gpu::gpu_mem_32u& hist_vk,
+                gpu::shared_device_buffer_typed<uint32_t>& radix_tmp_morton,
+                gpu::shared_device_buffer_typed<uint32_t>& radix_tmp_perm,
+                gpu::gpu_mem_32u& radix_tmp2,
+                gpu::gpu_mem_32u& parent_ids_vk,
+                gpu::gpu_mem_32u& block_offsets_vk
+                )
+{
+   //nfaces = 512;
+   hist_vk.export_acquire();
+   mortons_vk.export_acquire();
+   lbvh_thin_vk.export_acquire();
+   lbvh_vk.export_acquire();
+   hist_vk.memset(0);
+   auto t1 = std::chrono::steady_clock::now().time_since_epoch().count();
+   ocl_lbvh_prim.exec(gpu::WorkSize(GROUP_SIZE, nfaces), nfaces, faces, vertices, lbvh_thin_vk, lbvh_vk,
+                   (gpu::shared_device_buffer&)mortons_vk,
+           scene.gMin.x, scene.gMin.y, scene.gMin.z,
+           scene.gMax.x, scene.gMax.y, scene.gMax.z,
+           hist_vk);
+   // здесь мне очень хотелось просто посчитать префиксные суммы 4кб данных на процессоре
+   // но как я ни менял бенчмарк ради своей выгоды, на гпу оказывалось быстрее чем дважды копировать
+   // (если не считать 100мс компиляции кода на первом запуске, что эквивалентно нескольким тысячам итераций разницы)
+   auto t2 = std::chrono::steady_clock::now().time_since_epoch().count();
+   printf("prim: %lfms (%lfM/s)\n", (t2 - t1) / 1e6, nfaces/double(t2-t1)*1e3);
+   ocl_sort_psum.exec(gpu::WorkSize(4, 4), hist_vk);
+
+   hist_vk.export_release();
+   mortons_vk.export_release();
+   lbvh_thin_vk.export_release();
+   lbvh_vk.export_release();
+   opencl.deactivate();
+   vulkan.activate();
+
+   std::vector<uint32_t> v0;
+   bool test = false;
+   if(test) {
+       v0 = mortons_vk.readVector();
+       v0.erase(v0.begin() + nfaces, v0.end());
+   }
+
+   block_offsets_vk.memset(0);
+   auto b1 = &mortons_vk, b2 = &radix_tmp_morton;
+   auto b3 = &perm_vk, b4 = &radix_tmp_perm;
+   for(unsigned i = 0; i < 4; i++) // 4 is even
+   {
+       radix_tmp2.memset(0);
+       size_t per_group = 256 * SORT_DIGITS_PER_THREAD;
+       struct Args { uint32_t nfaces; uint32_t i; } args;
+       args.nfaces = nfaces;
+       args.i = i;
+       vk_sort_permute.exec(avk2::PushConstant(args), gpu::WorkSize(GROUP_SIZE, (nfaces + per_group - 1) / per_group * 256),
+               (gpu::shared_device_buffer&)*b1,
+               (gpu::shared_device_buffer&)*b2,
+               block_offsets_vk,
+               hist_vk,
+               radix_tmp2,
+               (gpu::shared_device_buffer&)*b3,
+               (gpu::shared_device_buffer&)*b4
+               );
+       if(test)
+       {
+           auto v = b2->readVector();
+           v.erase(v.begin() + nfaces, v.end());
+           auto v2 = v0;
+           std::stable_sort(v2.begin(), v2.end(), [i](uint64_t a, uint64_t b) {
+                   if(i != 3) {
+                       a %= 1ull << (8*(i+1));
+                       b %= 1ull << (8*(i+1));
+                   }
+                   return a < b;
+           });
+           rassert(v.size() == v2.size(),1348728);
+           bool ok = v == v2;
+           printf("%u: OK: %d\n", i, ok);
+           if(!ok) {
+               for(size_t i = 0; i < nfaces; i++)
+                   if(v[i] != v2[i])
+                       printf("%zu: %zu %zu\n", i, v[i], v2[i]);
+               exit(1);
+           }
+       }
+       std::swap(b1, b2);
+       std::swap(b3, b4);
+   }
+   auto t3 = std::chrono::steady_clock::now().time_since_epoch().count();
+   printf("sort: %lfms (%lfM/s)\n", (t3 - t2) / 1e6, nfaces/double(t3-t2)*1e3);
+   unsigned offsets[] { nfaces, 0};
+   block_offsets_vk.write(offsets, sizeof(offsets));
+   parent_ids_vk.memset(-1);
+   struct Args { uint32_t nfaces; } args;
+   args.nfaces = nfaces;
+   vk_lbvh_hploc.exec(avk2::PushConstant(args), gpu::WorkSize(HPLOC_GROUP_SIZE, nfaces),
+           mortons_vk,
+           perm_vk,
+           lbvh_thin_vk,
+           lbvh_boxes_vk,
+           lbvh_vk,
+           parent_ids_vk,
+           block_offsets_vk);
+   auto t4 = std::chrono::steady_clock::now().time_since_epoch().count();
+   printf("hploc: %lfms (%lfM/s)\n", (t4 - t3) / 1e6, nfaces/double(t4-t3)*1e3);
+
+   block_offsets_vk.read(offsets, sizeof(offsets));
+   unsigned nboxes = offsets[1];
+   uint64_t root = (64 * nfaces + 128 * (nboxes - 1)) / 8 + 5;
+
+   //printf("res: %u %u\n", offsets[0], offsets[1]);
+   //std::vector<uint8_t> buf(lbvh_vk.size());
+   //lbvh_vk.read(buf.data(), buf.size());
+   //validate_bvh(buf.data(), buf.size(), nfaces, offsets[1]);
+   //printf("%p %zu\n", buf.data(), buf.size());
+   //
+   //for(;;);
+
+   vulkan.deactivate();
+   opencl.activate();
+   return root;
+}
 
 // Считает сколько непустых пикселей
 template<typename T>
@@ -54,20 +277,56 @@ size_t countDiffs(const TypedImage<T> &a, const TypedImage<T> &b, T threshold) {
 
 void run(int argc, char** argv)
 {
+    EGLDisplay eglDpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    EGLint major, minor;
+    eglInitialize(eglDpy, &major, &minor);
+    EGLint numConfigs;
+    EGLConfig eglCfg;
+    static const EGLint configAttribs[] = {
+        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+        EGL_BLUE_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_RED_SIZE, 8,
+        EGL_DEPTH_SIZE, 8,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+        EGL_NONE
+    };
+    eglChooseConfig(eglDpy, configAttribs, &eglCfg, 1, &numConfigs);
+    eglBindAPI(EGL_OPENGL_API);
+    EGLContext eglCtx = eglCreateContext(eglDpy, eglCfg, EGL_NO_CONTEXT, NULL);
+    eglMakeCurrent(eglDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, eglCtx);
+    int ret = glewInit();
     // chooseGPUVkDevices:
     // - Если не доступо ни одного устройства - кинет ошибку
     // - Если доступно ровно одно устройство - вернет это устройство
     // - Если доступно N>1 устройства:
     //   - Если аргументов запуска нет или переданное число не находится в диапазоне от 0 до N-1 - кинет ошибку
     //   - Если аргумент запуска есть и он от 0 до N-1 - вернет устройство под указанным номером
-    gpu::Device device = gpu::chooseGPUDevice(gpu::selectAllDevices(ALL_GPUS, true), argc, argv);
+    auto devs = gpu::selectAllDevices(ALL_GPUS, true);
+    gpu::Device* vulkan_dev = nullptr;
+    gpu::Device* opencl_dev = nullptr;
+    for(auto& d : devs)
+    {
+        gpu::printDeviceInfo(d);
+        if(d.supports_opencl && !opencl_dev)
+            opencl_dev = &d;
+        if(d.supports_vulkan && !vulkan_dev)
+            vulkan_dev = &d;
+    }
 
     // TODO 000 сделайте здесь свой выбор API - если он отличается от OpenCL то в этой строке нужно заменить TypeOpenCL на TypeCUDA или TypeVulkan
     // TODO 000 после этого изучите этот код, запустите его, изучите соответсвующий вашему выбору кернел - src/kernels/<ваш выбор>/aplusb.<ваш выбор>
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    opencl = activateContext(*opencl_dev, gpu::Context::TypeOpenCL);
+    printf("Started opencl\n");
+    opencl.deactivate();
+    vulkan = activateContext(*vulkan_dev, gpu::Context::TypeVulkan);
+    printf("Started vulkan\n");
+    vulkan.deactivate();
+    opencl.activate();
+
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -77,9 +336,15 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_rt_with_bvh4(ocl::getRTWithBVH4());
+    ocl::KernelSource ocl_lbvh_prim(ocl::getLBVHPrim());
+    ocl::KernelSource ocl_sort_psum(ocl::getSortPsum());
+    ocl::KernelSource ocl_denoise(ocl::getDenoise());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
+    avk2::KernelSource vk_sort_permute(avk2::getSortPermute());
+    avk2::KernelSource vk_lbvh_hploc(avk2::getLbvhHploc());
 
     const std::string gnome_scene_path = "data/gnome/gnome.ply";
     std::vector<std::string> scenes = {
@@ -133,6 +398,9 @@ void run(int argc, char** argv)
 
         // Аллоцируем фрейм-буферы (то есть картинки в которые сохранится результат рендеринга)
         gpu::gpu_mem_32i framebuffer_face_id_gpu(width * height);
+        gpu::gpu_mem_32f denoised_gpu(width * height);
+        gpu::gpu_mem_32f denoised_variance_in_gpu(width * height);
+        gpu::gpu_mem_32f denoised_variance_out_gpu(width * height);
         gpu::gpu_mem_32f framebuffer_ambient_occlusion_gpu(width * height);
 
         // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -152,33 +420,17 @@ void run(int argc, char** argv)
         image32i brute_force_framebuffer_face_ids;
         image32f brute_force_framebuffer_ambient_occlusion;
         const bool has_brute_force = (nfaces < 1000);
+        
         if (has_brute_force) {
             std::vector<double> brute_force_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    ocl_rt_brute_force.exec(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu.clmem(), nfaces);
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    cuda::ray_tracing_render_brute_force(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu, nfaces);
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    vk_rt_brute_force.exec(
-                        nfaces,
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu);
-                } else {
-                    rassert(false, 654724541234123);
-                }
+                ocl_rt_brute_force.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 brute_force_times.push_back(t.elapsed());
             }
@@ -203,8 +455,10 @@ void run(int argc, char** argv)
             images_saving_time += images_saving_t.elapsed();
         }
 
+        
         double cpu_lbvh_time = 0.0;
         double rt_times_with_cpu_lbvh_sum = 0.0;
+        
         {
             std::vector<BVHNodeGPU> lbvh_nodes_cpu;
             std::vector<uint32_t> leaf_faces_indices_cpu;
@@ -226,34 +480,15 @@ void run(int argc, char** argv)
             cleaning_framebuffers_time += cleaning_framebuffers_t.elapsed();
 
             std::vector<double> rt_times_with_cpu_lbvh;
-            for (int iter = 0; iter < niters; ++iter) {
+            for (int iter = 0; iter < 1; ++iter) {
                 timer t;
 
-                if (context.type() == gpu::Context::TypeOpenCL) {
-                    ocl_rt_with_lbvh.exec(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu.clmem(), nfaces);
-                } else if (context.type() == gpu::Context::TypeCUDA) {
-                    cuda::ray_tracing_render_using_lbvh(
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu, nfaces);
-                } else if (context.type() == gpu::Context::TypeVulkan) {
-                    vk_rt_with_lbvh.exec(
-                        nfaces,
-                        gpu::WorkSize(16, 16, width, height),
-                        vertices_gpu, faces_gpu,
-                        lbvh_nodes_gpu, leaf_faces_indices_gpu,
-                        framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
-                        camera_gpu);
-                } else {
-                    rassert(false, 654724541234123);
-                }
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu.clmem(), leaf_faces_indices_gpu.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 rt_times_with_cpu_lbvh.push_back(t.elapsed());
             }
@@ -261,7 +496,7 @@ void run(int argc, char** argv)
             double mrays_per_sec = width * height * AO_SAMPLES * 1e-6f / stats::median(rt_times_with_cpu_lbvh);
             std::cout << "GPU with CPU LBVH ray tracing frame render times (in seconds) - " << stats::valuesStatsLine(rt_times_with_cpu_lbvh) << std::endl;
             std::cout << "GPU with CPU LBVH ray tracing performance: " << mrays_per_sec << " MRays/s" << std::endl;
-            gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
+            //gpu_rt_perf_mrays_per_sec.push_back(mrays_per_sec);
 
             timer pcie_reading_t;
             image32i cpu_lbvh_framebuffer_face_ids(width, height, 1);
@@ -282,22 +517,53 @@ void run(int argc, char** argv)
             }
         }
 
+        
         double gpu_lbvh_time_sum = 0.0;
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
         // TODO постройте LBVH на GPU
         // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
+            opencl.deactivate();
+            vulkan.activate();
+            gpu::shared_device_buffer_typed<uint32_t> mortons_vk(nfaces, true);
+            gpu::shared_device_buffer_typed<uint32_t> perm_vk(nfaces + 32, true);
+            perm_vk.memset(-1); // pad with -1s for h-ploc OOB reads
+            gpu::shared_device_buffer_typed<uint32_t> radix_tmp_morton(nfaces);
+            gpu::shared_device_buffer_typed<uint32_t> radix_tmp_perm(nfaces);
+            gpu::gpu_mem_32u radix_tmp2((nfaces + 255) / 256 * 256);
+            gpu::gpu_mem_32u hist_vk(4 * 256, true);
+            gpu::gpu_mem_32u block_offsets_vk(4);
+            gpu::shared_device_buffer lbvh_thin_vk(nfaces * 2 * sizeof(BVHThinNodeGPU), true); // 2x size to handle h-ploc temporary nodes as well as input triangles
+            gpu::shared_device_buffer lbvh_vk(nfaces * sizeof(BVHTriangleGPU)
+                    + (nfaces + 10) / 2 * sizeof(BVHBoxGPU), true) // worst case x/3 + x/9 + ... = 1/2 (times 2 because box nodes are twice as big)
+                ;
+            gpu::shared_device_buffer lbvh_boxes_vk(lbvh_vk, nfaces * sizeof(BVHTriangleGPU));
+            gpu::gpu_mem_32u parent_ids_vk(nfaces);
+            vulkan.deactivate();
+            opencl.activate();
+            mortons_vk.opencl_import();
+            hist_vk.opencl_import();
+            lbvh_thin_vk.opencl_import();
+            lbvh_vk.opencl_import();
             std::vector<double> gpu_lbvh_times;
+            size_t root_ptr = 0;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
                 // TODO постройте LBVH на GPU
+                root_ptr = buildLBVH_GPU(ocl_lbvh_prim, ocl_sort_psum, vk_sort_permute, vk_lbvh_hploc,
+                                nfaces, vertices_gpu, faces_gpu, lbvh_vk, lbvh_thin_vk, lbvh_boxes_vk, mortons_vk,
+                                perm_vk, scene,
+                                hist_vk, radix_tmp_morton, radix_tmp_perm, radix_tmp2,
+                                parent_ids_vk, block_offsets_vk);
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
+            printf("Exited gpu BVH build loop\n");
+            
             gpu_lbvh_time_sum = stats::sum(gpu_lbvh_times);
             double build_mtris_per_sec = nfaces * 1e-6f / stats::median(gpu_lbvh_times);
             std::cout << "GPU LBVH build times (in seconds) - " << stats::valuesStatsLine(gpu_lbvh_times) << std::endl;
@@ -314,6 +580,10 @@ void run(int argc, char** argv)
                 timer t;
 
                 // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                ocl_rt_with_bvh4.exec(
+                    gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height), lbvh_vk.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), (unsigned)root_ptr);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }
@@ -340,7 +610,27 @@ void run(int argc, char** argv)
                 rassert(count_ao_errors < width * height / 100, 3567856512354123, count_ao_errors, to_percent(count_ao_errors, width * height));
                 rassert(count_face_id_errors < width * height / 100, 3453465346387, count_face_id_errors, to_percent(count_face_id_errors, width * height));
             }
+
+            ocl_denoise.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                    width, height, framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu, denoised_gpu, denoised_variance_out_gpu, denoised_variance_in_gpu, -1);
+            ocl_denoise.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                    width, height, framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu, denoised_gpu, denoised_variance_in_gpu, denoised_variance_out_gpu, 0);
+            ocl_denoise.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                    width, height, framebuffer_face_id_gpu, denoised_gpu, framebuffer_ambient_occlusion_gpu, denoised_variance_out_gpu, denoised_variance_in_gpu, 1);
+            ocl_denoise.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                    width, height, framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu, denoised_gpu, denoised_variance_in_gpu, denoised_variance_out_gpu, 2);
+            ocl_denoise.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                    width, height, framebuffer_face_id_gpu, denoised_gpu, framebuffer_ambient_occlusion_gpu, denoised_variance_out_gpu, denoised_variance_in_gpu, 3);
+            ocl_denoise.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                    width, height, framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu, denoised_gpu, denoised_variance_in_gpu, denoised_variance_out_gpu, 4);
+            denoised_gpu.readN(gpu_lbvh_framebuffer_ambient_occlusion.ptr(), width * height);
+            debug_io::dumpImage(results_dir + "/framebuffer_ambient_occlusion_denoised.bmp", debug_io::depthMapping(gpu_lbvh_framebuffer_ambient_occlusion));
+            
+            opencl.deactivate();
+            vulkan.activate(); // for destructors
         }
+        vulkan.deactivate();
+        opencl.activate();
 
         double total_time = total_t.elapsed();
         std::cout << "Scene processed in " << total_t.elapsed() << " sec = ";

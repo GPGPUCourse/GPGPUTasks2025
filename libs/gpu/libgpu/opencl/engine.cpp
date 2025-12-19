@@ -18,10 +18,13 @@
 #include <libclew/ocl_init.h>
 
 #include <CL/cl.h>
+#include <CL/cl_gl.h>
 #include <CL/cl_ext.h>
 #include <libgpu/context.h>
 #include <libgpu/shared_device_buffer.h>
 #include <libgpu/device.h>
+#include "GL/glew.h"
+#include "EGL/egl.h"
 
 #define LOAD_KERNEL_BINARIES_FROM_FILE ""
 #define DUMP_KERNEL_BINARIES_TO_FILE ""
@@ -152,7 +155,12 @@ void OpenCLEngine::createContext(cl_platform_id platform_id, cl_device_id device
 
 		context = it->second.context;
 	} else {
-		cl_context_properties context_props[] = { CL_CONTEXT_PLATFORM, (cl_context_properties) platform_id, 0 };
+		cl_context_properties context_props[] = { //CL_CONTEXT_PLATFORM, (cl_context_properties) platform_id,
+			CL_GL_CONTEXT_KHR,
+			(long)eglGetCurrentContext(),
+			CL_EGL_DISPLAY_KHR,
+			(long)eglGetCurrentDisplay(),
+			0 };
 
 		cl_int ciErrNum;
 		OCL_TRACE(context = clCreateContext(context_props, 1, &device_id, NULL, NULL, &ciErrNum));
@@ -452,12 +460,45 @@ cl_mem OpenCLEngine::createBuffer(cl_mem_flags flags, size_t size)
 	return res;
 }
 
+cl_mem OpenCLEngine::importBuffer(unsigned glbuf, size_t size)
+{
+	cl_mem res;
+	cl_int status = CL_SUCCESS;
+	OCL_TRACE(res = clCreateFromGLBuffer(context_, CL_MEM_READ_WRITE, glbuf, &status));
+	OCL_SAFE_CALL(status);
+	return res;
+}
+
+void OpenCLEngine::exportAcquire(cl_mem mem)
+{
+	cl_event ev;
+	OCL_SAFE_CALL(clEnqueueAcquireGLObjects(queue(), 1, &mem, 0, NULL, &ev));
+	trackEvent(ev);
+}
+
+void OpenCLEngine::exportRelease(cl_mem mem)
+{
+	cl_event ev;
+	OCL_SAFE_CALL(clEnqueueReleaseGLObjects(queue(), 1, &mem, 0, NULL, &ev));
+	trackEvent(ev);
+}
+
 void OpenCLEngine::writeBuffer(cl_mem buffer, cl_bool blocking_write, size_t offset, size_t cb, const void *ptr)
 {
 	if (cb == 0)
 		return;
 
 	OCL_SAFE_CALL(clEnqueueWriteBuffer(queue(), buffer, blocking_write, offset, cb, ptr, 0, NULL, NULL));
+}
+
+void OpenCLEngine::memsetBuffer(cl_mem buffer, size_t offset, size_t cb, char value)
+{
+	if (cb == 0)
+		return;
+	char x = value;
+	cl_event ev;
+	OCL_SAFE_CALL(clEnqueueFillBuffer(queue(), buffer, &x, 1, offset, cb, 0, NULL, &ev));
+	trackEvent(ev);
 }
 
 void OpenCLEngine::writeBufferRect(cl_mem buffer, cl_bool blocking_write, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3],
@@ -842,6 +883,10 @@ OpenCLKernel *KernelSource::getKernel(const std::shared_ptr<OpenCLEngine> &cl, b
 //			}
 		}
 
+		if(cl->deviceInfo().device_name.find("gfx11") != std::string::npos) {
+			// looks like the implementation I'm getting doesn't pass -target-cpu to LLVM?
+			options += " -D __GFX11__=1";
+		}
 		OCL_TRACE(ciErrNum = clBuildProgram(program, 0, NULL, options.c_str(), NULL, NULL));
 
 		if (ciErrNum == CL_SUCCESS) {

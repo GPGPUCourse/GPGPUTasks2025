@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <cstdlib> // strtof
+#include <cfloat>
 
 #include "libutils/misc.h" // rassert, ends_with
 
@@ -481,7 +482,6 @@ SceneGeometry loadPLY(const std::string &path)
             triangulateFan(polygon, scene.faces);
         }
     }
-
     rassert(!scene.vertices.empty(), 3900, path);
     rassert(!scene.faces.empty(),    3901, path);
     return scene;
@@ -491,11 +491,23 @@ SceneGeometry loadPLY(const std::string &path)
 
 SceneGeometry loadScene(const std::string &path)
 {
+    SceneGeometry ret;
     if (ends_with(path, ".ply")) {
-        return loadPLY(path);
+        ret = loadPLY(path);
     } else if (ends_with(path, ".obj")) {
-        return loadOBJ(path);
+        ret = loadOBJ(path);
     } else {
         rassert(false, 324134123142132, path);
     }
+    ret.gMin = {FLT_MAX, FLT_MAX, FLT_MAX};
+    ret.gMax = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    for(auto& pt : ret.vertices) {
+        ret.gMin.x = std::min(ret.gMin.x, pt.x);
+        ret.gMin.y = std::min(ret.gMin.y, pt.y);
+        ret.gMin.z = std::min(ret.gMin.z, pt.z);
+        ret.gMax.x = std::max(ret.gMax.x, pt.x);
+        ret.gMax.y = std::max(ret.gMax.y, pt.y);
+        ret.gMax.z = std::max(ret.gMax.z, pt.z);
+    }
+    return ret;
 }
