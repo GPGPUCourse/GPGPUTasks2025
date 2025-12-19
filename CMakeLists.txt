@@ -18,18 +18,18 @@ else ()
 endif ()
 
 # GTest позволяет писать удобные unit-test-ы
-#find_package(GTest REQUIRED)
-#set(GTEST_LIBRARIES GTest::gtest)
-#set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
-#set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
-option(ENABLE_TESTS "Build unit tests" OFF)
-
-if (ENABLE_TESTS)
-    find_package(GTest REQUIRED)
-    set(GTEST_LIBRARIES GTest::gtest)
-    set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
-    set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
-endif()
+find_package(GTest REQUIRED)
+set(GTEST_LIBRARIES GTest::gtest)
+set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
+set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+#option(ENABLE_TESTS "Build unit tests" OFF)
+#
+#if (ENABLE_TESTS)
+#    find_package(GTest REQUIRED)
+#    set(GTEST_LIBRARIES GTest::gtest)
+#    set(GTEST_MAIN_LIBRARIES GTest::gtest_main)
+#    set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+#endif()
 
 # OpenMP позволит распараллеливать циклы на все ядра процессора простыми директивами
 find_package(OpenMP)
