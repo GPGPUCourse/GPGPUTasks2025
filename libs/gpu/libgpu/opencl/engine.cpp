@@ -35,20 +35,6 @@ typedef unsigned long long uint64_t;
 
 using namespace ocl;
 
-typedef cl_context_properties cl_mem_properties_intel;
-
-typedef cl_mem CL_API_CALL
-clCreateBufferWithPropertiesINTEL_t(
-	cl_context context,
-	const cl_mem_properties_intel* properties,
-	cl_mem_flags flags,
-	size_t size,
-	void* host_ptr,
-	cl_int* errcode_ret);
-
-typedef clCreateBufferWithPropertiesINTEL_t *
-clCreateBufferWithPropertiesINTEL_fn CL_API_SUFFIX__VERSION_1_0;
-clCreateBufferWithPropertiesINTEL_fn clCreateBufferWithPropertiesINTEL;
 
 typedef cl_int CL_API_CALL
 clEnqueueAcquireExternalMemObjectsKHR_t(
@@ -219,10 +205,9 @@ void OpenCLEngine::createContext(cl_platform_id platform_id, cl_device_id device
 			OCL_SAFE_CALL(clGetPlatformIDs (num_platforms, clPlatformIDs.data(), NULL));
 			platform = clPlatformIDs[0]; // apparently no api to recover platform id from EGL but there's only one platform on the server
 			fprintf(stderr, "Got %zu platforms, first is %zu\n", clPlatformIDs.size(), clPlatformIDs[0]);
-			clCreateBufferWithPropertiesINTEL = (clCreateBufferWithPropertiesINTEL_fn)clGetExtensionFunctionAddressForPlatform(platform, "clCreateBufferWithPropertiesINTEL");
 			clEnqueueAcquireExternalMemObjectsKHR = (clEnqueueAcquireExternalMemObjectsKHR_fn)clGetExtensionFunctionAddressForPlatform(platform, "clEnqueueAcquireExternalMemObjectsKHR");
 			clEnqueueReleaseExternalMemObjectsKHR = (clEnqueueReleaseExternalMemObjectsKHR_fn)clGetExtensionFunctionAddressForPlatform(platform, "clEnqueueReleaseExternalMemObjectsKHR");
-			fprintf(stderr, "Loaded sharing extensions: %p %p %p\n", clCreateBufferWithPropertiesINTEL, clEnqueueAcquireExternalMemObjectsKHR, clEnqueueReleaseExternalMemObjectsKHR);
+			fprintf(stderr, "Loaded sharing extensions: %p %p %p\n", clCreateBufferWithProperties, clEnqueueAcquireExternalMemObjectsKHR, clEnqueueReleaseExternalMemObjectsKHR);
 		}
 
 		bool opencl_share_context = true;
@@ -526,8 +511,8 @@ cl_mem OpenCLEngine::importBuffer(unsigned glbuf, size_t size, bool isgl)
 	if(isgl) {
 		OCL_TRACE(res = clCreateFromGLBuffer(context_, CL_MEM_READ_WRITE, glbuf, &status));
 	} else {
-		cl_mem_properties_intel props[] { CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR, glbuf, 0 };
-		OCL_TRACE(res = clCreateBufferWithPropertiesINTEL(context_, props, CL_MEM_READ_WRITE, size, nullptr, &status));
+		cl_mem_properties props[] { CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR, glbuf, 0 };
+		OCL_TRACE(res = clCreateBufferWithProperties(context_, props, CL_MEM_READ_WRITE, size, nullptr, &status));
 	}
 	OCL_SAFE_CALL(status);
 	return res;

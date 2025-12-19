@@ -820,6 +820,17 @@ clSetKernelExecInfoARM(cl_kernel            kernel,
 
 #define CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR             0x2060
 
+typedef cl_context_properties cl_mem_properties_intel;
+
+extern CL_API_ENTRY cl_mem CL_API_CALL
+clCreateBufferWithPropertiesINTEL(
+	cl_context context,
+	const cl_mem_properties_intel* properties,
+	cl_mem_flags flags,
+	size_t size,
+	void* host_ptr,
+	cl_int* errcode_ret);
+
 #ifdef __cplusplus
 }
 #endif

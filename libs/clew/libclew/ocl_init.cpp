@@ -1,7 +1,8 @@
-#define CL_TARGET_OPENCL_VERSION 210
+#define CL_TARGET_OPENCL_VERSION 300
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
 #include <CL/cl.h>
+#include <cstdio>
 
 #ifdef _WIN32
 
@@ -156,7 +157,7 @@ typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueBarrier)				(cl_com
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueAcquireGLObjects)	(cl_command_queue, cl_uint, const cl_mem*, cl_uint, const cl_event*, cl_event*);
 typedef cl_int				(CL_API_ENTRY CL_API_CALL * p_pfn_clEnqueueReleaseGLObjects)	(cl_command_queue, cl_uint, const cl_mem*, cl_uint, const cl_event*, cl_event*);
 typedef cl_mem				(CL_API_ENTRY CL_API_CALL * p_pfn_clCreateFromGLBuffer)         (cl_context, cl_mem_flags, cl_GLuint, cl_int*);
-
+typedef cl_mem (CL_API_ENTRY CL_API_CALL *p_pfn_clCreateBufferWithProperties)(cl_context context, const cl_mem_properties* properties, cl_mem_flags flags, size_t size, void* host_ptr, cl_int* errcode_ret);
 // Extension function access
 //
 // Returns the extension function address for the given function name,
@@ -241,6 +242,7 @@ p_pfn_clEnqueueBarrier				pfn_clEnqueueBarrier				= 0;
 p_pfn_clEnqueueAcquireGLObjects		pfn_clEnqueueAcquireGLObjects		= 0;
 p_pfn_clEnqueueReleaseGLObjects		pfn_clEnqueueReleaseGLObjects		= 0;
 p_pfn_clCreateFromGLBuffer pfn_clCreateFromGLBuffer = 0;
+p_pfn_clCreateBufferWithProperties pfn_clCreateBufferWithProperties = 0;
 p_pfn_clGetExtensionFunctionAddress	pfn_clGetExtensionFunctionAddress	= 0;
 p_pfn_clGetExtensionFunctionAddressForPlatform	pfn_clGetExtensionFunctionAddressForPlatform	= 0;
 
@@ -371,6 +373,9 @@ bool ocl_init()
 	has_ocl_version_1_1 = ocl_init_1_1(lib);
 	has_ocl_version_1_2 = ocl_init_1_2(lib);
 	has_ocl_version_2_1 = ocl_init_2_1(lib);
+    bool result = true;
+	INIT_FUNC_PTR(clCreateBufferWithProperties);
+    fprintf(stderr, "result=%d val=%p\n", (int)result, pfn_clCreateBufferWithProperties);
 	return true;
 }
 
@@ -1303,4 +1308,18 @@ extern CL_API_ENTRY void * CL_API_CALL clGetExtensionFunctionAddressForPlatform(
 	if (!pfn_clGetExtensionFunctionAddressForPlatform) return 0;
 
 	return pfn_clGetExtensionFunctionAddressForPlatform(platform, func_name);
+}
+
+
+extern "C" {
+extern CL_API_ENTRY cl_mem CL_API_CALL
+clCreateBufferWithProperties(
+	cl_context context,
+	const cl_mem_properties* properties,
+	cl_mem_flags flags,
+	size_t size,
+	void* host_ptr,
+	cl_int* errcode_ret) {
+	return pfn_clCreateBufferWithProperties(context, properties, flags, size, host_ptr, errcode_ret);
+}
 }
