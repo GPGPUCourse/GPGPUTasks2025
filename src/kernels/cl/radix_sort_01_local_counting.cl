@@ -5,14 +5,39 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_01_local_counting(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* input,
+    __global       uint* zeros_per_group,
+    __global       uint* ones_per_group,
+    unsigned int n,
+    unsigned int bit)
 {
-    // TODO
+    const uint gid = get_global_id(0);
+    const uint lid = get_local_id(0);
+    const uint group = get_group_id(0);
+
+    uint flag = 0;
+    if (gid < n) {
+        flag = (input[gid] >> bit) & 1u;
+    }
+
+    __local uint local_data[GROUP_SIZE];
+    local_data[lid] = (gid < n && flag == 0) ? 1u : 0u;
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    for (uint stride = GROUP_SIZE / 2; stride > 0; stride >>= 1) {
+        if (lid < stride) {
+            local_data[lid] += local_data[lid + stride];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if (lid == 0) {
+        uint zeros = local_data[0];
+        uint group_start = group * GROUP_SIZE;
+        uint group_size = (group_start + GROUP_SIZE <= n) ? GROUP_SIZE : (group_start < n ? n - group_start : 0);
+        zeros_per_group[group] = zeros;
+        ones_per_group[group] = group_size - zeros;
+    }
 }

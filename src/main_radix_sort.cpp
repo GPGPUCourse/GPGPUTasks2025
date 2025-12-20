@@ -51,6 +51,7 @@ void run(int argc, char** argv)
     FastRandom r;
 
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // int n = 10; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -101,6 +102,9 @@ void run(int argc, char** argv)
     buffer4_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
+    gpu::gpu_mem_32u* result_gpu = &buffer_output_gpu;
+    size_t groups = div_ceil((size_t)n, (size_t)GROUP_SIZE);
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
@@ -109,13 +113,39 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            gpu::gpu_mem_32u* input_buffer = &input_gpu;
+            gpu::gpu_mem_32u* output_buffer = &buffer_output_gpu;
+
+            for (unsigned int bit = 0; bit < 32; ++bit) {
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), *input_buffer, buffer1_gpu, buffer2_gpu, n, bit);
+
+                gpu::gpu_mem_32u* zero_in = &buffer1_gpu;
+                gpu::gpu_mem_32u* zero_out = &buffer3_gpu;
+                for (unsigned int offset = 1; offset < groups; offset <<= 1) {
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, groups), *zero_in, *zero_out, offset, (unsigned int)groups);
+                    std::swap(zero_in, zero_out);
+                }
+
+                unsigned int total_zero = 0;
+                zero_in->readN(&total_zero, 1, groups - 1);
+                gpu::gpu_mem_32u* zero_offsets_buffer = (zero_in == &buffer1_gpu) ? &buffer3_gpu : &buffer1_gpu;
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, groups), *zero_in, *zero_offsets_buffer, 0u, (unsigned int)groups);
+
+                gpu::gpu_mem_32u* one_in = &buffer2_gpu;
+                gpu::gpu_mem_32u* one_out = &buffer4_gpu;
+                for (unsigned int offset = 1; offset < groups; offset <<= 1) {
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, groups), *one_in, *one_out, offset, (unsigned int)groups);
+                    std::swap(one_in, one_out);
+                }
+                gpu::gpu_mem_32u* one_offsets_buffer = (one_in == &buffer2_gpu) ? &buffer4_gpu : &buffer2_gpu;
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, groups), *one_in, *one_offsets_buffer, total_zero, (unsigned int)groups);
+
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), *input_buffer, *output_buffer, *zero_offsets_buffer, *one_offsets_buffer, *zero_in, (unsigned int)groups, n, bit);
+
+                std::swap(input_buffer, output_buffer);
+            }
+
+            result_gpu = input_buffer;
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -145,7 +175,19 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = result_gpu->readVector();
+    if (result_gpu == &input_gpu) {
+        input_gpu.writeN(as.data(), n);
+    }
+
+    if (n <= 16) {
+        std::cout << "CPU sorted: ";
+        for (size_t i = 0; i < n; ++i) std::cout << sorted[i] << " ";
+        std::cout << std::endl;
+        std::cout << "GPU sorted: ";
+        for (size_t i = 0; i < n; ++i) std::cout << gpu_sorted[i] << " ";
+        std::cout << std::endl;
+    }
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
