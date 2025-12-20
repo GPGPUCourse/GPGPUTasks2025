@@ -85,6 +85,9 @@ void run(int argc, char** argv)
 #endif
     float sizeY = sizeX * height / width;
 
+    float fromX = centralX - sizeX / 2.0f;
+    float fromY = centralY - sizeY / 2.0f;
+
     image32f cpu_results;
 
     ocl::KernelSource ocl_mandelbrot(ocl::getMandelbrot());
@@ -113,16 +116,21 @@ void run(int argc, char** argv)
             timer t;
 
             if (algorithm == "CPU") {
-                cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, false);
+                cpu::mandelbrot(current_results.ptr(), width, height, fromX, fromY, sizeX, sizeY, iterationsLimit, isSmoothing, false);
                 cpu_results = current_results;
             } else if (algorithm == "CPU with OpenMP") {
                 if (iter == 0) std::cout << "OpenMP threads: x" << getOpenMPThreadsCount() << " threads" << std::endl;
-                cpu::mandelbrot(current_results.ptr(), width, height, centralX - sizeX / 2.0f, centralY - sizeY / 2.0f, sizeX, sizeY, iterationsLimit, isSmoothing, true);
+                cpu::mandelbrot(current_results.ptr(), width, height, fromX, fromY, sizeX, sizeY, iterationsLimit, isSmoothing, true);
             } else if (algorithm == "GPU") {
                 // _______________________________OpenCL_____________________________________________
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     // TODO ocl_mandelbrot.exec(...);
-                    throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                    ocl_mandelbrot.exec(gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, width, height),
+                                        gpu_results,
+                                        width, height,
+                                        fromX, fromY,
+                                        sizeX, sizeY,
+                                        iterationsLimit, isSmoothing);
 
                     // _______________________________CUDA___________________________________________
                 } else if (context.type() == gpu::Context::TypeCUDA) {
