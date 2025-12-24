@@ -1,3 +1,15 @@
+float smin( float a, float b, float k )
+{
+    float h = clamp( 0.5+0.5*(b-a)/k, 0.0, 1.0 );
+    return mix( b, a, h ) - k*h*(1.0-h);
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+    return length( pa - ba*h ) - r;
+}
 
 // sphere with center in (0, 0, 0)
 float sdSphere(vec3 p, float r)
@@ -28,19 +40,80 @@ float lazycos(float angle)
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    float dHead = sdSphere(p - vec3(0.0, 0.55, 0.0), 0.32);
+    float dButt = sdSphere(p - vec3(0.0, 0.30, 0.0), 0.35);
+    float d = smin(dHead, dButt, 0.15);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    vec3 pLegs = p;
+    pLegs.x = abs(pLegs.x);
+    float legs = sdCapsule(pLegs, vec3(0.14, 0.2, 0.05), vec3(0.14, -0.05, 0.05), 0.08);
+    d = smin(d, legs, 0.01);
 
-    // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    float speed = 4.0; 
+    float cycleLen = 32.0; 
+    float t = mod(iTime * speed, cycleLen);
+    
+    float animL = 0.0;
+    float animR = 0.0;
+    
+    vec3 bodyColor = vec3(0.0, 0.8, 0.1); 
+
+    if (t < 24.0) {
+        float localT = mod(t, 8.0);
+        
+        animL = smoothstep(0.0, 1.0, localT) - smoothstep(6.0, 7.0, localT);
+        animR = smoothstep(2.0, 3.0, localT) - smoothstep(4.0, 5.0, localT);
+    } else {
+        float localT = t - 24.0;
+        
+        float pump = sin(localT * 3.14159 / 2.0); 
+        pump = pump * pump; 
+        
+        animL = pump;
+        animR = pump;
+        
+        vec3 shift = vec3(3.14, 0.93, 2.50);
+        
+        float freq = 3.14159 * 0.5; 
+        
+        bodyColor = 0.5 + 0.5 * cos(freq * localT + shift);
+    }
+
+    vec3 shoulderL = vec3(-0.32, 0.5, 0.0);
+    vec3 shoulderR = vec3( 0.32, 0.5, 0.0);
+    vec3 dirDown = normalize(vec3(0.5, -0.85, 0.15));
+    vec3 dirUp   = normalize(vec3(0.8,  0.60, 0.10));
+    
+    vec3 dirDownL = dirDown * vec3(-1.0, 1.0, 1.0);
+    vec3 dirUpL   = dirUp   * vec3(-1.0, 1.0, 1.0);
+    
+    vec3 handL = shoulderL + mix(dirDownL, dirUpL, animL) * 0.22;
+    float armL = sdCapsule(p, shoulderL, handL, 0.06);
+    
+    vec3 handR = shoulderR + mix(dirDown, dirUp, animR) * 0.22;
+    float armR = sdCapsule(p, shoulderR, handR, 0.06);
+    
+    d = smin(d, min(armL, armR), 0.04);
+
+    return vec4(d, bodyColor); 
 }
 
 vec4 sdEye(vec3 p)
 {
-
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    vec3 center = vec3(0.0, 0.55, 0.25);
+    
+    float dWhite = sdSphere(p - center, 0.19);
+    vec4 res = vec4(dWhite, vec3(1.0, 1.0, 1.0)); 
+    
+    float dIris = sdSphere(p - (center + vec3(0.0, 0.0, 0.13)), 0.1);
+    if (dIris < res.x) {
+        res = vec4(dIris, vec3(0.0, 0.4, 1.0)); 
+    }
+    
+    float dPupil = sdSphere(p - (center + vec3(0.0, 0.0, 0.19)), 0.055);
+    if (dPupil < res.x) {
+        res = vec4(dPupil, vec3(0.0, 0.0, 0.0)); 
+    }
 
     return res;
 }
@@ -49,16 +122,16 @@ vec4 sdMonster(vec3 p)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    vec3 q = p - vec3(0.0, 0.1, -0.5); 
 
-    vec4 res = sdBody(p);
+    vec4 body = sdBody(q);
+    
+    vec4 eye = sdEye(q);
 
-    vec4 eye = sdEye(p);
-    if (eye.x < res.x) {
-        res = eye;
+    if (eye.x < body.x) {
+        return eye;
     }
-
-    return res;
+    return body;
 }
 
 
@@ -69,7 +142,11 @@ vec4 sdTotal(vec3 p)
 
     float dist = sdPlane(p);
     if (dist < res.x) {
-        res = vec4(dist, vec3(1.0, 0.0, 0.0));
+        float cells = mod(floor(p.x * 0.5 + 0.15) + floor(p.z * 0.5 + 0.15), 2.0);
+        
+        vec3 floorCol = mix(vec3(0.4, 0.0, 0.0), vec3(0.8, 0.1, 0.1), cells);
+        
+        res = vec4(dist, floorCol);
     }
 
     return res;
@@ -154,7 +231,29 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 wh = vec2(iResolution.x / iResolution.y, 1.0);
 
 
-    vec3 ray_origin = vec3(0.0, 0.5, 1.0);
+    float speed = 4.0; 
+    float cycleLen = 32.0;
+    float t = mod(iTime * speed, cycleLen);
+
+    float camZ = 1.0;
+    
+    if (t > 24.0) {
+        float localT = t - 24.0;
+        
+        float fastPump = sin(localT * 3.14159 * 0.5);
+        
+        fastPump = fastPump * fastPump; 
+        
+        camZ = 1.0 - (fastPump * 0.05);
+    }
+    
+    vec3 ray_origin = vec3(0.0, 0.5, camZ);
+    
+    float shakeX = (sin(iTime * 2.3) + cos(iTime * 2.1)) * 0.5;
+    float shakeY = (cos(iTime * 7.7) + sin(iTime * 7.8)) * 0.8;
+    
+    ray_origin.xy += vec2(shakeX, shakeY) * 0.015;
+    
     vec3 ray_direction = normalize(vec3(uv - 0.5*wh, -1.0));
 
 
