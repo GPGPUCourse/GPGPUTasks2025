@@ -28,7 +28,7 @@ void run(int argc, char** argv)
     // TODO 000 P.S. если вы выбрали CUDA - не забудьте установить CUDA SDK и добавить -DCUDA_SUPPORT=ON в CMake options
     // TODO 010 P.S. так же в случае CUDA - добавьте в CMake options (НЕ меняйте сами CMakeLists.txt чтобы не менять окружение тестирования):
     // TODO 010 "-DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_CUDA_FLAGS=-lineinfo" (первое - чтобы включить поддержку WMMA, второе - чтобы compute-sanitizer и профилировщик знали номера строк кернела)
-    gpu::Context context = activateContext(device, gpu::Context::TypeOpenCL);
+    gpu::Context context = activateContext(device, gpu::Context::TypeCUDA);
     // OpenCL - рекомендуется как вариант по умолчанию, можно выполнять на CPU, есть printf, есть аналог valgrind/cuda-memcheck - https://github.com/jrprice/Oclgrind
     // CUDA   - рекомендуется если у вас NVIDIA видеокарта, есть printf, т.к. в таком случае вы сможете пользоваться профилировщиком (nsight-compute) и санитайзером (compute-sanitizer, это бывший cuda-memcheck)
     // Vulkan - не рекомендуется, т.к. писать код (compute shaders) на шейдерном языке GLSL на мой взгляд менее приятно чем в случае OpenCL/CUDA
@@ -87,7 +87,10 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
+
+    unsigned int npref = (n + GROUP_SIZE - 1) / GROUP_SIZE * 16;
+
+    gpu::gpu_mem_32u group_count_gpu(npref), group_prefix_gpu(npref), temp_prefix(npref), temp_output(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
     gpu::gpu_mem_32u buffer_output_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -95,10 +98,10 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
+    group_count_gpu.fill(255);
+    group_prefix_gpu.fill(255);
+    temp_prefix.fill(255);
+    temp_output.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -117,13 +120,30 @@ void run(int argc, char** argv)
             // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
             // ocl_radixSort04Scatter.exec();
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
+            for (int i = 0; i < 8; ++i) {
+                unsigned int group_count = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+                unsigned int shift = i * 4;
+                auto& source_array = (i == 0) ? input_gpu : buffer_output_gpu;
+
+                cuda::radix_sort_01_local_counting(gpu::WorkSize(GROUP_SIZE, n), source_array, group_count_gpu, n, shift);
+                std::swap(group_count_gpu, group_prefix_gpu);
+                
+                int pow2 = 1;
+                while (pow2 < group_count) {
+                    cuda::radix_sort_02_global_prefixes_scan_sum_reduction(
+                        gpu::WorkSize(GROUP_SIZE, group_count),
+                        group_prefix_gpu,
+                        temp_prefix,
+                        group_count,
+                        pow2
+                    );
+                    std::swap(group_prefix_gpu, temp_prefix);
+                    pow2 *= 2;
+                }
+
+                cuda::radix_sort_04_scatter(gpu::WorkSize(GROUP_SIZE, n), source_array, group_prefix_gpu, temp_output, n, shift);
+                std::swap(temp_output, buffer_output_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeVulkan) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
