@@ -12,6 +12,7 @@ jobs:
     steps:
     - name: Delete huge unnecessary tools folder
       run: rm -rf /opt/hostedtoolcache
+
     - uses: actions/checkout@v2
 
     - name: Install prerequisites
