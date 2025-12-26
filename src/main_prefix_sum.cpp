@@ -41,7 +41,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -60,27 +60,32 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
         timer t;
-
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
+        gpu::WorkSize workSize(GROUP_SIZE, n);
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
+            ocl_fill_with_zeros.exec(workSize, buffer1_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(workSize, buffer2_pow2_sum_gpu, n);
+            ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+
+            ocl_prefix_accumulation.exec(workSize, input_gpu, prefix_sum_accum_gpu, n, 0);
+
+            int cnt = 0;
+            for (uint cur_n = n; cur_n > 1; cur_n = (cur_n + 1) / 2) {
+                workSize = gpu::WorkSize(GROUP_SIZE, (cur_n + 1) / 2);
+                gpu::WorkSize workSizeForAccum(GROUP_SIZE, n);
+                if (cur_n == n) {
+                    ocl_sum_reduction.exec(workSize, input_gpu, buffer1_pow2_sum_gpu, cur_n);
+                    ocl_prefix_accumulation.exec(workSizeForAccum, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, 1);
+                }
+                else if (cnt % 2) {
+                    ocl_sum_reduction.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, cur_n);
+                    ocl_prefix_accumulation.exec(workSizeForAccum, buffer2_pow2_sum_gpu, prefix_sum_accum_gpu, n, cnt + 1);
+                }
+                else {
+                    ocl_sum_reduction.exec(workSize, buffer2_pow2_sum_gpu, buffer1_pow2_sum_gpu, cur_n);
+                    ocl_prefix_accumulation.exec(workSizeForAccum, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, cnt + 1);
+                }
+                cnt++;
+            }
         } else {
             rassert(false, 4531412341, context.type());
         }
@@ -119,7 +124,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
