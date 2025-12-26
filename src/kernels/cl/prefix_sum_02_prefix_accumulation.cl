@@ -15,6 +15,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
     const unsigned int i = get_global_id(0);
     if (i >= n) return;
     uint bit = (i+1) & (1<<pow2);
-    bit >>= pow2;
-    prefix_sum_accum[i] += bit*pow2_sum[((i+1)>>pow2)-1];
+    if (bit){
+        prefix_sum_accum[i] += pow2_sum[((i+1)>>pow2)-1];
+    }
 }
