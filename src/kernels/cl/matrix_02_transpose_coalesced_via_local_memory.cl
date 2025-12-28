@@ -16,8 +16,11 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     size_t lx = get_local_id(0);
     size_t ly = get_local_id(1);
 
-    size_t x = get_group_id(0) * GROUP_SIZE_X + lx;
-    size_t y = get_group_id(1) * GROUP_SIZE_Y + ly;
+    size_t gx = get_group_id(0);
+    size_t gy = get_group_id(1);
+
+    size_t x = gx * GROUP_SIZE_X + lx;
+    size_t y = gy * GROUP_SIZE_Y + ly;
 
     if (x < w && y < h) {
         data[ly][lx] = matrix[y * w + x];
@@ -26,8 +29,8 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    size_t out_x = get_group_id(1) * GROUP_SIZE_Y + lx;
-    size_t out_y = get_group_id(0) * GROUP_SIZE_X + ly;
+    size_t out_x = gy * GROUP_SIZE_Y + lx;
+    size_t out_y = gx * GROUP_SIZE_X + ly;
 
     if (out_x < h && out_y < w) {
         transposed_matrix[out_y * h + out_x] = data[lx][ly];
