@@ -9,6 +9,7 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <algorithm>
 #include <utility>
 
 void run(int argc, char** argv)
@@ -65,7 +66,8 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            gpu::WorkSize work_size(1, n);
+            const size_t wg_size = std::min<size_t>(GROUP_SIZE, 64); // clamp to avoid CL_INVALID_WORK_GROUP_SIZE on CPU devices
+            gpu::WorkSize work_size(wg_size, n);
 
             ocl_fill_with_zeros.exec(work_size, prefix_sum_accum_gpu, n);
 
