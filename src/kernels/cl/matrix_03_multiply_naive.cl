@@ -13,7 +13,6 @@ __kernel void matrix_03_multiply_naive(
                                 unsigned int h,
                                 unsigned int k)
 {
-    // TODO
     size_t x = get_global_id(0);
     size_t y = get_global_id(1);
 
