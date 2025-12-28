@@ -13,5 +13,16 @@ __kernel void prefix_sum_01_sum_reduction(
     __global       uint* next_pow2_sum, // will contain (n+1)/2 values
     unsigned int n)
 {
-    // TODO
+    const unsigned int index = get_global_id(0);
+    const unsigned int src = index * 2;
+
+    if (src >= n)
+        return;
+
+    uint sum = pow2_sum[src];
+    if (src + 1 < n) {
+        sum += pow2_sum[src + 1];
+    }
+
+    next_pow2_sum[index] = sum;
 }

@@ -14,5 +14,17 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int n,
     unsigned int pow2)
 {
-    // TODO
+    const unsigned int index = get_global_id(0);
+
+    if (index >= n)
+        return;
+
+    const unsigned int offset = 1u << pow2;
+
+    uint value = pow2_sum[index];
+    if (index >= offset) {
+        value += pow2_sum[index - offset];
+    }
+
+    prefix_sum_accum[index] = value;
 }

@@ -9,6 +9,7 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <utility>
 
 void run(int argc, char** argv)
 {
@@ -41,7 +42,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
 
-    unsigned int n = 100*1000*1000;
+    unsigned int n = 100 * 1000 * 1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -64,11 +65,30 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            gpu::WorkSize work_size(1, n);
+
+            ocl_fill_with_zeros.exec(work_size, prefix_sum_accum_gpu, n);
+
+            const unsigned int iterations_limit = [&]() {
+                unsigned int k = 0;
+                while ((1u << k) < n) {
+                    ++k;
+                }
+                return k;
+            }();
+
+            gpu::gpu_mem_32u* src = &input_gpu;
+            gpu::gpu_mem_32u* tmp_a = &buffer1_pow2_sum_gpu;
+            gpu::gpu_mem_32u* tmp_b = &buffer2_pow2_sum_gpu;
+
+            for (unsigned int pow2 = 0; pow2 < iterations_limit; ++pow2) {
+                gpu::gpu_mem_32u* dst = (pow2 + 1 == iterations_limit)
+                    ? &prefix_sum_accum_gpu
+                    : ((pow2 % 2 == 0) ? tmp_a : tmp_b);
+
+                ocl_prefix_accumulation.exec(work_size, *src, *dst, n, pow2);
+                src = dst;
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
@@ -119,7 +139,8 @@ int main(int argc, char** argv)
         if (e.what() == DEVICE_NOT_SUPPORT_API) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за выбора CUDA API (его нет на процессоре - т.е. в случае CI на GitHub Actions)
             return 0;
-        } if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
+        }
+        if (e.what() == CODE_IS_NOT_IMPLEMENTED) {
             // Возвращаем exit code = 0 чтобы на CI не было красного крестика о неуспешном запуске из-за того что задание еще не выполнено
             return 0;
         } else {
