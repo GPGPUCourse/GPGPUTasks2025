@@ -7,11 +7,21 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1)
+    __global       uint* scratch,
+    unsigned int n,
+    unsigned int groups)
 {
-    // TODO
+    if (get_global_id(0) != 0)
+        return;
+
+    const uint group_counts_base = n;
+    const uint group_prefix_base = n + groups;
+
+    uint prefix = 0;
+    for (uint g = 0; g < groups; ++g) {
+        const uint c = scratch[group_counts_base + g];
+        scratch[group_prefix_base + g] = prefix;
+        prefix += c;
+    }
+    scratch[group_prefix_base + groups] = 0; // будет заполнено в kernel3
 }

@@ -12,6 +12,7 @@
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
 
 #include <fstream>
+#include <algorithm>
 
 void run(int argc, char** argv)
 {
@@ -50,14 +51,13 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
-    int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+    int n = 1 << 20;
+    int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
         as[i] = r.next(0, max_value);
     }
-    std::cout << "n=" << n << " max_value=" << max_value << std::endl;
 
     {
         // убедимся что в массиве есть хотя бы несколько повторяющихся значений
@@ -74,6 +74,10 @@ void run(int argc, char** argv)
         rassert(!all_attempts_missed, 4353245123412);
     }
 
+    const unsigned int max_input = *std::max_element(as.begin(), as.end());
+    const unsigned int bits_to_process = std::max(1u, 32u - static_cast<unsigned int>(debug::countLeadingZeroBits(max_input)));
+    std::cout << "n=" << n << " max_value=" << max_value << " bits=" << bits_to_process << std::endl;
+
     {
         sorted = as;
         std::cout << "sorting on CPU..." << std::endl;
@@ -85,10 +89,15 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
+    const unsigned int n_value = static_cast<unsigned int>(n);
+    const unsigned int group_count = (n_value + GROUP_SIZE - 1) / GROUP_SIZE;
+    const unsigned int scratch_size = n_value + group_count + (group_count + 1);
+
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n_value);
+    gpu::gpu_mem_32u buffer1_gpu(n_value);
+    gpu::gpu_mem_32u buffer2_gpu(scratch_size);
+    gpu::gpu_mem_32u buffer_output_gpu(n_value);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -97,25 +106,32 @@ void run(int argc, char** argv)
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    gpu::WorkSize mainWorkSize(GROUP_SIZE, n_value);
+    gpu::WorkSize singleWorkSize(1, 1);
+    int iterations = 3;
+    for (int iter = 0; iter < iterations; ++iter) {
+        input_gpu.copyToN(buffer1_gpu, n_value);
+        gpu::gpu_mem_32u* src_gpu = &buffer1_gpu;
+        gpu::gpu_mem_32u* dst_gpu = &buffer_output_gpu;
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            for (unsigned int bit = 0; bit < bits_to_process; ++bit) {
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, scratch_size), buffer2_gpu, scratch_size);
+
+                ocl_radixSort01LocalCounting.exec(mainWorkSize, *src_gpu, buffer2_gpu, bit, n_value);
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(singleWorkSize, buffer2_gpu, n_value, group_count);
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(singleWorkSize, buffer2_gpu, n_value, group_count);
+                ocl_radixSort04Scatter.exec(mainWorkSize, *src_gpu, buffer2_gpu, *dst_gpu, bit, n_value);
+                if (bit + 1 < bits_to_process)
+                    std::swap(src_gpu, dst_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
