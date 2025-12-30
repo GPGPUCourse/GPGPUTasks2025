@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+    - name: Delete huge unnecessary tools folder
+      run: rm -rf /opt/hostedtoolcache
+
     - uses: actions/checkout@v2
 
     - name: Install prerequisites
@@ -32,7 +35,7 @@ jobs:
       run: sudo bash scripts/linux/install_cuda_sdk.sh;
 
     - name: Install Vulkan SDK
-      run: sudo bash scripts/linux/install_vulkan_sdk.sh --no-validation-layers; # we don't compile validation layers on each CI run because it is too slow
+      run: sudo bash scripts/linux/install_vulkan_sdk.sh --no-validation-layers;
 
     - name: Install dependencies (gtest and graphicsmagick)
       run: sudo bash scripts/linux/install_dependencies.sh;
