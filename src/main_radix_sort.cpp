@@ -112,9 +112,11 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
+    const unsigned int prefix_sum_size = div_ceil(n, GROUP_SIZE) << RADIX_BITS;
+
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n * (1 << RADIX_BITS)),
-        buffer2_gpu(n * (1 << RADIX_BITS)), buffer3_gpu(n * (1 << RADIX_BITS));
+    gpu::gpu_mem_32u buffer1_gpu(prefix_sum_size),
+        buffer2_gpu(prefix_sum_size), buffer3_gpu(prefix_sum_size);
     gpu::gpu_mem_32u buffer_output_gpu1(n), buffer_output_gpu2(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -146,9 +148,6 @@ void run(int argc, char** argv)
             else
                 debug_array(buffer_output_gpu2, "before", max_value, offset);
 #endif
-
-            unsigned int prefix_sum_size = div_ceil(n, GROUP_SIZE) << RADIX_BITS;
-
             ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, prefix_sum_size), buffer1_gpu, prefix_sum_size);
 
             if (offset == 0)
