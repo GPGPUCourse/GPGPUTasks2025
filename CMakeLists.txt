@@ -4,6 +4,9 @@ project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Хотим compile_commands.json чтобы vs code мог понять где хедеры
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_subdirectory(libs)
 
 # Компилируем исполняемый файл нашей программы
