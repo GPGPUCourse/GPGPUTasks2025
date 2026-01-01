@@ -10,12 +10,6 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - name: Delete huge unnecessary tools folder
-      run: rm -rf /opt/hostedtoolcache
-      
-    - name: Delete huge unnecessary tools folder
-      run: rm -rf /opt/hostedtoolcache
-      
     - uses: actions/checkout@v2
 
     - name: Install prerequisites
@@ -65,7 +59,12 @@ jobs:
         ./main_aplusb 0
         ./main_aplusb 1
 
-    - name: Run main_prefix_sum
+    - name: Run main_matrix_transpose
       working-directory: ${{github.workspace}}/build
       run: |
-        ./main_prefix_sum 0
+        ./main_matrix_transpose 0
+
+    - name: Run main_matrix_multiply
+      working-directory: ${{github.workspace}}/build
+      run: |
+        ./main_matrix_multiply 0
