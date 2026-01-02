@@ -15,7 +15,37 @@ __global__ void matrix_multiply_via_local_memory(
                        unsigned int h,
                        unsigned int k)
 {
-    // TODO
+    const unsigned int row_c = blockIdx.y * GROUP_SIZE_X + threadIdx.y;
+    const unsigned int col_c = blockIdx.x * GROUP_SIZE_X + threadIdx.x;
+
+    __shared__ float tile_a[GROUP_SIZE_X][GROUP_SIZE_X];
+    __shared__ float tile_b[GROUP_SIZE_X][GROUP_SIZE_X];
+
+    float acc = 0.;
+
+    const unsigned int num_tiles = k / GROUP_SIZE_X;
+
+    for (unsigned int tile_idx = 0; tile_idx < num_tiles; ++tile_idx)
+    {
+        const unsigned int col_a = tile_idx * GROUP_SIZE_X + threadIdx.x;
+        const unsigned int row_b = tile_idx * GROUP_SIZE_X + threadIdx.y;
+
+        tile_a[threadIdx.y][threadIdx.x] = a[row_c * k + col_a];
+        tile_b[threadIdx.y][threadIdx.x] = b[row_b * w + col_c];
+
+        __syncthreads();
+
+#pragma unroll
+        for (unsigned int i = 0; i < GROUP_SIZE_X; ++i)
+        {
+            acc += tile_a[threadIdx.y][i] * tile_b[i][threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    if (row_c < h && col_c < w)
+        c[row_c * w + col_c] = acc;
 }
 
 namespace cuda {
