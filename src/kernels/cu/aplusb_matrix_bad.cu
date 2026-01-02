@@ -19,13 +19,11 @@ __global__ void aplusb_matrix_bad(const unsigned int* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if(i >= height) {
-        return;
-    }
+    unsigned int j = blockIdx.x * blockDim.x + threadIdx.x;
+    if (j >= height) return;
 
-    for(unsigned int j = 0; j < width; j++) {
-        unsigned int index = width*i+j;
+    for (unsigned int i = 0; i < width; i++) {
+        unsigned int index = i * height + j;
         c[index] = a[index] + b[index];
     }
 }

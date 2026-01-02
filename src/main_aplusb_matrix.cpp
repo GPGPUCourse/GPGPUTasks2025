@@ -68,7 +68,7 @@ void run(int argc, char** argv)
             timer t;
 
             // Настраиваем размер рабочего пространства (n) и размер рабочих групп в этом рабочем пространстве (GROUP_SIZE=256)
-            gpu::WorkSize workSize(16, 16, width, height);
+            gpu::WorkSize workSize(256, width * height);
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             cuda::aplusb_matrix_bad(workSize, a_gpu, b_gpu, c_gpu, width, height);
