@@ -37,6 +37,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
+
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
     avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
     avk2::KernelSource vk_prefix_accumulation(avk2::getPrefixSum02PrefixAccumulation());
@@ -52,6 +53,7 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::WorkSize workSize(GROUP_SIZE, n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -64,23 +66,12 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::prefix_sum_01_sum_reduction();
-            // cuda::prefix_sum_02_prefix_accumulation();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fill_with_zeros.exec();
-            // vk_sum_reduction.exec();
-            // vk_prefix_accumulation.exec();
+            buffer1_pow2_sum_gpu.writeN(as.data(), n);
+            for (int dist = 1; dist < n; dist *= 2) {
+                ocl_fill_with_zeros.exec(workSize, buffer2_pow2_sum_gpu, n);
+                ocl_sum_reduction.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, n, dist);
+                std::swap(buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu);
+            }
         } else {
             rassert(false, 4531412341, context.type());
         }
@@ -94,14 +85,16 @@ void run(int argc, char** argv)
     std::cout << "prefix sum median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
+    std::vector<unsigned int> gpu_prefix_sum = buffer1_pow2_sum_gpu.readVector();
 
     // Сверяем результат
     size_t cpu_sum = 0;
+
     for (size_t i = 0; i < n; ++i) {
         cpu_sum += as[i];
         rassert(cpu_sum == gpu_prefix_sum[i], 566324523452323, cpu_sum, gpu_prefix_sum[i], i);
     }
+    std::cout << std::endl;
 
     // Проверяем что входные данные остались нетронуты (ведь мы их переиспользуем от итерации к итерации)
     std::vector<unsigned int> input_values = input_gpu.readVector();
