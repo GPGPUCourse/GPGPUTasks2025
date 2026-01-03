@@ -19,8 +19,8 @@ __global__ void matrix_multiply_wmma(
                        unsigned int h,
                        unsigned int k)
 {
-    const unsigned int warp_x = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
-    const unsigned int warp_y = blockIdx.y * blockDim.y + threadIdx.y;
+    const unsigned int warp_x = blockIdx.x;
+    const unsigned int warp_y = blockIdx.y;
 
     const int wmma_tile = 16;
 
