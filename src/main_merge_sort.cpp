@@ -9,7 +9,11 @@
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
 
+#include <algorithm>
 #include <fstream>
+
+static constexpr int MERGE_ITEMS_PER_THREAD = 4;
+static constexpr int MERGE_TILE = GROUP_SIZE * MERGE_ITEMS_PER_THREAD;
 
 void run(int argc, char** argv)
 {
@@ -98,8 +102,31 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            auto ceil_div = [](size_t x, size_t y) { return (x + y - 1) / y; };
+            gpu::gpu_mem_32u* src = &input_gpu;
+            gpu::gpu_mem_32u* buf_a = &buffer1_gpu;
+            gpu::gpu_mem_32u* buf_b = &buffer2_gpu;
+            bool use_second = false;
+
+            for (int sorted_k = 1; sorted_k < n; sorted_k <<= 1) {
+                gpu::gpu_mem_32u* dst = use_second ? buf_b : buf_a;
+                use_second = !use_second;
+
+                size_t pair_size = static_cast<size_t>(sorted_k) << 1;
+                size_t pair_count = ceil_div(static_cast<size_t>(n), pair_size);
+                size_t tiles_per_pair = ceil_div(pair_size, static_cast<size_t>(MERGE_TILE));
+                size_t total_tiles = pair_count * tiles_per_pair;
+                size_t preferred_groups = ceil_div(static_cast<size_t>(n), static_cast<size_t>(MERGE_TILE));
+                size_t groups_to_launch = std::max<size_t>(1, std::min(total_tiles, preferred_groups));
+
+                gpu::WorkSize workSize(GROUP_SIZE, groups_to_launch * GROUP_SIZE);
+                ocl_mergeSort.exec(workSize, *src, *dst, sorted_k, n);
+                src = dst;
+            }
+
+            if (src != &buffer_output_gpu) {
+                src->copyToN(buffer_output_gpu, n);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
