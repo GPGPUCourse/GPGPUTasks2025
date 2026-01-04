@@ -68,6 +68,7 @@ foreach(CL_FILE IN LISTS OPENCL_SOURCES)
     compile_opencl(HEADERS ${CL_FILE} OPENCL_INCLUDES OPENCL_DEFINES)
 endforeach()
 
+
 # compile_vulkan CMake-функция объявлена в libs/gpu/libgpu/vulkan/CMakeLists.txt:97
 # Она считывает все байты из файла src/kernels/vk/aplusb.comp (т.е. весь исходный код кернела), компилирует с помощью glslc компилятора (в т.ч. выполняя все #include)
 # Скомпилированный SPIR байткод находится в файле src/kernels/vk/generated_kernels/aplusb_comp_spirv_vulkan.spir
