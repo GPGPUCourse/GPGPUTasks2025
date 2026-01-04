@@ -60,7 +60,8 @@ set(LIBRARIES
 set(OPENCL_SOURCES
         src/kernels/cl/aplusb.cl
         src/kernels/cl/fill_buffer_with_zeros.cl
-        src/kernels/cl/prefix_sum_01_reduction.cl)
+        src/kernels/cl/prefix_sum_01_reduction.cl
+        src/kernels/cl/prefix_sum_02_prefix_accumulation.cl)
 
 set(OPENCL_INCLUDES src/kernels/defines.h src/kernels/cl/helpers/rassert.cl)
 set(OPENCL_DEFINES)
@@ -78,7 +79,8 @@ endforeach()
 set(VULKAN_SOURCES
         src/kernels/vk/aplusb.comp
         src/kernels/vk/fill_buffer_with_zeros.comp
-        src/kernels/vk/prefix_sum_01_reduction.comp)
+        src/kernels/vk/prefix_sum_01_reduction.comp
+        src/kernels/vk/prefix_sum_02_prefix_accumulation.comp)
 
 set(VULKAN_DEFINES)
 foreach(VK_FILE IN LISTS VULKAN_SOURCES)
@@ -96,7 +98,8 @@ if (GPU_CUDA_SUPPORT)
     set(CUDA_SOURCES
             src/kernels/cu/aplusb.cu
             src/kernels/cu/fill_buffer_with_zeros.cu
-            src/kernels/cu/prefix_sum_01_reduction.cu)
+            src/kernels/cu/prefix_sum_01_reduction.cu
+            src/kernels/cu/prefix_sum_02_prefix_accumulation.cu)
 
     add_definitions(-DCUDA_SUPPORT)
     add_library(${PROJECT_NAME}_core STATIC ${SOURCES} ${CUDA_SOURCES} ${HEADERS})

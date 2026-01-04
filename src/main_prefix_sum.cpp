@@ -20,6 +20,9 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
 
+    avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
+    avk2::KernelSource vk_sum_reduction(avk2::getPrefixSum01Reduction());
+
     unsigned int n = 100*1000*1000;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
@@ -41,7 +44,7 @@ void run(int argc, char** argv)
     gpu::WorkSize workSize(GROUP_SIZE, n);
     for (int iter = 0; iter < 10; ++iter) {
         buffer1_pow2_sum_gpu.writeN(as.data(), n);
-        
+
         timer t;
         if (context.type() == gpu::Context::TypeOpenCL) {
             for (uint d = 1; d < n; d = d * 2) {
