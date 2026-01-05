@@ -68,7 +68,7 @@ void run(int argc, char** argv)
     unsigned int width = 2048;
     unsigned int height = 2048;
     unsigned int iterationsLimit = 256;
-    unsigned int isSmoothing = true;
+    unsigned int isSmoothing = false;
 
 #if 1
     float centralX = -0.789136f;
