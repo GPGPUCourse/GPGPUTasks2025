@@ -18,13 +18,9 @@ __kernel void radix_sort_04_scatter(
     const uint group_id = get_group_id(0);
     const uint num_groups = get_num_groups(0);
 
-    if (global_i > n) {
-        return;
-    }
-
     __local uint group_bucket_ids[GROUP_SIZE];
 
-    const uint element = input[global_i];
+    const uint element = global_i < n ? input[global_i] : 0;
     const uint bucket_id = (element >> (offset * LOG2_BUCKET_SIZE)) & BUCKET_MASK;
 
     group_bucket_ids[local_i] = bucket_id;
@@ -39,7 +35,10 @@ __kernel void radix_sort_04_scatter(
     }
 
     const uint global_bucket_id = num_groups * bucket_id + group_id;
-    const uint global_offset = prefix_sum[global_bucket_id];
+    const uint global_offset = global_bucket_id > 0 ? prefix_sum[global_bucket_id - 1] : 0;
 
-    output[global_offset + local_offset] = element;
+    if (global_i < n) {
+        // printf("global offset %u local: %u elem: %d\n", global_offset, local_offset, element);
+        output[global_offset + local_offset] = element;
+    }
 }

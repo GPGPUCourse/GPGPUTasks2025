@@ -89,7 +89,7 @@ void run(int argc, char** argv)
 
         gpu::WorkSize workSizeN(GROUP_SIZE, n);
         ocl_copy_buffer.exec(workSizeN, input_gpu, buffer_output1_gpu, n);
-        for (uint32_t bucket_number = 0; bucket_number < 32 / BUCKET_SIZE; ++bucket_number) {
+        for (uint32_t bucket_number = 0; bucket_number < 32 / LOG2_BUCKET_SIZE; ++bucket_number) {
             ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, initial_size), prefix_sum_accum, initial_size);
             ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, initial_size), local_cnt1_gpu, initial_size);
             ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, initial_size), local_cnt2_gpu, initial_size);
@@ -107,8 +107,7 @@ void run(int argc, char** argv)
                 std::swap(local_cnt1_gpu, local_cnt2_gpu);
             }
             
-            ocl_radixSort04Scatter.exec(workSizeN, buffer_output1_gpu, prefix_sum_accum, buffer_output2_gpu, n, bucket_number * LOG2_BUCKET_SIZE);
-
+            ocl_radixSort04Scatter.exec(workSizeN, buffer_output1_gpu, prefix_sum_accum, buffer_output2_gpu, n, bucket_number);
             std::swap(buffer_output1_gpu, buffer_output2_gpu);
         }
 
