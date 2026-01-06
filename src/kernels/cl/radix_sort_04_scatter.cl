@@ -5,15 +5,41 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_04_scatter(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global const uint* buffer2,
-                   uint* buffer3,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* input,
+    __global const uint* prefix_sum,
+    __global       uint* output,
+                   uint n,
+                   uint offset)
 {
-    // TODO
+    const uint global_i = get_global_id(0);
+    const uint local_i = get_local_id(0);
+    const uint group_id = get_group_id(0);
+    const uint num_groups = get_num_groups(0);
+
+    if (global_i > n) {
+        return;
+    }
+
+    __local uint group_bucket_ids[GROUP_SIZE];
+
+    const uint element = input[global_i];
+    const uint bucket_id = (element >> (offset * LOG2_BUCKET_SIZE)) & BUCKET_MASK;
+
+    group_bucket_ids[local_i] = bucket_id;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    uint local_offset = 0;
+    for (uint i = 0; i < local_i; ++i) {
+        if (group_bucket_ids[i] == bucket_id) {
+            ++local_offset;
+        }
+    }
+
+    const uint global_bucket_id = num_groups * bucket_id + group_id;
+    const uint global_offset = prefix_sum[global_bucket_id];
+
+    output[global_offset + local_offset] = element;
 }

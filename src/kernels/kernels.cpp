@@ -1,6 +1,7 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
+#include "cl/generated_kernels/copy_buffer.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/radix_sort_01_local_counting.h"
 #include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
@@ -80,6 +81,12 @@ const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation()
 const ProgramBinaries& getRadixSort04Scatter()
 {
     return opencl_binaries_radix_sort_04_scatter;
+}
+
+
+const ProgramBinaries& getCopyBuffer()
+{
+    return opencl_binaries_copy_buffer;
 }
 } // namespace ocl
 
