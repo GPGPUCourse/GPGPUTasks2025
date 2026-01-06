@@ -8,6 +8,7 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
@@ -90,6 +91,8 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
+    gpu::WorkSize workSize(GROUP_SIZE, n);
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
@@ -98,8 +101,12 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            input_gpu.copyToN(buffer1_gpu, n);
+            for(int size = 1; size < n; size *= 2) {
+                ocl_mergeSort.exec(workSize, buffer1_gpu, buffer2_gpu, size, n);
+                std::swap(buffer1_gpu, buffer2_gpu);
+            }
+            buffer1_gpu.copyToN(buffer_output_gpu, n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
