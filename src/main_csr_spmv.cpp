@@ -154,17 +154,27 @@ void run(int argc, char** argv)
         // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
         // Если вам нужно занулять буферы в процессе вычислений - создайте кернел который это сделает
         output_vector_values_gpu.fill(255);
-
-        // Запускаем кернел (несколько раз и с замером времени выполнения)
+        gpu::WorkSize workSize(GROUP_SIZE, GROUP_SIZE * ncols);
+        // Запускаем кернел (несколько раз и с замером 
+        // времени выполнения)
         std::vector<double> times;
-        for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+        for (int iter = 0; iter < 1; ++iter) { // TODO при отладке запускайте одну итерацию
             t.restart();
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             if (context.type() == gpu::Context::TypeOpenCL) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                ocl_spvm.exec(
+                    workSize, 
+                    csr_row_offsets_gpu, 
+                    csr_columns_gpu, 
+                    csr_values_gpu, 
+                    vector_values_gpu,
+                    output_vector_values_gpu,
+                    nrows,
+                    ncols,
+                    nnz
+                );
             } else if (context.type() == gpu::Context::TypeCUDA) {
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
