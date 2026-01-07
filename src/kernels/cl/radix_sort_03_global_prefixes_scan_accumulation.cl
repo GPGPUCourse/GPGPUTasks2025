@@ -23,7 +23,7 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
         }
     }
 
-    barrier(CLK_GLOBAL_MEM_FENCE);
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     if (local_id < RADIX_BUCKET_COUNT) {
         uint prefix = global_prefix[local_id];
