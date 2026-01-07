@@ -34,7 +34,8 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_fill_with_zeros(ocl::getFillBufferWithZeros());
-    ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
+    ocl::KernelSource ocl_copy_to_buffer(ocl::getCopyToBuffer());
+    ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01SumReduction());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
     avk2::KernelSource vk_fill_with_zeros(avk2::getFillBufferWithZeros());
@@ -64,11 +65,20 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            gpu::WorkSize workSize(GROUP_SIZE, n);
+
+            ocl_fill_with_zeros.exec(workSize, prefix_sum_accum_gpu, n);
+            ocl_copy_to_buffer.exec(workSize, input_gpu, buffer1_pow2_sum_gpu, n);
+
+            unsigned int current_size = n;
+            std::vector<unsigned int> temp;
+            for (int pow2 = 0; 2 << (pow2 - 1) <= n; pow2++) {
+                ocl_prefix_accumulation.exec(workSize, buffer1_pow2_sum_gpu, prefix_sum_accum_gpu, n, pow2);
+                ocl_sum_reduction.exec(workSize, buffer1_pow2_sum_gpu, buffer2_pow2_sum_gpu, current_size);
+                buffer1_pow2_sum_gpu.swap(buffer2_pow2_sum_gpu);
+                current_size = (current_size + 1) / 2;
+            }
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);

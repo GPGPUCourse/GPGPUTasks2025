@@ -13,7 +13,8 @@ namespace ocl {
 const ProgramBinaries& getAplusB();
 
 const ProgramBinaries& getFillBufferWithZeros();
-const ProgramBinaries& getPrefixSum01Reduction();
+const ProgramBinaries& getCopyToBuffer();
+const ProgramBinaries& getPrefixSum01SumReduction();
 const ProgramBinaries& getPrefixSum02PrefixAccumulation();
 }
 
