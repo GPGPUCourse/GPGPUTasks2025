@@ -90,8 +90,7 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u buffer_b(n);
 
     const unsigned int workgroups = (n + GROUP_SIZE - 1) / GROUP_SIZE;
-    const unsigned int buckets = (1u << RADIX_WIDTH);
-    const unsigned int histogram_len = buckets * workgroups;
+    const unsigned int histogram_len = RADIX_BUCKET_COUNT * workgroups;
 
     gpu::gpu_mem_32u group_hist(histogram_len);
     gpu::gpu_mem_32u prefix_table(histogram_len);
@@ -111,9 +110,9 @@ void run(int argc, char** argv)
             gpu::gpu_mem_32u* current_in = &buffer_a;
             gpu::gpu_mem_32u* current_out = &buffer_b;
 
-            const unsigned int total_passes = 32 / RADIX_WIDTH;
+            const unsigned int total_passes = 4;
             for (unsigned int pass = 0; pass < total_passes; ++pass) {
-                const unsigned int bit_shift = pass * RADIX_WIDTH;
+                const unsigned int bit_shift = pass * 8;
 
                 ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), *current_in, n, bit_shift, group_hist);
 

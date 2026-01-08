@@ -20,7 +20,7 @@ __kernel void radix_sort_04_scatter(
     uint digit = 0;
     if (gid < total_count) {
         value = src[gid];
-        digit = (value >> bit_shift) & ((1u << RADIX_WIDTH) - 1);
+        digit = (value >> bit_shift) & (RADIX_BUCKET_COUNT - 1);
     }
 
     digits[lid] = digit;
@@ -32,6 +32,8 @@ __kernel void radix_sort_04_scatter(
             rank_in_group += (digits[i] == digit);
         }
     }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     if (gid < total_count) {
         uint bucket_index = digit * groups_total + grp;
