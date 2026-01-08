@@ -1,8 +1,37 @@
-
 // sphere with center in (0, 0, 0)
 float sdSphere(vec3 p, float r)
 {
     return length(p) - r;
+}
+
+vec3 rotateZ(vec3 p, float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return vec3(
+        c*p.x - s*p.y,
+        s*p.x + c*p.y,
+        p.z
+    );
+}
+
+float smin( float a, float b, float k )
+{
+    k *= 1.0;
+    float r = exp2(-a/k) + exp2(-b/k);
+    return -k*log2(r);
+}
+
+
+float linInterpolation(float x, float from, float to) {
+    x = (x + 1.0);
+    x = (to - from) * x / 2.0 + from;
+    return x;
+}
+
+float sdVerticalCapsule( vec3 p, float h, float r )
+{
+  p.y -= clamp( p.y, 0.0, h );
+  return length( p ) - r;
 }
 
 // XZ plane
@@ -28,10 +57,41 @@ float lazycos(float angle)
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
-
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d = sdVerticalCapsule((p - vec3(0.0, 0.35, 0.0)), 0.4, 0.3);    
+    
+    float tol = 0.02;
+    
+    { // right hand
+        vec3 _center = vec3(0.2, 0.6, -0.1);
+        vec3 _p = rotateZ(p - _center, 3.14 * linInterpolation(cos(iTime * 5.0), 0.3, 0.5));
+    
+        float _d = sdVerticalCapsule(_p, 0.3, 0.05);
+        d = smin(_d, d, tol);
+    }
+    
+    { // left hand
+        vec3 _center = vec3(-0.2, 0.6, 0.1);
+        vec3 _p = rotateZ(p - _center, -2.5);
+    
+        float _d = sdVerticalCapsule(_p, 0.3, 0.05);
+        d = smin(_d, d, tol);
+    }
+    
+    { // right leg
+        vec3 _center = vec3(0.1, 0.2, 0.1);
+        vec3 _p = rotateZ(p - _center, 2.5);
+    
+        float _d = sdVerticalCapsule(_p, 0.3, 0.05);
+        d = smin(_d, d, tol);
+    }
+    
+    { // left leg
+        vec3 _center = vec3(-0.1, 0.2, 0.1);
+        vec3 _p = rotateZ(p - _center, -2.5);
+    
+        float _d = sdVerticalCapsule(_p, 0.3, 0.05);
+        d = smin(_d, d, tol);
+    }
 
     // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
@@ -39,17 +99,21 @@ vec4 sdBody(vec3 p)
 
 vec4 sdEye(vec3 p)
 {
-
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
-
-    return res;
+    float d = sdSphere((p - vec3(0.0, 0.7, 0.25)), 0.1);
+    
+    {
+        float _d = sdSphere((p - vec3(0.0, 0.7, 0.35)), 0.05 * linInterpolation(cos(iTime), 0.5, 1.0));
+        if(_d < d) return vec4(d, 0.0, 0.0, 0.0);
+    }
+    
+    return vec4(d, 1.0, 1.0, 1.0);
 }
 
 vec4 sdMonster(vec3 p)
 {
     // при рисовании сложного объекта из нескольких SDF, удобно на верхнем уровне
     // модифицировать p, чтобы двигать объект как целое
-    p -= vec3(0.0, 0.08, 0.0);
+    p -= vec3(0.0, 0.0, 0.0);
 
     vec4 res = sdBody(p);
 
@@ -90,7 +154,6 @@ vec4 raycast(vec3 ray_origin, vec3 ray_direction)
 {
 
     float EPS = 1e-3;
-
 
     // p = ray_origin + t * ray_direction;
 
@@ -146,29 +209,42 @@ float castShadow(vec3 p, vec3 light_source)
     return 1.0;
 }
 
-
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = fragCoord/iResolution.y;
 
     vec2 wh = vec2(iResolution.x / iResolution.y, 1.0);
+    
+    float R = 3.5;
+    float ang = iTime * 0.5;
 
+    vec3 target = vec3(0.0, 0.3, 0.0);
 
-    vec3 ray_origin = vec3(0.0, 0.5, 1.0);
-    vec3 ray_direction = normalize(vec3(uv - 0.5*wh, -1.0));
+    vec3 ray_origin = vec3(
+        R * cos(ang),
+        1.5,
+        R * sin(ang)
+    );
 
+    vec3 forward = normalize(target - ray_origin);
+    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up = cross(right, forward);
+
+    vec2 p = uv - 0.5 * wh;
+    vec3 ray_direction = normalize(
+        p.x * right +
+        p.y * up +
+        1.5 * forward
+    );
 
     vec4 res = raycast(ray_origin, ray_direction);
 
-
-
     vec3 col = res.yzw;
-
 
     vec3 surface_point = ray_origin + res.x*ray_direction;
     vec3 normal = calcNormal(surface_point);
 
-    vec3 light_source = vec3(1.0 + 2.5*sin(iTime), 10.0, 10.0);
+    vec3 light_source = vec3(8.5, 10.0, 7.0);
 
     float shad = shading(surface_point, light_source, normal);
     shad = min(shad, castShadow(surface_point, light_source));
