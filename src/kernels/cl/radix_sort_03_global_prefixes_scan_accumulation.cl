@@ -16,7 +16,8 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     const unsigned int local_id = get_local_id(0);
     
     __local uint global_prefix[RADIX_BUCKET_COUNT];
-    if (bucket == 0) {
+    
+    if (local_id == 0) {
         global_prefix[0] = 0;
         for (unsigned int i = 1; i < RADIX_BUCKET_COUNT; ++i) {
             global_prefix[i] = global_prefix[i - 1] + global_sums[i - 1];
@@ -25,11 +26,11 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    if (local_id < RADIX_BUCKET_COUNT) {
-        uint prefix = global_prefix[local_id];
+    if (bucket < RADIX_BUCKET_COUNT) {
+        uint prefix = global_prefix[bucket];
         for (unsigned int group = 0; group < num_groups; ++group) {
-            local_prefix_sums[group * RADIX_BUCKET_COUNT + local_id] = prefix;
-            prefix += local_counts[group * RADIX_BUCKET_COUNT + local_id];
+            local_prefix_sums[group * RADIX_BUCKET_COUNT + bucket] = prefix;
+            prefix += local_counts[group * RADIX_BUCKET_COUNT + bucket];
         }
     }
 }
