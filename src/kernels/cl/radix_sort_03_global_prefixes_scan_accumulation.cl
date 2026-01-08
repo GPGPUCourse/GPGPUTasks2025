@@ -1,5 +1,5 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
@@ -7,30 +7,18 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
-    __global const uint* local_counts,
-    __global const uint* global_sums,
-    __global       uint* local_prefix_sums,
-    unsigned int num_groups)
+    uint level_pow2,
+    uint total_count,
+    __global const uint* partial_sums,
+    __global       uint* prefix_out)
 {
-    const unsigned int bucket = get_global_id(0);
-    const unsigned int local_id = get_local_id(0);
-    
-    __local uint global_prefix[RADIX_BUCKET_COUNT];
-    
-    if (local_id == 0) {
-        global_prefix[0] = 0;
-        for (unsigned int i = 1; i < RADIX_BUCKET_COUNT; ++i) {
-            global_prefix[i] = global_prefix[i - 1] + global_sums[i - 1];
-        }
-    }
+    const uint gid = get_global_id(0);
+    if (gid >= total_count)
+        return;
 
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (bucket < RADIX_BUCKET_COUNT) {
-        uint prefix = global_prefix[bucket];
-        for (unsigned int group = 0; group < num_groups; ++group) {
-            local_prefix_sums[group * RADIX_BUCKET_COUNT + bucket] = prefix;
-            prefix += local_counts[group * RADIX_BUCKET_COUNT + bucket];
-        }
+    const uint block = (gid + 1) >> level_pow2;
+    if (block & 1u) {
+        const uint parent = block - 1;
+        prefix_out[gid] += partial_sums[parent];
     }
 }

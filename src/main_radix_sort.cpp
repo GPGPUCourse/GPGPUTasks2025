@@ -85,77 +85,64 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
-    unsigned int num_groups = (n + GROUP_SIZE - 1) / GROUP_SIZE;
-    
-    unsigned int local_counts_size = num_groups * RADIX_BUCKET_COUNT;
-    unsigned int global_sums_size = RADIX_BUCKET_COUNT;
-    unsigned int local_prefix_sums_size = num_groups * RADIX_BUCKET_COUNT;
-    
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(local_counts_size);
-    gpu::gpu_mem_32u buffer2_gpu(global_sums_size);
-    gpu::gpu_mem_32u buffer3_gpu(local_prefix_sums_size);
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u buffer_a(n);
+    gpu::gpu_mem_32u buffer_b(n);
+
+    const unsigned int workgroups = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+    const unsigned int buckets = (1u << RADIX_WIDTH);
+    const unsigned int histogram_len = buckets * workgroups;
+
+    gpu::gpu_mem_32u group_hist(histogram_len);
+    gpu::gpu_mem_32u prefix_table(histogram_len);
+    gpu::gpu_mem_32u reduce_tmp_a(histogram_len);
+    gpu::gpu_mem_32u reduce_tmp_b(histogram_len);
 
     input_gpu.writeN(as.data(), n);
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer_output_gpu.fill(255);
 
-    gpu::gpu_mem_32u* values_in = &input_gpu;
-    gpu::gpu_mem_32u* values_out = &buffer_output_gpu;
-    gpu::gpu_mem_32u* local_counts = &buffer1_gpu;
-    gpu::gpu_mem_32u* global_sums = &buffer2_gpu;
-    gpu::gpu_mem_32u* local_prefix_sums = &buffer3_gpu;
-
+    gpu::gpu_mem_32u* last_sorted_gpu = &buffer_a;
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
         if (context.type() == gpu::Context::TypeOpenCL) {
-            input_gpu.writeN(as.data(), n);
-            values_in = &input_gpu;
-            values_out = &buffer_output_gpu;
-            
-            for (unsigned int byte_index = 0; byte_index < 4; ++byte_index) {
-                gpu::WorkSize workSize1(GROUP_SIZE, n);
-                ocl_radixSort01LocalCounting.exec(workSize1, *values_in, *local_counts, byte_index, n);
-                
-                gpu::WorkSize workSize2(GROUP_SIZE, RADIX_BUCKET_COUNT);
-                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(workSize2, *local_counts, *global_sums, num_groups);
-                
-                gpu::WorkSize workSize3(GROUP_SIZE, RADIX_BUCKET_COUNT);
-                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize3, *local_counts, *global_sums, *local_prefix_sums, num_groups);
-                
-                gpu::WorkSize workSize4(GROUP_SIZE, n);
-                ocl_radixSort04Scatter.exec(workSize4, *values_in, *local_prefix_sums, *values_out, byte_index, n);
-                
-                std::swap(values_in, values_out);
+            buffer_a.writeN(as.data(), n);
+
+            gpu::gpu_mem_32u* current_in = &buffer_a;
+            gpu::gpu_mem_32u* current_out = &buffer_b;
+
+            const unsigned int total_passes = 32 / RADIX_WIDTH;
+            for (unsigned int pass = 0; pass < total_passes; ++pass) {
+                const unsigned int bit_shift = pass * RADIX_WIDTH;
+
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), *current_in, n, bit_shift, group_hist);
+
+                ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, histogram_len), prefix_table, histogram_len);
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, histogram_len), 0u, histogram_len, group_hist, prefix_table);
+
+                gpu::gpu_mem_32u* reduce_in = &group_hist;
+                gpu::gpu_mem_32u* reduce_out = &reduce_tmp_a;
+                unsigned int reduce_len = histogram_len;
+
+                for (unsigned int level = 1; (1u << level) < histogram_len; ++level) {
+                    unsigned int next_len = (reduce_len + 1) >> 1;
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(gpu::WorkSize(GROUP_SIZE, next_len), *reduce_in, reduce_len, *reduce_out);
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, histogram_len), level, histogram_len, *reduce_out, prefix_table);
+
+                    reduce_in = reduce_out;
+                    reduce_out = (reduce_out == &reduce_tmp_a) ? &reduce_tmp_b : &reduce_tmp_a;
+                    reduce_len = next_len;
+                }
+
+                ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, n), *current_in, n, bit_shift, prefix_table, *current_out);
+                std::swap(current_in, current_out);
             }
-            
-            if (values_in != &buffer_output_gpu) {
-                std::vector<unsigned int> temp = values_in->readVector();
-                buffer_output_gpu.writeN(temp.data(), n);
-            }
-            
-            input_gpu.writeN(as.data(), n);
+
+            last_sorted_gpu = current_in;
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
         } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
         } else {
             rassert(false, 4531412341, context.type());
         }
@@ -164,19 +151,14 @@ void run(int argc, char** argv)
     }
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-    // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
-    // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
-
-    // Сверяем результат
+    std::vector<unsigned int> gpu_sorted = last_sorted_gpu->readVector();
     for (size_t i = 0; i < n; ++i) {
         rassert(sorted[i] == gpu_sorted[i], 566324523452323, sorted[i], gpu_sorted[i], i);
     }
 
-    // Проверяем что входные данные остались нетронуты (ведь мы их переиспользуем от итерации к итерации)
     std::vector<unsigned int> input_values = input_gpu.readVector();
     for (size_t i = 0; i < n; ++i) {
         rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);

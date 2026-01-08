@@ -1,5 +1,5 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl>
 #endif
 
 #include "helpers/rassert.cl"
@@ -7,17 +7,17 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    __global const uint* local_counts,
-    __global       uint* global_sums,
-    unsigned int num_groups)
+    __global const uint* partial_in,
+    uint partial_size,
+    __global       uint* partial_out)
 {
-    const unsigned int bucket = get_global_id(0);
-    
-    if (bucket < RADIX_BUCKET_COUNT) {
-        uint sum = 0;
-        for (unsigned int group = 0; group < num_groups; ++group) {
-            sum += local_counts[group * RADIX_BUCKET_COUNT + bucket];
-        }
-        global_sums[bucket] = sum;
-    }
+    const uint gid = get_global_id(0);
+    const uint out_len = (partial_size + 1) >> 1;
+    if (gid >= out_len)
+        return;
+
+    uint base = gid << 1;
+    uint left = partial_in[base];
+    uint right = (base + 1 < partial_size) ? partial_in[base + 1] : 0;
+    partial_out[gid] = left + right;
 }
