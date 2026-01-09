@@ -10,7 +10,6 @@ __kernel void radix_sort_01_local_counting(
     __global const uint* in_buffer,
     __global       uint* out_buffer,
     unsigned int n,
-    unsigned int value,
     unsigned int offset)
 {
     const uint index = get_global_id(0);
@@ -18,7 +17,7 @@ __kernel void radix_sort_01_local_counting(
     if (index >= n) return;
 
     const uint number = in_buffer[index];
-    out_buffer[index] = ((number >> offset) & 1u) == value;
+    out_buffer[index] = ((number >> offset) & 1u) == 0;
 }
 
 //const uint mask = (1u << offset_size) - 1;

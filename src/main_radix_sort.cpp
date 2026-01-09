@@ -113,26 +113,22 @@ void run(int argc, char** argv)
 
         for (unsigned int offset = 0; offset < value_size; offset++) {
 
-            for (unsigned int value = 0; value < 2; value++) {
+            ocl_fillBufferWithZeros.exec(workSize, prefix_sum_accum, n);
 
-                ocl_fillBufferWithZeros.exec(workSize, local_counting, n);
-                ocl_fillBufferWithZeros.exec(workSize, prefix_sum_accum, n);
+            ocl_radixSort01LocalCounting.exec(workSize, buffer_input_gpu, local_counting, n, offset);
 
-                ocl_radixSort01LocalCounting.exec(workSize, buffer_input_gpu, local_counting, n, value, offset);
+            local_counting.copyToN(buffer1_gpu, n);
 
-                local_counting.copyToN(buffer1_gpu, n);
-
-                unsigned int current_size = n;
-                std::vector<unsigned int> temp;
-                for (int pow2 = 0; 2 << (pow2 - 1) <= n; pow2++) {
-                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize, buffer1_gpu, prefix_sum_accum, n, pow2);
-                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(workSize, buffer1_gpu, buffer2_gpu, current_size);
-                    buffer1_gpu.swap(buffer2_gpu);
-                    current_size = (current_size + 1) / 2;
-                }
-
-                ocl_radixSort04Scatter.exec(workSize, buffer_input_gpu, local_counting, prefix_sum_accum, buffer_output_gpu, value, n);
+            unsigned int current_size = n;
+            std::vector<unsigned int> temp;
+            for (int pow2 = 0; 2 << (pow2 - 1) <= n; pow2++) {
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(workSize, buffer1_gpu, prefix_sum_accum, n, pow2);
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(workSize, buffer1_gpu, buffer2_gpu, current_size);
+                buffer1_gpu.swap(buffer2_gpu);
+                current_size = (current_size + 1) / 2;
             }
+
+            ocl_radixSort04Scatter.exec(workSize, buffer_input_gpu, prefix_sum_accum, buffer_output_gpu, offset, n);
 
             buffer_output_gpu.copyToN(buffer_input_gpu, n);
         }
