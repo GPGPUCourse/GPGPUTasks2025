@@ -29,11 +29,6 @@ void map_scan(
 {
     // map
     ocl_map.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1), n, input_gpu, buffer1_pow2_sum_gpu, bits, digit, clazz);
-    // std::cout << "buf1 ";
-    // for (auto&& i : buffer1_pow2_sum_gpu.readVector()) {
-    //     std::cout << i << " ";
-    // }
-    // std::cout << "\n";
     ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1), buffer2_pow2_sum_gpu, n);
     ocl_map.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1), n, input_gpu, prefix_sum_accum_gpu, bits, digit, clazz);
 
@@ -121,14 +116,10 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n);
     gpu::gpu_mem_32u buffer1_scatter_gpu(n), buffer2_scatter_gpu(n);
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u buffer_pref_sum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
-    // for (auto&& i : as) {
-    //     std::cout << i << " ";
-    // }
-    // std::cout << "\n";
 
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
@@ -137,7 +128,7 @@ void run(int argc, char** argv)
     buffer2_pow2_sum_gpu.fill(255);
     input_gpu.copyToN(buffer1_scatter_gpu, n);
     buffer2_scatter_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    buffer_pref_sum_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -156,7 +147,7 @@ void run(int argc, char** argv)
                         buffer1_scatter_gpu,
                         buffer1_pow2_sum_gpu,
                         buffer2_pow2_sum_gpu,
-                        buffer_output_gpu, // pref_sum
+                        buffer_pref_sum_gpu,
                         bits,
                         digit,
                         clazz,
@@ -165,33 +156,19 @@ void run(int argc, char** argv)
                         ocl_radixSort02GlobalPrefixesScanAccumulation,
                         ocl_fillBufferWithZeros);
 
-                    // for (auto&& i : debug::prettyBits(buffer1_scatter_gpu.readVector(), max_value, digit * bits, bits)) {
-                    //     std::cout << i << " ";
-                    // }
-                    // std::cout << "\n";
-                    // for (auto&& i : buffer_output_gpu.readVector()) {
-                    //     std::cout << i << " ";
-                    // }
-                    // std::cout << "\n";
-
-                    // printf("bits=%d digit=%d offset=%d clazz=%s\n", bits, digit, offset, debug::prettyBits({ clazz }, 1 << bits - 1, 0, bits)[0].c_str());
-
                     ocl_radixSort03Scatter.exec(gpu::WorkSize(GROUP_SIZE, 1, n, 1),
                         n,
                         buffer1_scatter_gpu,
                         buffer2_scatter_gpu,
-                        buffer_output_gpu,
+                        buffer_pref_sum_gpu,
                         bits, digit, offset, clazz);
 
                     uint _offset;
-                    buffer_output_gpu.readN(&_offset, 1, n - 1); // TODO: check
-                    // std::cout << offset << " + " << _offset << "\n";
+                    buffer_pref_sum_gpu.readN(&_offset, 1, n - 1);
                     offset += _offset;
-
-                    // std::cout << "\n";
                 }
 
-                std::swap(buffer1_scatter_gpu, buffer2_scatter_gpu); // TODO: ptr swap ???
+                std::swap(buffer1_scatter_gpu, buffer2_scatter_gpu);
             }
 
         } else if (context.type() == gpu::Context::TypeCUDA) {
@@ -224,17 +201,6 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = buffer1_scatter_gpu.readVector();
-
-    // std::cout << "sorted ";
-    // for (auto&& i : sorted) {
-    //     std::cout << i << " ";
-    // }
-    // std::cout << "\n";
-    // std::cout << "gputed ";
-    // for (auto&& i : gpu_sorted) {
-    //     std::cout << i << " ";
-    // }
-    // std::cout << "\n";
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
