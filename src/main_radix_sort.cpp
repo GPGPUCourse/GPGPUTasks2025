@@ -110,30 +110,42 @@ void run(int argc, char** argv)
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
             // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
+            const uint32_t groups = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+            gpu::gpu_mem_32u zerosPerGroup_gpu(groups);
+            gpu::gpu_mem_32u scanTmp_gpu(groups);
+            gpu::gpu_mem_32u zeroGroupOffset_gpu(groups);
+            gpu::gpu_mem_32u totalZeros_gpu(1);
+
+            gpu::WorkSize wsN(GROUP_SIZE, n);
+            gpu::WorkSize wsG(1, groups);
+
+
+            input_gpu.copyToN(buffer2_gpu, n);
+
+            gpu::gpu_mem_32u* in  = &buffer2_gpu;
+            gpu::gpu_mem_32u* out = &buffer_output_gpu; 
+
+            for (uint32_t bit = 0; bit < 32; ++bit) {
+                ocl_radixSort01LocalCounting.exec(wsN, *in, buffer1_gpu, zerosPerGroup_gpu, n, bit);
+
+                gpu::gpu_mem_32u* scanIn  = &zerosPerGroup_gpu;
+                gpu::gpu_mem_32u* scanOut = &scanTmp_gpu;
+                for (uint32_t offset = 1; offset < groups; offset <<= 1) {
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(wsG, *scanIn, *scanOut, offset);
+                    std::swap(scanIn, scanOut);
+                }
+
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(wsG, *scanIn, zeroGroupOffset_gpu, totalZeros_gpu);
+
+                ocl_radixSort04Scatter.exec(wsN, *in, buffer1_gpu, zeroGroupOffset_gpu, totalZeros_gpu, *out, n, bit);
+
+                std::swap(in, out);
+            }
+
+
+            in->copyToN(buffer_output_gpu, n);
         } else {
-            rassert(false, 4531412341, context.type());
+            rassert(false, 4531412342, context.type());
         }
 
         times.push_back(t.elapsed());
@@ -155,7 +167,7 @@ void run(int argc, char** argv)
     // Проверяем что входные данные остались нетронуты (ведь мы их переиспользуем от итерации к итерации)
     std::vector<unsigned int> input_values = input_gpu.readVector();
     for (size_t i = 0; i < n; ++i) {
-        rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);
+        rassert(input_values[i] == as[i], 6573452412, input_values[i], as[i]);
     }
 }
 

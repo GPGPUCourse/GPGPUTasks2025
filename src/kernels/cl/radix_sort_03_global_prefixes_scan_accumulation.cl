@@ -7,12 +7,18 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* zerosInclusive,     // [groups]
+    __global       uint* zeroGroupOffset,   // [groups]
+    __global       uint* totalZerosBuf     // [1]
+)
 {
-    // TODO
+    const uint gid = get_global_id(0);
+    const uint groups = get_num_groups(0);
+    if (gid >= groups) return;
+
+    zeroGroupOffset[gid] = (gid == 0) ? 0u : zerosInclusive[gid - 1];
+
+    if (gid == groups - 1) {
+        totalZerosBuf[0] = zerosInclusive[gid];
+    }
 }
