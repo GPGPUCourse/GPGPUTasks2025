@@ -40,7 +40,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 1000000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
@@ -65,6 +65,13 @@ void run(int argc, char** argv)
         rassert(!all_attempts_missed, 4353245123412);
     }
 
+    // Выводим исходный массив для отладки
+    std::cout << "Input array: ";
+    for (int i = 0; i < std::min(n, 20); ++i) {
+        std::cout << as[i] << " ";
+    }
+    std::cout << std::endl;
+
     {
         sorted = as;
         std::cout << "sorting on CPU..." << std::endl;
@@ -75,6 +82,12 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort finished in " << t.elapsed() << " sec" << std::endl;
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
+
+    std::cout << "Expected sorted: ";
+    for (int i = 0; i < std::min(n, 20); ++i) {
+        std::cout << sorted[i] << " ";
+    }
+    std::cout << std::endl;
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
@@ -98,8 +111,25 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            std::vector<unsigned int> input_data = input_gpu.readVector();
+            buffer1_gpu.writeN(input_data.data(), n);
+
+            bool use_buffer1_as_input = true;
+            for (int sorted_k = 1; sorted_k < n; sorted_k *= 2) {
+                gpu::gpu_mem_32u& current_input = use_buffer1_as_input ? buffer1_gpu : buffer2_gpu;
+                gpu::gpu_mem_32u& current_output = use_buffer1_as_input ? buffer2_gpu : buffer1_gpu;
+
+                int num_blocks = (n + 2 * sorted_k - 1) / (2 * sorted_k);
+                gpu::WorkSize workSize(1, num_blocks);
+                
+                ocl_mergeSort.exec(workSize, current_input, current_output, sorted_k, n);
+                use_buffer1_as_input = !use_buffer1_as_input;
+            }
+
+            gpu::gpu_mem_32u& final_result = use_buffer1_as_input ? buffer1_gpu : buffer2_gpu;
+            std::vector<unsigned int> result_data = final_result.readVector();
+            buffer_output_gpu.writeN(result_data.data(), n);
+
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
