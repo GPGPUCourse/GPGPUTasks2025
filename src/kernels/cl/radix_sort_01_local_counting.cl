@@ -15,6 +15,7 @@ __kernel void radix_sort_01_local_counting(
     const unsigned int local_id = get_local_id(0);
     const unsigned int group_id = get_group_id(0);
     const unsigned int global_id = get_global_id(0);
+    const unsigned int groups_total = get_num_groups(0);
     
     __local uint local_buckets[RADIX_BUCKET_COUNT];
     
@@ -33,6 +34,7 @@ __kernel void radix_sort_01_local_counting(
     barrier(CLK_LOCAL_MEM_FENCE);
     
     if (local_id < RADIX_BUCKET_COUNT) {
-        local_counts[group_id * RADIX_BUCKET_COUNT + local_id] = local_buckets[local_id];
+        // layout: [bucket][group]
+        local_counts[local_id * groups_total + group_id] = local_buckets[local_id];
     }
 }
