@@ -95,17 +95,13 @@ void run(int argc, char** argv)
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            buffer1_gpu.writeN(as.data(), n);
+            for (uint pow = 0; (1 << pow) < n; pow++) {
+                ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, pow, n);
+                buffer1_gpu.swap(buffer2_gpu);
+            }
+            buffer1_gpu.copyToN(buffer_output_gpu, n);
         } else {
             rassert(false, 4531412341, context.type());
         }
