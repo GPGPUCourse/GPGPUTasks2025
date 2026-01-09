@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+    - name: Free disk space
+      run: rm -rf /opt/hostedtoolcache
+
     - uses: actions/checkout@v2
 
     - name: Install prerequisites
