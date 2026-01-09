@@ -1,58 +1,83 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-void copy_remaining(__global const uint* input_data,
-                    __global       uint* output_data,
-                               int  start,
-                               int* index,
-                               int  size,
-                               int* pos)
+int binary_search_lower(__global const uint* arr, int start, int size, uint value)
 {
-    while (*index < size) {
-        output_data[*pos] = input_data[start + *index];
-        (*index)++;
-        (*pos)++;
+    int left = 0;
+    int right = size;
+
+    while (left < right) {
+        int mid = (left + right) / 2;
+        if (arr[start + mid] < value) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
     }
+
+    return left;
 }
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+int binary_search_upper(__global const uint* arr, int start, int size, uint value)
+{
+    int left = 0;
+    int right = size;
+
+    while (left < right) {
+        int mid = (left + right) / 2;
+        if (arr[start + mid] <= value) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void merge_sort(
     __global const uint* input_data,
     __global       uint* output_data,
                    int  sorted_k,
                    int  n)
 {
-    const unsigned int block_pair_id = get_global_id(0);
+    const int gid = get_global_id(0);
 
-    int left_start = block_pair_id * 2 * sorted_k;
-    int right_start = left_start + sorted_k;
-    int merge_end = min(left_start + 2 * sorted_k, n);
-
-    if (left_start >= n) {
+    if (gid >= n) {
         return;
     }
 
-    int left_size = min(sorted_k, n - left_start);
-    int right_size = (right_start < n) ? min(sorted_k, n - right_start) : 0;
+    int block_id = gid / (2 * sorted_k);
+    int left_start = block_id * 2 * sorted_k;
+    int right_start = left_start + sorted_k;
+    int left_end = min(right_start, n);
+    int right_end = min(right_start + sorted_k, n);
 
-    int i = 0;
-    int j = 0;
-    int pos = left_start;
+    uint value = input_data[gid];
+    int output_pos;
 
-    while (i < left_size && j < right_size) {
-        uint left_val = input_data[left_start + i];
-        uint right_val = input_data[right_start + j];
+    if (gid >= left_start && gid < left_end) {
+        int rank_in_left = gid - left_start;
 
-        if (left_val <= right_val) {
-            output_data[pos] = left_val;
-            i++;
-        } else {
-            output_data[pos] = right_val;
-            j++;
-        }
-        pos++;
+        int rank_in_right = binary_search_lower(
+            input_data, right_start, right_end - right_start, value
+        );
+
+        output_pos = left_start + rank_in_left + rank_in_right;
+    }
+    else if (gid >= right_start && gid < right_end) {
+        int rank_in_right = gid - right_start;
+
+        int rank_in_left = binary_search_upper(
+            input_data, left_start, left_end - left_start, value
+        );
+
+        output_pos = left_start + rank_in_right + rank_in_left;
+    }
+    else {
+        output_pos = gid;
     }
 
-    copy_remaining(input_data, output_data, left_start, &i, left_size, &pos);
-    copy_remaining(input_data, output_data, right_start, &j, right_size, &pos);
+    output_data[output_pos] = value;
 }

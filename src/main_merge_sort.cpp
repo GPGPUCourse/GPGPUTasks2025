@@ -119,9 +119,8 @@ void run(int argc, char** argv)
                 gpu::gpu_mem_32u& current_input = use_buffer1_as_input ? buffer1_gpu : buffer2_gpu;
                 gpu::gpu_mem_32u& current_output = use_buffer1_as_input ? buffer2_gpu : buffer1_gpu;
 
-                int num_blocks = (n + 2 * sorted_k - 1) / (2 * sorted_k);
-                gpu::WorkSize workSize(1, num_blocks);
-                
+                gpu::WorkSize workSize(GROUP_SIZE, n);
+
                 ocl_mergeSort.exec(workSize, current_input, current_output, sorted_k, n);
                 use_buffer1_as_input = !use_buffer1_as_input;
             }
