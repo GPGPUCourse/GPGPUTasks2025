@@ -114,7 +114,7 @@ void run(int argc, char** argv)
             for (unsigned int pass = 0; pass < total_passes; ++pass) {
                 const unsigned int bit_shift = pass * 8;
 
-                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), *current_in, n, bit_shift, group_hist);
+                ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, n), *current_in, group_hist, pass, n);
 
                 ocl_fillBufferWithZeros.exec(gpu::WorkSize(GROUP_SIZE, histogram_len), prefix_table, histogram_len);
                 ocl_radixSort03GlobalPrefixesScanAccumulation.exec(gpu::WorkSize(GROUP_SIZE, histogram_len), 0u, histogram_len, group_hist, prefix_table);
