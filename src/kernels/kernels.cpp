@@ -2,10 +2,10 @@
 
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/fill_buffer_with_zeros.h"
-#include "cl/generated_kernels/radix_sort_01_local_counting.h"
-#include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_sum_reduction.h"
-#include "cl/generated_kernels/radix_sort_03_global_prefixes_scan_accumulation.h"
-#include "cl/generated_kernels/radix_sort_04_scatter.h"
+#include "cl/generated_kernels/radix_sort_01_global_prefixes_scan_sum_reduction.h"
+#include "cl/generated_kernels/radix_sort_02_global_prefixes_scan_accumulation.h"
+#include "cl/generated_kernels/radix_sort_03_scatter.h"
+#include "cl/generated_kernels/radix_sort_04_map.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/fill_buffer_with_zeros_comp.h"
@@ -22,28 +22,28 @@ void aplusb(const gpu::WorkSize& workSize,
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
-            gpu::gpu_mem_32u &buffer, unsigned int n)
+void fill_buffer_with_zeros(const gpu::WorkSize& workSize,
+    gpu::gpu_mem_32u& buffer, unsigned int n)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_01_local_counting(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &values, gpu::gpu_mem_32u &buffer1, unsigned int a1, unsigned int a2)
+void radix_sort_01_local_counting(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& values, gpu::gpu_mem_32u& buffer1, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1)
+void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& buffer1, gpu::gpu_mem_32u& buffer2, unsigned int a1)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_03_global_prefixes_scan_accumulation(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1, unsigned int a2)
+void radix_sort_03_global_prefixes_scan_accumulation(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& buffer1, gpu::gpu_mem_32u& buffer2, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
 }
-void radix_sort_04_scatter(const gpu::WorkSize &workSize, const gpu::gpu_mem_32u &values, const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1, unsigned int a2)
+void radix_sort_04_scatter(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& values, const gpu::gpu_mem_32u& buffer1, gpu::gpu_mem_32u& buffer2, unsigned int a1, unsigned int a2)
 {
     // dummy implementation if CUDA_SUPPORT is disabled
     rassert(false, 54623523412413);
@@ -62,24 +62,24 @@ const ProgramBinaries& getFillBufferWithZeros()
     return opencl_binaries_fill_buffer_with_zeros;
 }
 
-const ProgramBinaries& getRadixSort01LocalCounting()
+const ProgramBinaries& getRadixSort01GlobalPrefixesScanSumReduction()
 {
-    return opencl_binaries_radix_sort_01_local_counting;
+    return opencl_binaries_radix_sort_01_global_prefixes_scan_sum_reduction;
 }
 
-const ProgramBinaries& getRadixSort02GlobalPrefixesScanSumReduction()
+const ProgramBinaries& getRadixSort02GlobalPrefixesScanAccumulation()
 {
-    return opencl_binaries_radix_sort_02_global_prefixes_scan_sum_reduction;
+    return opencl_binaries_radix_sort_02_global_prefixes_scan_accumulation;
 }
 
-const ProgramBinaries& getRadixSort03GlobalPrefixesScanAccumulation()
+const ProgramBinaries& getRadixSort03Scatter()
 {
-    return opencl_binaries_radix_sort_03_global_prefixes_scan_accumulation;
+    return opencl_binaries_radix_sort_03_scatter;
 }
 
-const ProgramBinaries& getRadixSort04Scatter()
+const ProgramBinaries& getRadixSort04Map()
 {
-    return opencl_binaries_radix_sort_04_scatter;
+    return opencl_binaries_radix_sort_04_map;
 }
 } // namespace ocl
 

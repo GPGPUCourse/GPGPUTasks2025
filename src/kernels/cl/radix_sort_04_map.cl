@@ -7,12 +7,17 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void
-fill_buffer_with_zeros(
-    __global uint* buffer,
-    unsigned int n)
+radix_sort_04_map(
+    unsigned int n,
+    __global const uint* input,
+    __global uint* output,
+    unsigned int bits,
+    unsigned int digit,
+    unsigned int clazz)
 {
-    const unsigned int i = get_global_id(0);
+    const uint i = get_global_id(0);
+    const uint mask = (1 << bits) - 1;
     if (i < n) {
-        buffer[i] = 0;
+        output[i] = (((input[i] >> (digit * bits)) & mask) == clazz);
     }
 }
