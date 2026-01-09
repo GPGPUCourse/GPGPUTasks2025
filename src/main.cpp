@@ -26,6 +26,23 @@ void reportError(cl_int err, const std::string &filename, int line)
 	throw std::runtime_error(message);
 }
 
+static std::string deviceTypeToString(cl_device_type type)
+{
+    std::string out;
+    if (type & CL_DEVICE_TYPE_CPU)    out += "CPU|";
+    if (type & CL_DEVICE_TYPE_GPU)    out += "GPU|";
+    if (type & CL_DEVICE_TYPE_ACCELERATOR) out += "ACCELERATOR|";
+    if (type & CL_DEVICE_TYPE_DEFAULT) out += "DEFAULT|";
+    if (type & CL_DEVICE_TYPE_CUSTOM) out += "CUSTOM|";
+
+    if (!out.empty())
+        out.pop_back(); // remove last '|'
+    else
+        out = "UNKNOWN";
+
+    return out;
+}
+
 #define OCL_SAFE_CALL(expr) reportError(expr, __FILE__, __LINE__)
 
 int main()
@@ -70,18 +87,51 @@ int main()
 		// TODO 1.2
 		// Аналогично тому, как был запрошен список идентификаторов всех платформ - так и с названием платформы, теперь, когда известна длина названия - его можно запросить:
 		std::vector<unsigned char> platformName(platformNameSize, 0);
-		// clGetPlatformInfo(...);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName.data(), nullptr));
 		std::cout << "    Platform name: " << platformName.data() << std::endl;
 
 		// TODO 1.3
 		// Запросите и напечатайте так же в консоль вендора данной платформы
+		size_t vendorNameSize = 0;
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr, &vendorNameSize));
+		std::vector<unsigned char> vendorName(vendorNameSize, 0);
+		OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendorNameSize, vendorName.data(), nullptr));
+		std::cout << "    Platform vendor: " << vendorName.data() << std::endl;
 
 		// TODO 2.1
 		// Запросите число доступных устройств данной платформы (аналогично тому, как это было сделано для запроса числа доступных платформ - см. секцию "OpenCL Runtime" -> "Query Devices")
 		cl_uint devicesCount = 0;
+        OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+        std::vector<cl_device_id> devices(devicesCount);
+        OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices.data(), nullptr));
 
 		for(int deviceIndex = 0; deviceIndex < devicesCount; ++deviceIndex)
 		{
+            cl_device_id deviceId = devices[deviceIndex];
+            std::cout << "        Device #" << deviceIndex + 1 << "/" << devicesCount << std::endl;
+
+            size_t deviceNameSize = 0;
+            OCL_SAFE_CALL(clGetDeviceInfo(deviceId, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+            std::vector<unsigned char> deviceName(deviceNameSize, 0);
+            OCL_SAFE_CALL(clGetDeviceInfo(deviceId, CL_DEVICE_NAME, deviceNameSize, deviceName.data(), nullptr));
+            std::cout << "        Device name: " << deviceName.data() << std::endl;
+
+            cl_device_type type = 0;
+            OCL_SAFE_CALL(clGetDeviceInfo(deviceId, CL_DEVICE_TYPE, sizeof(type), &type, nullptr));
+            std::cout << "        Type: " << deviceTypeToString(type) << std::endl;
+
+            cl_ulong memBytes = 0;
+            OCL_SAFE_CALL(clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(memBytes), &memBytes, nullptr));
+            std::cout << "        Memory: " << static_cast<float>(memBytes) / (1 << 20) << "MB" << std::endl;
+
+            cl_bool imageSupport = CL_FALSE;
+            OCL_SAFE_CALL(clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE_SUPPORT, sizeof(imageSupport), &imageSupport, nullptr));
+            std::cout << "        Has image support: " << std::boolalpha << imageSupport << std::endl;
+
+            cl_bool errorCorrectionSupport = CL_FALSE;
+            OCL_SAFE_CALL(clGetDeviceInfo(deviceId, CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(errorCorrectionSupport), &errorCorrectionSupport, nullptr));
+            std::cout << "        Has error correction support: " << std::boolalpha << errorCorrectionSupport << std::endl;
+
 			// TODO 2.2
 			// Запросите и напечатайте в консоль:
 			// - Название устройства
