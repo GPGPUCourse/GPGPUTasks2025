@@ -11,6 +11,18 @@
 
 #include <fstream>
 
+// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+uint next_pow_2(uint v) {
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    return v;
+}
+
 void run(int argc, char** argv)
 {
     // chooseGPUVkDevices:
@@ -78,37 +90,36 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
     gpu::gpu_mem_32u buffer_output_gpu(n);
+
+    uint n_pow_2 = next_pow_2(n);
+    gpu::gpu_mem_32u buffer1_gpu(n_pow_2), buffer2_gpu(n_pow_2);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer_output_gpu.fill(255);
+    buffer1_gpu.fill(max_value);
+    buffer2_gpu.fill(max_value);
+    buffer_output_gpu.fill(max_value);
+
+    gpu::WorkSize work_size(GROUP_SIZE, n);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
+    std::vector<unsigned int> values;
+
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        input_gpu.copyToN(buffer1_gpu, n);
+        for (int size = 1; size < n; size *= 2) {
+            ocl_mergeSort.exec(work_size, buffer1_gpu, buffer2_gpu, size, n);
+            buffer1_gpu.swap(buffer2_gpu);
         }
+        buffer1_gpu.copyToN(buffer_output_gpu, n);
 
         times.push_back(t.elapsed());
     }
