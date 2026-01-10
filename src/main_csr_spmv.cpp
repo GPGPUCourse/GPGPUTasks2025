@@ -123,7 +123,7 @@ void run(int argc, char** argv)
         std::cout << "____________________________________________________________________________________________" << std::endl;
         const auto [csr_row_offsets, csr_columns, csr_values] = generate_csr_matrix(nrows, ncols, min_nnz_per_row, max_nnz_per_col, max_value);
         const std::vector<unsigned int> vector_values = generate_vector(ncols, max_value);
-        const unsigned int number_of_non_zero_values = csr_row_offsets[nrows];
+        const unsigned int number_of_non_zero_values = csr_row_offsets[nrows];        
         const unsigned int nnz = number_of_non_zero_values;
 
         std::vector<unsigned int> nnz_per_row(nrows);
@@ -157,23 +157,13 @@ void run(int argc, char** argv)
 
         // Запускаем кернел (несколько раз и с замером времени выполнения)
         std::vector<double> times;
-        for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+        gpu::WorkSize workSize(GROUP_SIZE, GROUP_SIZE * ncols);
+
+        for (int iter = 0; iter < 10; ++iter) {
             t.restart();
 
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-            // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-            if (context.type() == gpu::Context::TypeOpenCL) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeCUDA) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else if (context.type() == gpu::Context::TypeVulkan) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            } else {
-                rassert(false, 4531412341, context.type());
-            }
+            ocl_spvm.exec(workSize, csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nrows, nnz);
 
             times.push_back(t.elapsed());
         }
