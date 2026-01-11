@@ -90,25 +90,32 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
+    gpu::WorkSize workSize(GROUP_SIZE, n);
+
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        gpu::gpu_mem_32u* src_gpu = &input_gpu;
+        gpu::gpu_mem_32u* dst_gpu = &buffer1_gpu;
+        int current_sorted_k = 1;
+        int pass = 0;
+
+        while (current_sorted_k < n) {
+            ocl_mergeSort.exec(workSize, *src_gpu, *dst_gpu, current_sorted_k, n);
+            current_sorted_k <<= 1;
+            
+            if (pass == 0) {
+                src_gpu = &buffer1_gpu;
+                dst_gpu = &buffer2_gpu;
+                pass++;
+            } else {
+                std::swap(src_gpu, dst_gpu);
+            }
         }
+
+        src_gpu->copyToN(buffer_output_gpu, n);
 
         times.push_back(t.elapsed());
     }
