@@ -7,20 +7,20 @@
 
 __attribute__((reqd_work_group_size(1, 1, 1)))
 __kernel void merge_sort(
-    __global const uint* restrict src,
-    __global       uint* restrict dst,
-                   int  half_width,
-                   int  total_size)
+    __global const uint* input_data,
+    __global       uint* output_data,
+                   int  sorted_k,
+                   int  n)
 {
     const int idx = get_global_id(0);
 
-    if (idx >= total_size) return;
+    if (idx >= n) return;
 
-    const int full_width = 2 * half_width;
+    const int full_width = 2 * sorted_k;
     const int block_start = (idx / full_width) * full_width;
 
-    const int split_idx = min(block_start + half_width, total_size);
-    const int block_end = min(block_start + full_width, total_size);
+    const int split_idx = min(block_start + sorted_k, n);
+    const int block_end = min(block_start + full_width, n);
 
     const bool is_left_part = (idx < split_idx);
     const uint my_val = src[idx];
@@ -47,7 +47,7 @@ __kernel void merge_sort(
     int local_offset = idx - (is_left_part ? block_start : split_idx);
     int final_pos = block_start + local_offset + found_offset;
 
-    if (final_pos < total_size) {
+    if (final_pos < n) {
         dst[final_pos] = my_val;
     }
 }
