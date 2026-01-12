@@ -23,23 +23,23 @@ __kernel void merge_sort(
     const int block_end = min(block_start + full_width, n);
 
     const bool is_left_part = (idx < split_idx);
-    const uint my_val = src[idx];
+    const uint my_val = input_data[idx];
 
     int search_base = is_left_part ? split_idx : block_start;
     int search_len  = is_left_part ? (block_end - split_idx) : (split_idx - block_start);
 
     while (search_len > 0) {
-        int half = search_len >> 1;
-        int mid = search_base + half;
-        uint other_val = src[mid];
+        int half_len = search_len >> 1;
+        int mid = search_base + half_len;
+        uint other_val = input_data[mid];
 
         bool move_right = (other_val < my_val) || (is_left_part && other_val == my_val);
 
         if (move_right) {
             search_base = mid + 1;
-            search_len -= (half + 1);
+            search_len -= (half_len + 1);
         } else {
-            search_len = half;
+            search_len = half_len;
         }
     }
 
@@ -48,6 +48,6 @@ __kernel void merge_sort(
     int final_pos = block_start + local_offset + found_offset;
 
     if (final_pos < n) {
-        dst[final_pos] = my_val;
+        output_data[final_pos] = my_val;
     }
 }
