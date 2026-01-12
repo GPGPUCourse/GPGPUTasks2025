@@ -86,7 +86,7 @@ void run(int argc, char** argv)
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
+    buffer1_gpu.writeN(as.data(), n);
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
@@ -98,8 +98,19 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            gpu::WorkSize work_range(GROUP_SIZE, n);
+            bool src_is_buf2 = false;
+            for (unsigned int width = 1; width < n; width <<= 1) {
+                ocl_mergeSort.exec(
+                    work_range,
+                    src_is_buf2 ? buffer2_gpu : buffer1_gpu,
+                    src_is_buf2 ? buffer1_gpu : buffer2_gpu,
+                    width,
+                    n
+                );
+                src_is_buf2 = !src_is_buf2;
+            }
+            (src_is_buf2 ? buffer2_gpu : buffer1_gpu).copyToN(buffer_output_gpu, n);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
