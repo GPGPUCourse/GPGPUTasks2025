@@ -117,6 +117,10 @@ void run(int argc, char** argv)
         std::vector<float> results = output_matrix_gpu.readVector(); // input matrix: w x h -> output matrix: h x w
         for (size_t j = 0; j < h; ++j) {
             for (size_t i = 0; i < w; ++i) {
+                if(results[i * h + j] != input_cpu[j * w + i]){
+                    std::cout << "Verifying results at position (i=" << i << ", j=" << j << "): ";
+                    std::cout << results[i * h + j] << " == " << input_cpu[j * w + i] << std::endl; 
+                }
                 rassert(results[i * h + j] == input_cpu[j * w + i], 6573452432, i, j);
             }
         }

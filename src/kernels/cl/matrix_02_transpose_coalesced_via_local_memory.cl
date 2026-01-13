@@ -11,7 +11,6 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
                                 unsigned int w,
                                 unsigned int h)
 {
-    // __local float tile[1][1 + 1];
     __local float tile[GROUP_SIZE_X][GROUP_SIZE_Y + 1];
 
     unsigned int x = get_global_id(0);
@@ -22,10 +21,6 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
         tile[ly][lx] = matrix[y * w + x];
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // unsigned int trans_x = get_group_id(1) * 1 + lx;
-    // unsigned int trans_y = get_group_id(0) * 1 + ly;
-    unsigned int trans_x = get_group_id(1) * GROUP_SIZE_X + lx;
-    unsigned int trans_y = get_group_id(0) * GROUP_SIZE_Y + ly;
-    if (trans_x < h && trans_y < w)
-        transposed_matrix[trans_x * w + trans_y] = tile[lx][ly];
+    if (x < h && y < w)
+        transposed_matrix[x * h + y] = tile[lx][ly];
 }
