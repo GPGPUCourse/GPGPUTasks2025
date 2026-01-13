@@ -22,5 +22,5 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     if (x < h && y < w)
-        transposed_matrix[x * h + y] = tile[lx][ly];
+        transposed_matrix[x * h + y] = tile[ly][lx];
 }
