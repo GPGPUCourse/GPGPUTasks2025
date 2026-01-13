@@ -19,7 +19,7 @@ __kernel void matrix_03_multiply_naive(
     if (i < w && j < h) {
         float sum = 0.0f;
         for (unsigned int l = 0; l < k; l++) {
-            sum += a[j * k + l] * b[t * w + l];
+            sum += a[j * k + l] * b[l * w + i];
         }
         c[j * w + i] = sum;
     }
