@@ -10,7 +10,17 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+
+    - name: Delete huge unnecessary tools folder
+      run: rm -rf /opt/hostedtoolcache
+
     - uses: actions/checkout@v2
+
+    - name: Clean workspace from large and temp files
+      run: |
+        rm -rf ${{github.workspace}}/build
+        find ${{github.workspace}} -type f \( -name '*.bmp' -o -name '*.jpg' -o -name '*.png' -o -name '*.log' -o -name '*.tmp' -o -name '*.cache' \) -delete
+        git clean -fdx
 
     - name: Install prerequisites
       run: |
