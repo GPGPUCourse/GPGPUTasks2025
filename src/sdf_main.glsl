@@ -24,25 +24,59 @@ float lazycos(float angle)
     return 1.0;
 }
 
+float sdEllipsoid(vec3 p, vec3 r) {
+    float k0 = length(p / r);
+    float k1 = length(p / (r * r));
+    return k0 * (k0 - 1.0) / k1;
+}
+
+float smin(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
-
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
-
-    // return distance and color
+    vec3 center = vec3(0.0, 0.38, -0.7);
+    vec3 radii = vec3(0.28, 0.38, 0.28);
+    vec3 q = p - center;
+    float t = clamp((q.y + radii.y) / (2.0 * radii.y), 0.0, 1.0);
+    float scale = mix(0.99, 1.0, t);
+    q.xz *= scale;
+    float d = sdEllipsoid(q, radii);
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
-
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
-
+    vec3 center = vec3(0.0, 0.52, -0.45);
+    vec4 res = vec4(sdSphere(p - center, 0.09), vec3(1.0, 1.0, 1.0));
+    vec3 irisP = p - vec3(0.0, 0.0, 0.15);
+    vec4 iris = vec4(sdSphere(irisP - center, 0.06), vec3(0.2, 0.7, 1.0));
+    if ( iris.x < res.x ) {
+        res = iris;
+    }
+    vec3 pupilP = p - vec3(0.0, 0.0, 0.2);
+    vec4 pupil = vec4(sdSphere(pupilP - center, 0.03), vec3(0.0, 0.0, 0.0));
+    if ( pupil.x < res.x ) {
+        res = pupil;
+    }
     return res;
+}
+
+//руки/ноги
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
+vec4 sminSDF(vec4 a, vec4 b, float k) {
+    float h = clamp(0.5 + 0.5 * (b.x - a.x) / k, 0.0, 1.0);
+    float d = mix(b.x, a.x, h) - k * h * (1.0 - h);
+    return (a.x < b.x) ? vec4(d, a.yzw) : vec4(d, b.yzw);
 }
 
 vec4 sdMonster(vec3 p)
@@ -51,12 +85,42 @@ vec4 sdMonster(vec3 p)
     // модифицировать p, чтобы двигать объект как целое
     p -= vec3(0.0, 0.08, 0.0);
 
-    vec4 res = sdBody(p);
+    vec4 body = sdBody(p);
 
     vec4 eye = sdEye(p);
-    if (eye.x < res.x) {
-        res = eye;
+    if (eye.x > body.x) {
+        eye = vec4(1e10, 0.0, 0.0, 0.0);
     }
+    vec4 res = sminSDF(body, eye, 0.04);
+
+    // --- РУКИ ---
+    float handAnim = 0.5 + 0.5 * lazycos(4.0 * iTime);
+    vec3 leftA = vec3(-0.23, 0.38, -0.7);
+    vec3 leftB = leftA + vec3(-0.13, 0.13 * handAnim, 0.0); 
+    float leftHand = sdCapsule(p, leftA, leftB, 0.045);
+
+    vec3 rightA = vec3(0.23, 0.38, -0.7);
+    vec3 rightB = rightA + vec3(0.13, 0.13, 0.0);
+    float rightHand = sdCapsule(p, rightA, rightB, 0.045);
+
+    vec3 handColor = vec3(0.0, 1.0, 0.0);
+    vec4 leftHandSDF = vec4(leftHand, handColor);
+    vec4 rightHandSDF = vec4(rightHand, handColor);
+    res = sminSDF(res, leftHandSDF, 0.03);
+    res = sminSDF(res, rightHandSDF, 0.03);
+
+    // --- НОГИ ---
+    vec3 leftLegA = vec3(-0.10, 0.08, -0.7);
+    vec3 leftLegB = leftLegA + vec3(0.0, -0.18, 0.0);
+    float leftLeg = sdCapsule(p, leftLegA, leftLegB, 0.055);
+    vec3 rightLegA = vec3(0.10, 0.08, -0.7);
+    vec3 rightLegB = rightLegA + vec3(0.0, -0.18, 0.0);
+    float rightLeg = sdCapsule(p, rightLegA, rightLegB, 0.055);
+    vec3 legColor = vec3(0.0, 1.0, 0.0);
+    vec4 leftLegSDF = vec4(leftLeg, legColor);
+    vec4 rightLegSDF = vec4(rightLeg, legColor);
+    res = sminSDF(res, leftLegSDF, 0.03);
+    res = sminSDF(res, rightLegSDF, 0.03);
 
     return res;
 }
