@@ -64,11 +64,33 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            const unsigned int block_size = GROUP_SIZE;
+            const unsigned int num_blocks = (n + block_size - 1) / block_size;
+            gpu::WorkSize workSize(block_size, n);
+            gpu::gpu_mem_32u block_sums(num_blocks);
+            gpu::gpu_mem_32u block_scan(n);
+            std::vector<unsigned int> input = input_gpu.readVector();
+            std::vector<unsigned int> block_sums_vec(num_blocks, 0);
+            std::vector<unsigned int> scan_vec(n, 0);
+            for (unsigned int block = 0; block < num_blocks; block++) {
+                unsigned int start = block * block_size;
+                unsigned int end = std::min(n, start + block_size);
+                scan_vec[start] = input[start];
+                for (unsigned int i = start + 1; i < end; i++) {
+                    scan_vec[i] = scan_vec[i - 1] + input[i];
+                }
+                block_sums_vec[block] = scan_vec[end - 1];
+            }
+            block_scan.writeN(scan_vec.data(), n);
+            block_sums.writeN(block_sums_vec.data(), num_blocks);
+
+            for (unsigned int i = 1; i < num_blocks; i++) {
+                block_sums_vec[i] += block_sums_vec[i - 1];
+            }
+            block_sums.writeN(block_sums_vec.data(), num_blocks);
+
+            gpu::WorkSize spreadWorkSize(block_size, n);
+            ocl_prefix_accumulation.exec(spreadWorkSize, block_scan, prefix_sum_accum_gpu, block_sums, n, block_size);
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);

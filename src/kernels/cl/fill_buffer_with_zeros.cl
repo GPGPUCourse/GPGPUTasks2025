@@ -12,5 +12,8 @@ __kernel void fill_buffer_with_zeros(
     __global uint* buffer,
     unsigned int n)
 {
-    // TODO
+    const unsigned int index = get_global_id(0);
+    if (index >= n)
+        return;
+    buffer[index] = 0;
 }
