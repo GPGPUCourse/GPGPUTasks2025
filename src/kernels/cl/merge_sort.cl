@@ -22,8 +22,8 @@ merge_sort(
     const uint bucket_idx = i / bucket_size;
     const int bucket_start = bucket_idx * bucket_size;
 
-    const uint* a = input_data + bucket_start;
-    const uint* b = input_data + bucket_start + sorted_k;
+    __global const uint* a = input_data + bucket_start;
+    __global const uint* b = input_data + bucket_start + sorted_k;
 
     uint index_in_bucket = i - bucket_start;
     const uint* to_compare = NULL;
