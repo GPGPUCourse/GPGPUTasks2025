@@ -14,10 +14,6 @@ merge_sort(
     int n)
 {
     const uint i = get_global_id(0);
-
-    // if (i == 0) {
-    //     printf("s %d %d\n", n, sorted_k);
-    // }
     if (i >= n) {
         return;
     }
@@ -41,10 +37,6 @@ merge_sort(
         to_compare = b;
         r = max(0, min(sorted_k, n - (bucket_start + sorted_k)));
     }
-
-    // if (i == 6) {
-    //     printf("p n=%d b_start=%d sorted_k=%d %d\n", n, bucket_start, sorted_k, r);
-    // }
 
     while (l < r - 1) {
         int m = l + (r - l) / 2;
