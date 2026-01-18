@@ -26,7 +26,7 @@ merge_sort(
     __global const uint* b = input_data + bucket_start + sorted_k;
 
     uint index_in_bucket = i - bucket_start;
-    const uint* to_compare = NULL;
+    __global const uint* to_compare = NULL;
 
     int l = -1;
     int r;
