@@ -9,6 +9,7 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <vector>
 
 void run(int argc, char** argv)
 {
@@ -51,10 +52,35 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), buffer1_pow2_sum_gpu(n), buffer2_pow2_sum_gpu(n), prefix_sum_accum_gpu(n);
+    gpu::gpu_mem_32u input_gpu(n), prefix_sum_accum_gpu(n);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
+
+    const unsigned int elems_per_block = 2u * GROUP_SIZE;
+
+    const size_t num_blocks0 = (n + elems_per_block - 1) / elems_per_block;
+
+    std::vector<size_t> level_sizes;
+    {
+        size_t cur = num_blocks0;
+        while (true) {
+            level_sizes.push_back(cur);
+            if (cur <= elems_per_block) {
+                break;
+            }
+            cur = (cur + elems_per_block - 1) / elems_per_block;
+        }
+    }
+
+    std::vector<gpu::gpu_mem_32u> level_sums(level_sizes.size());
+    std::vector<gpu::gpu_mem_32u> level_scans(level_sizes.size());
+    for (size_t lvl = 0; lvl < level_sizes.size(); ++lvl) {
+        level_sums[lvl] = gpu::gpu_mem_32u(level_sizes[lvl]);
+        level_scans[lvl] = gpu::gpu_mem_32u(level_sizes[lvl]);
+    }
+
+    gpu::gpu_mem_32u dummy_one(1);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
@@ -64,11 +90,37 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fill_with_zeros.exec();
-            // ocl_sum_reduction.exec();
-            // ocl_prefix_accumulation.exec();
+            {
+                gpu::WorkSize ws(GROUP_SIZE, num_blocks0 * GROUP_SIZE);
+                input_gpu.copyToN(prefix_sum_accum_gpu, n);
+                ocl_sum_reduction.exec(ws, prefix_sum_accum_gpu, level_sums[0], (unsigned int)n);
+            }
+
+            if (num_blocks0 > 1) {
+                for (size_t lvl = 0; lvl + 1 < level_sizes.size(); ++lvl) {
+                    const size_t num_blocks = (level_sizes[lvl] + elems_per_block - 1) / elems_per_block;
+                    gpu::WorkSize ws(GROUP_SIZE, num_blocks * GROUP_SIZE);
+                    level_sums[lvl].copyToN(level_scans[lvl], level_sizes[lvl]);
+                    ocl_sum_reduction.exec(ws, level_scans[lvl], level_sums[lvl + 1], (unsigned int)level_sizes[lvl]);
+                }
+
+                {
+                    const size_t top = level_sizes.size() - 1;
+                    gpu::WorkSize ws(GROUP_SIZE, GROUP_SIZE);
+                    level_sums[top].copyToN(level_scans[top], level_sizes[top]);
+                    ocl_sum_reduction.exec(ws, level_scans[top], dummy_one, (unsigned int)level_sizes[top]);                
+                }
+
+                for (size_t lvl = level_sizes.size() - 1; lvl > 0; --lvl) {
+                    gpu::WorkSize ws(GROUP_SIZE, level_sizes[lvl - 1]);
+                    ocl_prefix_accumulation.exec(ws, level_scans[lvl], level_scans[lvl - 1], (unsigned int)level_sizes[lvl - 1], 0u);
+                }
+
+                {
+                    gpu::WorkSize ws(GROUP_SIZE, n);
+                    ocl_prefix_accumulation.exec(ws, level_scans[0], prefix_sum_accum_gpu, (unsigned int)n, 0u);
+                }
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
