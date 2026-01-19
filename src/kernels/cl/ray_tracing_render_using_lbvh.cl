@@ -31,9 +31,58 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[STACK_SIZE];
+    int stackPtr = 0;
+    stack[0] = rootIndex;
+    int nodeId = rootIndex;
+    bool found = false;
 
-    return false;
+    float tNear = 0.0f;
+    float tFar = FLT_MAX;
+    do {
+        BVHNodeGPU node = nodes[nodeId];
+        bool overlap = intersect_ray_aabb(orig, dir, node.aabb, tMin, *outT, &tNear, &tFar);
+
+        if(!overlap) {
+            if(stackPtr > 0) {
+                nodeId = stack[--stackPtr];
+            } else {
+                nodeId = -1;
+            }
+        }
+
+        if(overlap && nodeId >= leafStart) { // a leaf
+            float t, u, v;
+            const uint faceId = leafTriIndices[nodeId - leafStart];
+            const uint3 face = loadFace(faces, faceId);
+
+            const float3 v0 = loadVertex(vertices, face.x);
+            const float3 v1 = loadVertex(vertices, face.y);
+            const float3 v2 = loadVertex(vertices, face.z);
+
+            bool intersects = intersect_ray_triangle(
+                orig, dir, v0, v1, v2, tMin, *outT, false, &t, &u, &v
+            );
+
+            if(intersects) {
+                *outT = t;
+                *outU = u;
+                *outV = v;
+                *outFaceId = faceId;
+                found = true;
+            }
+            if(stackPtr > 0) {
+                nodeId = stack[--stackPtr];
+            } else {
+                nodeId = -1;
+            }
+        } else if(overlap) { // a node
+            nodeId = node.leftChildIndex;
+            stack[stackPtr++] = node.rightChildIndex;
+        }
+    } while(nodeId >= 0);
+
+    return found;
 }
 
 // Cast a single ray and report if ANY occluder is hit (for ambient occlusion)
@@ -50,9 +99,63 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[STACK_SIZE];
+    int stackPtr = 0;
+    stack[0] = rootIndex;
+    int nodeId = rootIndex;
+    bool found = false;
+    
+    float tNear = 0.0f;
+    float tFar = FLT_MAX;
+    do {
+        BVHNodeGPU node = nodes[nodeId];
+        bool overlap = intersect_ray_aabb_any(orig, dir, node.aabb, &tNear, &tFar);
 
-    return false;
+        if(!overlap) {
+            if(stackPtr > 0) {
+                nodeId = stack[--stackPtr];
+            } else {
+                nodeId = -1;
+            }
+        }
+
+        if(overlap && nodeId >= leafStart) { // a leaf
+            const uint faceId = leafTriIndices[nodeId - leafStart];
+            if (faceId == ignore_face) {
+                if(stackPtr > 0) {
+                    nodeId = stack[--stackPtr];
+                } else {
+                    nodeId = -1;
+                }
+                continue;
+            }
+
+            float t, u, v;
+            const uint3 face = loadFace(faces, faceId);
+
+            const float3 v0 = loadVertex(vertices, face.x);
+            const float3 v1 = loadVertex(vertices, face.y);
+            const float3 v2 = loadVertex(vertices, face.z);
+
+            bool intersects = intersect_ray_triangle_any(
+                orig, dir, v0, v1, v2, false, &t, &u, &v
+            );
+
+            if(intersects) {
+                found = true;
+            }
+            if(stackPtr > 0) {
+                nodeId = stack[--stackPtr];
+            } else {
+                nodeId = -1;
+            }
+        } else if(overlap) { // a node
+            nodeId = node.leftChildIndex;
+            stack[stackPtr++] = node.rightChildIndex;
+        }
+    } while(nodeId >= 0 && !found);
+
+    return found;
 }
 
 // Helper: build tangent basis for a given normal
