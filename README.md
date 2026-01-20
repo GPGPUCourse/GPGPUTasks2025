@@ -1,16 +1,29 @@
-В этом репозитории предложены задания для курса по вычислениям на видеокартах 2025.
+<p align="center">
+  <img width="200" src="/gpgpu_logo.png" alt="GPGPU course logo">
+</p>
 
-[Остальные задания](https://github.com/GPGPUCourse/GPGPUTasks2025/).
+В этом репозитории предложены задания для [курса по вычислениям на видеокартах в CS Space](https://csspace.io/course/2025fall-gpu/)
 
-# Задание 5. Radix sort (поразрядная сортировка)
+Задания:
 
-[![Build Status](https://github.com/GPGPUCourse/GPGPUTasks2025/actions/workflows/cmake.yml/badge.svg?branch=task05&event=push)](https://github.com/GPGPUCourse/GPGPUTasks2025/actions/workflows/cmake.yml)
+- [Задание 0](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task00): ```[до 22.09, 5 баллов]``` Вводное.
+- [Задание 1](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task01): ```[до 29.09, 5 баллов]``` A+B сложение матриц (задание на *coalesced memory access*).
+- [Задание 2](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task02): ```[до 06.10, 4+6 баллов]``` Теоретическое задание ```4 балла``` + практическое задание ```6 баллов```: фрактал Мандельброта, сумма чисел.
+- [Задание 3](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task03): ```[до 13.10, 10 баллов]``` Транспонирование матрицы. Умножение матриц. Дополнительные баллы ```престижа``` за Tensor Cores (CUDA, WMMA) или cooperative matrix (расширение Vulkan).
+- [Задание 4](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task04): ```[до 20.10, 10 баллов]``` Префиксные суммы. Дополнительные 5 баллов ```престижа``` за 23.9+ GB/s.
+- [Задание 5](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task05): ```[до 27.10, 10 баллов]``` Radix sort (поразрядная сортировка). Ценник баллов ```престижа```: 5 за 200+ КК/s, 1 за 100+ KK/s.
+- [Задание 6](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task06): ```[до 03.11, 10 баллов]``` Merge sort (сортировка слиянием). ```Престиж```: 5/3/2/1 баллов за 500/400/300/200+ KK/s соответственно.
+- [Задание 7](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task07): ```[до 10.11, 5 баллов]``` SpMV (умножение разреженной CSR-матрицы на вектор).
+- [Задание 8](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task08): ```[до 29.11, 5+10 баллов]``` Ray Tracing: обход BVH ```5 баллов``` + построение LBVH на GPU ```10 баллов```. ```Престиж```: 5 баллов за denoising, 10 баллов за RT cores hardware acceleration.
+- [Задание 9](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/task09): ```[до 05.12, 7 баллов]``` Чистое математическое SDF искусство.
 
-В этом задании вам предлагается выбрать API (OpenCL, CUDA или Vulkan) реализовать алгоритм сортировки префиксных сумм (Scan):
+Другое:
 
-1) Алгоритм должен масштабироваться линейно от мощности видеокарты (т.е. хорошо ложиться на модель массового параллелизма)
-2) Например он может реализовывать идеи с лекции
-3) Или вы можете постараться сделать что-то более эффективное (например обеспечив меньшее суммарное количество чтений и записей VRAM)
-4) *(опциональное)* За дополнительные супер-пупер баллы ```престижа``` постарайтесь сделать что-то ДЕЙСТВИТЕЛЬНО БЫСТРОЕ, попробуйте ВЫРВАТЬСЯ ИЗ РАМОЧЕК ВОЗМОЖНОГО, за это вы получите баллы ```гипер-престижа``` (главное убедитесь что я вам в баллах при закрытии PR об этом не забыл - пишите в личку если что).
+- [Аннотация курса](https://csspace.io/course/2025fall-gpu/)
+- [Записи лекций](https://www.youtube.com/watch?v=H0NVZ8k3wno&list=PLBD2NlYIwZ2d9Vii8OEKOJqdm74zOXZEY)
+- [Слайды](https://github.com/GPGPUCourse/GPGPUTasks2025/tree/main/slides)
+- [Билеты к экзамену](https://github.com/GPGPUCourse/GPGPUTasks2025/blob/main/%D0%AD%D0%BA%D0%B7%D0%B0%D0%BC%D0%B5%D0%BD%20%D0%BF%D0%BE%20GPGPU%202025%2C%20CS%20Space.pdf)
 
-**Дедлайн**: 23:59 27 октября. Но очень советую сделать в ближайшую неделю. В целом в рамках курса будет много домашних заданий и будет тяжело.
+<p align="center">
+  <img width="400" src="/gpgpu_streaming_multiprocessor.jpg" alt="Streaming Multiprocessor">
+</p>
