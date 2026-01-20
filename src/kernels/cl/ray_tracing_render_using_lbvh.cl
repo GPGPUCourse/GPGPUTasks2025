@@ -127,28 +127,28 @@ static inline bool any_hit_from(
                 } else {
                     nodeId = -1;
                 }
-                continue;
-            }
-
-            float t, u, v;
-            const uint3 face = loadFace(faces, faceId);
-
-            const float3 v0 = loadVertex(vertices, face.x);
-            const float3 v1 = loadVertex(vertices, face.y);
-            const float3 v2 = loadVertex(vertices, face.z);
-
-            bool intersects = intersect_ray_triangle_any(
-                orig, dir, v0, v1, v2, false, &t, &u, &v
-            );
-
-            if(intersects) {
-                found = true;
-            }
-            if(stackPtr > 0) {
-                nodeId = stack[--stackPtr];
             } else {
-                nodeId = -1;
+                float t, u, v;
+                const uint3 face = loadFace(faces, faceId);
+
+                const float3 v0 = loadVertex(vertices, face.x);
+                const float3 v1 = loadVertex(vertices, face.y);
+                const float3 v2 = loadVertex(vertices, face.z);
+
+                bool intersects = intersect_ray_triangle_any(
+                    orig, dir, v0, v1, v2, false, &t, &u, &v
+                );
+
+                if(intersects) {
+                    found = true;
+                }
+                if(stackPtr > 0) {
+                    nodeId = stack[--stackPtr];
+                } else {
+                    nodeId = -1;
+                }
             }
+            
         } else if(overlap) { // a node
             nodeId = node.leftChildIndex;
             stack[stackPtr++] = node.rightChildIndex;
