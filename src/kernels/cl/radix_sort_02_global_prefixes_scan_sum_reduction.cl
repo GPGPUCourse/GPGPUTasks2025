@@ -5,13 +5,45 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(256, 1, 1)))
 __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1)
+    __global const uint* local_histograms,
+    __global uint* global_offsets,
+    uint num_groups)
 {
-    // TODO
+    uint local_id = get_local_id(0);
+    uint digit = local_id;
+
+    __local uint scan_temp[256];
+    __local uint digit_sums[256];
+
+    if (digit < 256) {
+        uint sum = 0;
+        for (uint g = 0; g < num_groups; g++) {
+            sum += local_histograms[g * 256 + digit];
+        }
+        digit_sums[digit] = sum;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (digit < 256) {
+        scan_temp[digit] = digit_sums[digit];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    for (uint stride = 1; stride < 256; stride *= 2) {
+        uint val = 0;
+        if (digit >= stride) {
+            val = scan_temp[digit - stride];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (digit >= stride) {
+            scan_temp[digit] += val;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if (digit < 256) {
+        global_offsets[digit] = (digit == 0) ? 0 : scan_temp[digit - 1];
+    }
 }

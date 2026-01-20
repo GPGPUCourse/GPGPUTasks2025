@@ -85,53 +85,53 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
-    // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    unsigned int num_workgroups = 256;
+    unsigned int histogram_size = num_workgroups * 256;
 
-    // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
+    gpu::gpu_mem_32u input_gpu(n);
+    gpu::gpu_mem_32u buffer1_gpu(n);
+    gpu::gpu_mem_32u buffer2_gpu(n);
+    gpu::gpu_mem_32u local_histograms_gpu(histogram_size);
+    gpu::gpu_mem_32u global_offsets_gpu(256);
+    gpu::gpu_mem_32u local_offsets_gpu(histogram_size);
+
     input_gpu.writeN(as.data(), n);
-    // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
-    // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
-    // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            std::vector<unsigned int> temp = input_gpu.readVector();
+            buffer1_gpu.writeN(temp.data(), n);
+
+            for (unsigned int pass = 0; pass < 4; ++pass) {
+                unsigned int shift = pass * 8;
+                gpu::gpu_mem_32u* src = (pass % 2 == 0) ? &buffer1_gpu : &buffer2_gpu;
+                gpu::gpu_mem_32u* dst = (pass % 2 == 0) ? &buffer2_gpu : &buffer1_gpu;
+
+                ocl_radixSort01LocalCounting.exec(
+                    gpu::WorkSize(256, num_workgroups * 256),
+                    *src, local_histograms_gpu, n, shift);
+
+                ocl_radixSort02GlobalPrefixesScanSumReduction.exec(
+                    gpu::WorkSize(256, 256),
+                    local_histograms_gpu, global_offsets_gpu, num_workgroups);
+
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(
+                    gpu::WorkSize(256, num_workgroups * 256),
+                    local_histograms_gpu, global_offsets_gpu,
+                    local_offsets_gpu, num_workgroups);
+
+                ocl_radixSort04Scatter.exec(
+                    gpu::WorkSize(256, num_workgroups * 256),
+                    *src, local_offsets_gpu, *dst, n, shift);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
         } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
         } else {
             rassert(false, 4531412341, context.type());
         }
@@ -144,10 +144,8 @@ void run(int argc, char** argv)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
-    // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = buffer1_gpu.readVector();
 
-    // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
         rassert(sorted[i] == gpu_sorted[i], 566324523452323, sorted[i], gpu_sorted[i], i);
     }

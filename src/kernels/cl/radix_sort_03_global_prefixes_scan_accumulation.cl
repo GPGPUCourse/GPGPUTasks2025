@@ -5,14 +5,22 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(256, 1, 1)))
 __kernel void radix_sort_03_global_prefixes_scan_accumulation(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global       uint* buffer2,
-    unsigned int a1,
-    unsigned int a2)
+    __global const uint* local_histograms,
+    __global const uint* global_offsets,
+    __global uint* local_offsets,
+    uint num_groups)
 {
-    // TODO
+    uint digit = get_local_id(0);
+    uint group_id = get_group_id(0);
+
+    if (digit < 256 && group_id < num_groups) {
+        uint global_base = global_offsets[digit];
+        uint prefix_sum = 0;
+        for (uint g = 0; g < group_id; g++) {
+            prefix_sum += local_histograms[g * 256 + digit];
+        }
+        local_offsets[group_id * 256 + digit] = global_base + prefix_sum;
+    }
 }
