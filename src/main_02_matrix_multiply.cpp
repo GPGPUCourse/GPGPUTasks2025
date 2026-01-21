@@ -63,7 +63,8 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_matrix04MultiplyViaLocalMemory(avk2::getMatrix04MultiplyViaLocalMemory());
     avk2::KernelSource vk_matrix05MultiplyCooperativeMatrix(avk2::getMatrix05MultiplyCooperativeMatrix());
 
-    unsigned int ksize = 128;
+    // unsigned int ksize = 128;
+    unsigned int ksize = 10;
     unsigned int w = ksize * 32;
     unsigned int k = ksize * 8;
     unsigned int h = ksize * 16;
@@ -94,7 +95,7 @@ void run(int argc, char** argv)
 
     std::vector<std::string> algorithm_names = {
         "CPU with OpenMP",
-        "01 naive",
+        // "01 naive",
         "02 using local memory",
     };
 
@@ -119,7 +120,7 @@ void run(int argc, char** argv)
 
         // Запускаем алгоритм (несколько раз и с замером времени выполнения)
         std::vector<double> times;
-        int iters_count = (algorithm == "CPU with OpenMP") ? 1 : 10; // CPU is too slow
+        int iters_count = (algorithm == "CPU with OpenMP") ? 1 : 1; // CPU is too slow
         for (int iter = 0; iter < iters_count; ++iter) {
             timer t;
 
@@ -184,10 +185,13 @@ void run(int argc, char** argv)
             std::vector<float> relative_errors;
             for (size_t j = 0; j < h; ++j) {
                 for (size_t i = 0; i < w; ++i) {
-                    float gpu_value = results[j * w + i];
+                    float gpu_value = output_c_gpu[j * w + i];
                     float cpu_value = output_c_cpu[j * w + i];
                     float error = std::abs(gpu_value - cpu_value);
                     float relative_error = error / std::abs(cpu_value);
+                    // if (i == 0 && j == 135)
+                    if (relative_error > 0.4)
+                        std::cout << "i=" << i << " j=" << j <<" cpu=" << cpu_value << " gpu=" << gpu_value << " out=" << (j * w + i) << " aerr=" << error << " rerr=" << relative_error << std::endl;
                     relative_errors.push_back(relative_error);
                 }
             }
