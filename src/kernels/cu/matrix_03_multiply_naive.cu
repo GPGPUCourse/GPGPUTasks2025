@@ -23,7 +23,7 @@ __global__ void matrix_multiply_naive(
 
     const uint c_ix = j*w + i;
 
-    float acc = 0;
+    double acc = 0;
     for (uint k = 0; k < kk; ++k) {
         acc += a[j*kk + k] * b[k*w + i];
     }
