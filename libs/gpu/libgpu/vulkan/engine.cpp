@@ -26,8 +26,8 @@ namespace {
 	// this is a debug callback for Vulkan Validation Layers
 	// when they find any problems - this callback will be triggered
 	static VKAPI_ATTR VkBool32 VKAPI_CALL
-	debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
-				  const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
+	debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity, vk::DebugUtilsMessageTypeFlagsEXT messageType,
+				  const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
 	{
 		avk2::InstanceContext *instance_context = (avk2::InstanceContext*) pUserData;
 
