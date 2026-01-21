@@ -90,21 +90,33 @@ void run(int argc, char** argv)
     buffer2_gpu.fill(255);
     buffer_output_gpu.fill(255);
 
-    // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    for (int iter = 0; iter < 10; ++iter) {
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+            std::vector<unsigned int> temp = input_gpu.readVector();
+            buffer1_gpu.writeN(temp.data(), n);
+
+            gpu::gpu_mem_32u* src = &buffer1_gpu;
+            gpu::gpu_mem_32u* dst = &buffer2_gpu;
+
+            for (int sorted_k = 1; sorted_k < n; sorted_k *= 2) {
+                int global_size = ((n + 255) / 256) * 256;
+                ocl_mergeSort.exec(
+                    gpu::WorkSize(256, global_size),
+                    *src, *dst, sorted_k, n);
+
+                std::swap(src, dst);
+            }
+
+            if (src != &buffer_output_gpu) {
+                std::vector<unsigned int> final_result = src->readVector();
+                buffer_output_gpu.writeN(final_result.data(), n);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
         } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
         } else {
             rassert(false, 4531412341, context.type());
