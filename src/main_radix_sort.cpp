@@ -50,7 +50,7 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    int n = 100*1000*1000;
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -85,12 +85,13 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / t.elapsed() << " GB/s (" << n / 1000 / 1000 / t.elapsed() << " uint millions/s)" << std::endl;
     }
 
-    unsigned int num_workgroups = 256;
+    unsigned int num_workgroups = (n + 255) / 256;
     unsigned int histogram_size = num_workgroups * 256;
 
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u buffer1_gpu(n);
     gpu::gpu_mem_32u buffer2_gpu(n);
+    gpu::gpu_mem_32u buffer3_gpu(histogram_size);
     gpu::gpu_mem_32u local_histograms_gpu(histogram_size);
     gpu::gpu_mem_32u global_offsets_gpu(256);
     gpu::gpu_mem_32u local_offsets_gpu(histogram_size);

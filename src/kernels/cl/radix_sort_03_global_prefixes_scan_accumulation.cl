@@ -13,14 +13,15 @@ __kernel void radix_sort_03_global_prefixes_scan_accumulation(
     uint num_groups)
 {
     uint digit = get_local_id(0);
-    uint group_id = get_group_id(0);
+    uint wg_id = get_group_id(0);
 
-    if (digit < 256 && group_id < num_groups) {
-        uint global_base = global_offsets[digit];
-        uint prefix_sum = 0;
-        for (uint g = 0; g < group_id; g++) {
-            prefix_sum += local_histograms[g * 256 + digit];
-        }
-        local_offsets[group_id * 256 + digit] = global_base + prefix_sum;
+    if (wg_id != 0) return;
+
+    uint global_base = global_offsets[digit];
+    uint running_sum = 0;
+
+    for (uint g = 0; g < num_groups; g++) {
+        local_offsets[g * 256 + digit] = global_base + running_sum;
+        running_sum += local_histograms[g * 256 + digit];
     }
 }
