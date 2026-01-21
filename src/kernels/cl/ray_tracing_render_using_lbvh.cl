@@ -31,7 +31,55 @@ static inline bool bvh_closest_hit(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = rootIndex;
+
+    float bestT = FLT_MAX;
+    int bestFace = -1;
+    float bestU = 0.0f;
+    float bestV = 0.0f;
+
+    while (stackPtr > 0) {
+        int nodeIdx = stack[--stackPtr];
+
+        if (nodeIdx >= leafStart) {
+            uint triIdx = leafTriIndices[nodeIdx - leafStart];
+            uint3 f = loadFace(faces, triIdx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle(orig, dir, v0, v1, v2, tMin, bestT, false, &t, &u, &v)) {
+                bestT = t;
+                bestFace = (int)triIdx;
+                bestU = u;
+                bestV = v;
+            }
+        } else {
+            BVHNodeGPU node = nodes[nodeIdx];
+            float tNear, tFar;
+
+            if (intersect_ray_aabb(orig, dir, node.aabb, tMin, bestT, &tNear, &tFar)) {
+                int left = (int)node.leftChildIndex;
+                int right = (int)node.rightChildIndex;
+
+                if (stackPtr + 2 <= 64) {
+                    stack[stackPtr++] = left;
+                    stack[stackPtr++] = right;
+                }
+            }
+        }
+    }
+
+    if (bestFace >= 0) {
+        *outT = bestT;
+        *outFaceId = bestFace;
+        *outU = bestU;
+        *outV = bestV;
+        return true;
+    }
 
     return false;
 }
@@ -50,7 +98,41 @@ static inline bool any_hit_from(
     const int rootIndex = 0;
     const int leafStart = (int)nfaces - 1;
 
-    // TODO implement BVH travering (with stack, don't use recursion)
+    int stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = rootIndex;
+
+    while (stackPtr > 0) {
+        int nodeIdx = stack[--stackPtr];
+
+        if (nodeIdx >= leafStart) {
+            uint triIdx = leafTriIndices[nodeIdx - leafStart];
+            if ((int)triIdx == ignore_face) continue;
+
+            uint3 f = loadFace(faces, triIdx);
+            float3 v0 = loadVertex(vertices, f.x);
+            float3 v1 = loadVertex(vertices, f.y);
+            float3 v2 = loadVertex(vertices, f.z);
+
+            float t, u, v;
+            if (intersect_ray_triangle_any(orig, dir, v0, v1, v2, false, &t, &u, &v)) {
+                return true;
+            }
+        } else {
+            BVHNodeGPU node = nodes[nodeIdx];
+            float tNear, tFar;
+
+            if (intersect_ray_aabb_any(orig, dir, node.aabb, &tNear, &tFar)) {
+                int left = (int)node.leftChildIndex;
+                int right = (int)node.rightChildIndex;
+
+                if (stackPtr + 2 <= 64) {
+                    stack[stackPtr++] = left;
+                    stack[stackPtr++] = right;
+                }
+            }
+        }
+    }
 
     return false;
 }

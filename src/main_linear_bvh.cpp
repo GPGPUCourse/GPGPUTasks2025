@@ -17,6 +17,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <cfloat>
 
 // Считает сколько непустых пикселей
 template<typename T>
@@ -77,6 +78,11 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_rt_brute_force(ocl::getRTBruteForce());
     ocl::KernelSource ocl_rt_with_lbvh(ocl::getRTWithLBVH());
+    ocl::KernelSource ocl_lbvh_compute_triangle_data(ocl::getLBVHComputeTriangleData());
+    ocl::KernelSource ocl_lbvh_compute_bounds(ocl::getLBVHComputeBounds());
+    ocl::KernelSource ocl_lbvh_compute_morton_codes(ocl::getLBVHComputeMortonCodes());
+    ocl::KernelSource ocl_lbvh_build_nodes(ocl::getLBVHBuildNodes());
+    ocl::KernelSource ocl_lbvh_compute_aabbs(ocl::getLBVHComputeAABBs());
 
     avk2::KernelSource vk_rt_brute_force(avk2::getRTBruteForce());
     avk2::KernelSource vk_rt_with_lbvh(avk2::getRTWithLBVH());
@@ -229,9 +235,6 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на CPU LBVH
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-
                 if (context.type() == gpu::Context::TypeOpenCL) {
                     ocl_rt_with_lbvh.exec(
                         gpu::WorkSize(16, 16, width, height),
@@ -288,16 +291,77 @@ void run(int argc, char** argv)
         double gpu_lbvh_time_sum = 0.0;
         double rt_times_with_gpu_lbvh_sum = 0.0;
 
-        // TODO постройте LBVH на GPU
-        // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
-        bool gpu_lbvg_gpu_rt_done = false;
+        gpu::gpu_mem_32f triangle_centroids_gpu(nfaces * 3);
+        gpu::shared_device_buffer_typed<AABBGPU> triangle_aabbs_gpu(nfaces);
+        gpu::gpu_mem_32f centroid_min_gpu(3);
+        gpu::gpu_mem_32f centroid_max_gpu(3);
+        gpu::gpu_mem_32u morton_codes_gpu(nfaces);
+        gpu::gpu_mem_32u sorted_indices_gpu(nfaces);
+        gpu::shared_device_buffer_typed<BVHNodeGPU> lbvh_nodes_gpu(2*nfaces - 1);
+        gpu::gpu_mem_32u leaf_triangle_indices_gpu(nfaces);
+        gpu::gpu_mem_32i node_visit_counts_gpu(nfaces - 1);
+
+        bool gpu_lbvg_gpu_rt_done = true;
 
         if (gpu_lbvg_gpu_rt_done) {
             std::vector<double> gpu_lbvh_times;
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO постройте LBVH на GPU
+                ocl_lbvh_compute_triangle_data.exec(
+                    gpu::WorkSize(256, ((nfaces+255)/256)*256),
+                    vertices_gpu, faces_gpu,
+                    triangle_aabbs_gpu.clmem(), triangle_centroids_gpu, nfaces);
+
+                std::vector<float> init_min = {FLT_MAX, FLT_MAX, FLT_MAX};
+                std::vector<float> init_max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+                centroid_min_gpu.writeN(init_min.data(), 3);
+                centroid_max_gpu.writeN(init_max.data(), 3);
+
+                ocl_lbvh_compute_bounds.exec(
+                    gpu::WorkSize(256, ((nfaces+255)/256)*256),
+                    triangle_centroids_gpu, centroid_min_gpu, centroid_max_gpu, nfaces);
+
+                std::vector<float> cmin = centroid_min_gpu.readVector(3);
+                std::vector<float> cmax = centroid_max_gpu.readVector(3);
+                point3f centroid_min{cmin[0], cmin[1], cmin[2]};
+                point3f centroid_max{cmax[0], cmax[1], cmax[2]};
+
+                ocl_lbvh_compute_morton_codes.exec(
+                    gpu::WorkSize(256, ((nfaces+255)/256)*256),
+                    triangle_centroids_gpu, morton_codes_gpu, sorted_indices_gpu,
+                    centroid_min.x, centroid_min.y, centroid_min.z,
+                    centroid_max.x, centroid_max.y, centroid_max.z, nfaces);
+
+                std::vector<uint32_t> morton_codes_cpu = morton_codes_gpu.readVector();
+                std::vector<uint32_t> sorted_indices_cpu = sorted_indices_gpu.readVector();
+
+                std::vector<std::pair<uint32_t, uint32_t>> pairs(nfaces);
+                for (uint i = 0; i < nfaces; i++) {
+                    pairs[i] = {morton_codes_cpu[i], sorted_indices_cpu[i]};
+                }
+
+                std::sort(pairs.begin(), pairs.end(),
+                    [](const auto& a, const auto& b) { return a.first < b.first; });
+
+                for (uint i = 0; i < nfaces; i++) {
+                    morton_codes_cpu[i] = pairs[i].first;
+                    sorted_indices_cpu[i] = pairs[i].second;
+                }
+
+                morton_codes_gpu.writeN(morton_codes_cpu.data(), nfaces);
+                sorted_indices_gpu.writeN(sorted_indices_cpu.data(), nfaces);
+
+                ocl_lbvh_build_nodes.exec(
+                    gpu::WorkSize(256, ((nfaces+255)/256)*256),
+                    morton_codes_gpu, sorted_indices_gpu,
+                    lbvh_nodes_gpu.clmem(), leaf_triangle_indices_gpu, nfaces);
+
+                node_visit_counts_gpu.fill(0);
+                ocl_lbvh_compute_aabbs.exec(
+                    gpu::WorkSize(256, ((nfaces+255)/256)*256),
+                    lbvh_nodes_gpu.clmem(), triangle_aabbs_gpu.clmem(),
+                    leaf_triangle_indices_gpu, node_visit_counts_gpu, nfaces);
 
                 gpu_lbvh_times.push_back(t.elapsed());
             }
@@ -316,7 +380,12 @@ void run(int argc, char** argv)
             for (int iter = 0; iter < niters; ++iter) {
                 timer t;
 
-                // TODO оттрасируйте лучи на GPU используя построенный на GPU LBVH
+                ocl_rt_with_lbvh.exec(
+                    gpu::WorkSize(16, 16, width, height),
+                    vertices_gpu, faces_gpu,
+                    lbvh_nodes_gpu.clmem(), leaf_triangle_indices_gpu.clmem(),
+                    framebuffer_face_id_gpu, framebuffer_ambient_occlusion_gpu,
+                    camera_gpu.clmem(), nfaces);
 
                 gpu_lbvh_rt_times.push_back(t.elapsed());
             }

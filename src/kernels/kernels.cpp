@@ -3,6 +3,11 @@
 #include "cl/generated_kernels/aplusb.h"
 #include "cl/generated_kernels/ray_tracing_render_brute_force.h"
 #include "cl/generated_kernels/ray_tracing_render_using_lbvh.h"
+#include "cl/generated_kernels/lbvh_compute_triangle_data.h"
+#include "cl/generated_kernels/lbvh_compute_bounds.h"
+#include "cl/generated_kernels/lbvh_compute_morton_codes.h"
+#include "cl/generated_kernels/lbvh_build_nodes.h"
+#include "cl/generated_kernels/lbvh_compute_aabbs.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
 #include "vk/generated_kernels/ray_tracing_render_brute_force_comp.h"
@@ -54,6 +59,31 @@ const ProgramBinaries& getRTBruteForce()
 const ProgramBinaries& getRTWithLBVH()
 {
     return opencl_binaries_ray_tracing_render_using_lbvh;
+}
+
+const ProgramBinaries& getLBVHComputeTriangleData()
+{
+    return opencl_binaries_lbvh_compute_triangle_data;
+}
+
+const ProgramBinaries& getLBVHComputeBounds()
+{
+    return opencl_binaries_lbvh_compute_bounds;
+}
+
+const ProgramBinaries& getLBVHComputeMortonCodes()
+{
+    return opencl_binaries_lbvh_compute_morton_codes;
+}
+
+const ProgramBinaries& getLBVHBuildNodes()
+{
+    return opencl_binaries_lbvh_build_nodes;
+}
+
+const ProgramBinaries& getLBVHComputeAABBs()
+{
+    return opencl_binaries_lbvh_compute_aabbs;
 }
 } // namespace ocl
 
