@@ -11,6 +11,35 @@ float sdPlane(vec3 p)
     return p.y;
 }
 
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
+float sdRoundCone( vec3 p, vec3 a, vec3 b, float r1, float r2 )
+{
+  vec3  ba = b - a;
+  float l2 = dot(ba,ba);
+  float rr = r1 - r2;
+  float a2 = l2 - rr*rr;
+  float il2 = 1.0/l2;
+    
+  vec3 pa = p - a;
+  float y = dot(pa,ba);
+  float z = y - l2;
+  float x2 = dot( pa*l2 - ba*y,  pa*l2 - ba*y  );
+  float y2 = y*y*l2;
+  float z2 = z*z*l2;
+
+  // single square root!
+  float k = sign(rr)*rr*rr*x2;
+  if( sign(z)*a2*z2>k ) return  sqrt(x2 + z2)        *il2 - r2;
+  if( sign(y)*a2*y2<k ) return  sqrt(x2 + y2)        *il2 - r1;
+                        return (sqrt(x2*a2*il2)+y*rr)*il2 - r1;
+}
+
 // косинус который пропускает некоторые периоды, удобно чтобы махать ручкой не все время
 float lazycos(float angle)
 {
@@ -30,19 +59,32 @@ vec4 sdBody(vec3 p)
 {
     float d = 1e10;
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d_body = sdRoundCone((p - vec3(0.0, 0.35, -0.7)), vec3(0.0, 0.1, 0.0), vec3(0.0, 0.45, 0.0), 0.45, 0.35);
+    float d_leftleg = sdCapsule((p - vec3(0.2, 0.1, -0.7)), vec3(0.0, 0.1, 0.0), vec3(0.0, -0.1, 0.0), 0.1);
+    float d_rightleg = sdCapsule((p - vec3(-0.2, 0.1, -0.7)), vec3(0.0, 0.1, 0.0), vec3(0.0, -0.1, 0.0), 0.1);
+    float d_leftarm = sdCapsule((p - vec3(0.25, 0.6, -0.7)), vec3(0.0, 0.0, 0.0), vec3(0.3, 0.1, 0.0), 0.1);
+    float d_rightarm = sdCapsule((p - vec3(-0.25, 0.6, -0.7)), vec3(0.0, 0.0, 0.0), vec3(-0.3, 0.1+0.05*lazycos(10.0*iTime), 0.0), 0.1);
 
+    d = min(min(d, d_body), min(min(d_leftarm,d_rightarm), min(d_leftleg, d_rightleg)));
     // return distance and color
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
 {
+    float d = 1e10, id = 1e10;
+    
+    vec3 c = vec3(0.0, 0.8, -0.4);
+    d = sdSphere((p - c), 0.2);
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float r = 1.0, g = 1.0, b = 1.0;
+    r *= step(0.63, -(p - c).z+0.8);
+    r *= step(0.607, -(p - c).z+0.8);
+    g *= step(0.607, -(p - c).z+0.8);
+    b *= step(0.607, -(p - c).z+0.8);
+    vec3 col = vec3(r, g, b);
 
-    return res;
+    return vec4(d, col);
 }
 
 vec4 sdMonster(vec3 p)
