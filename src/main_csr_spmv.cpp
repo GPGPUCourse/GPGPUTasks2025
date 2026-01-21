@@ -8,6 +8,7 @@
 
 #include "kernels/defines.h"
 #include "kernels/kernels.h"
+#include "libgpu/work_size.h"
 
 #include <fstream>
 
@@ -166,8 +167,7 @@ void run(int argc, char** argv)
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
             } else if (context.type() == gpu::Context::TypeCUDA) {
-                // TODO
-                throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
+                cuda::sparse_csr_matrix_vector_multiplication(gpu::WorkSize(GROUP_SIZE, nrows), csr_row_offsets_gpu, csr_columns_gpu, csr_values_gpu, vector_values_gpu, output_vector_values_gpu, nnz, nrows, ncols);
             } else if (context.type() == gpu::Context::TypeVulkan) {
                 // TODO
                 throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
