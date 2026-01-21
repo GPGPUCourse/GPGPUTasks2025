@@ -18,12 +18,18 @@ __global__ void matrix_multiply_naive(
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x; // 0..w
     const unsigned int j = blockIdx.y * blockDim.y + threadIdx.y; // 0..h
 
+    if (i > w) return;
+    if (j > h) return;
+
+    const uint c_ix = j*w + i;
+
     float acc = 0;
     for (uint k = 0; k < kk; ++k) {
         acc += a[j*kk + k] * b[k*w + i];
     }
 
-    c[j*w + i] = acc;
+    c[c_ix] = acc;
+    // if (i == 0) printf("i=%d j=%d acc=%f out=%d\n", i, j, acc, c_ix);
 }
 
 namespace cuda {

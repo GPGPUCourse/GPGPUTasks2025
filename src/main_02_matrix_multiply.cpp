@@ -179,7 +179,8 @@ void run(int argc, char** argv)
 
         // Сверяем результат
         if (algorithm != "CPU with OpenMP") {
-            std::vector<float> results = matrix_c_gpu.readVector();
+            // std::vector<float> results = matrix_c_gpu.readVector();
+            matrix_c_gpu.readN(output_c_gpu.data(), w*h);
             std::vector<float> relative_errors;
             for (size_t j = 0; j < h; ++j) {
                 for (size_t i = 0; i < w; ++i) {
