@@ -22,7 +22,18 @@ __global__ void sparse_csr_matrix_vector_multiplication(
 {
     // TODO
     const uint r = blockIdx.x * blockDim.x + threadIdx.x;
-    output_vector_values[r] = 123;
+
+    const uint row_start = csr_row_offsets[r];
+    const uint row_end = csr_row_offsets[r+1];
+
+    uint acc = 0;
+    for (uint i = row_start; i < row_end; i++) {
+        uint mtrx_val = csr_values[i];
+        uint vec_val = vector_values[csr_columns[i]];
+        acc += mtrx_val * vec_val;
+    }
+    
+    output_vector_values[r] = acc;
 }
 
 namespace cuda {
