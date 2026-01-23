@@ -44,9 +44,9 @@ static inline bool bvh_closest_hit(
         BVHNodeGPU active = nodes[activeIndex];
 
         bool aabbIntersect = intersect_ray_aabb(orig, dir, active.aabb, tMin, res, &u, &v);
-        if (!aabbIntersect) continue;
-
-        if (isLeaf) {
+        
+        if (aabbIntersect && isLeaf) 
+        {
             uint leafIndex = activeIndex - leafStart;
             uint fi = leafTriIndices[leafIndex];
 
@@ -65,12 +65,14 @@ static inline bool bvh_closest_hit(
                 *outU = u;
             }
         }
-        else 
+
+        if (aabbIntersect && !isLeaf)
         {
             stack[++stackIndex] = active.leftChildIndex;
             stack[++stackIndex] = active.rightChildIndex;
         }
-    } while (stackIndex >= 0);
+    } 
+    while (stackIndex >= 0);
 
     return true;
 }
@@ -101,9 +103,8 @@ static inline bool any_hit_from(
         BVHNodeGPU active = nodes[activeIndex];
 
         bool aabbIntersect = intersect_ray_aabb_any(orig, dir, active.aabb, &u, &v);
-        if (!aabbIntersect) continue;
-
-        if (isLeaf) 
+        
+        if (aabbIntersect && isLeaf) 
         {
             uint leafIndex = activeIndex - leafStart;
             uint fi = leafTriIndices[leafIndex];
@@ -118,12 +119,14 @@ static inline bool any_hit_from(
             bool triangleIntersect = intersect_ray_triangle_any(orig, dir, a, b, c, false, &t, &u, &v);
             if (triangleIntersect) return true;
         }
-        else 
+
+        if (aabbIntersect && !isLeaf) 
         {
             stack[++stackIndex] = active.leftChildIndex;
             stack[++stackIndex] = active.rightChildIndex;
         }
-    } while (stackIndex >= 0);
+    } 
+    while (stackIndex >= 0);
 
     return false;
 }
