@@ -56,7 +56,7 @@ float lazycos(float angle)
     int nsleep = 10;
 
     int iperiod = int(angle / 6.28318530718) % nsleep;
-    if (iperiod < 2) {
+    if (iperiod < 5) {
         return cos(angle);
     }
 
@@ -68,7 +68,7 @@ float lazysin(float angle)
     int nsleep = 10;
 
     int iperiod = int(angle / 6.28318530718) % nsleep;
-    if (iperiod < 2) {
+    if (iperiod < 5) {
         return sin(angle);
     }
 
