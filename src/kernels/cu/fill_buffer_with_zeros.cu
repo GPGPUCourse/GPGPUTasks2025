@@ -1,11 +1,11 @@
 #include <libgpu/context.h>
-#include <libgpu/work_size.h>
 #include <libgpu/shared_device_buffer.h>
+#include <libgpu/work_size.h>
 
 #include <libgpu/cuda/cu/common.cu>
 
-#include "helpers/rassert.cu"
 #include "../defines.h"
+#include "helpers/rassert.cu"
 
 __global__ void fill_buffer_with_zeros(
     // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
@@ -13,12 +13,16 @@ __global__ void fill_buffer_with_zeros(
     unsigned int* buffer,
     unsigned int n)
 {
-    // TODO
+    const int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (index < n) {
+        buffer[index] = 0;
+    }
 }
 
 namespace cuda {
-void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
-            gpu::gpu_mem_32u &buffer, unsigned int n)
+void fill_buffer_with_zeros(const gpu::WorkSize& workSize,
+    gpu::gpu_mem_32u& buffer, unsigned int n)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
