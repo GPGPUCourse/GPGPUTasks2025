@@ -1,31 +1,37 @@
 #include <libgpu/context.h>
-#include <libgpu/work_size.h>
 #include <libgpu/shared_device_buffer.h>
+#include <libgpu/work_size.h>
 
 #include <libgpu/cuda/cu/common.cu>
 
-#include "helpers/rassert.cu"
 #include "../defines.h"
+#include "helpers/rassert.cu"
 
 __global__ void radix_sort_02_global_prefixes_scan_sum_reduction(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    // TODO try char
-    const unsigned int* buffer1,
-          unsigned int* buffer2,
-    unsigned int a1)
+    const unsigned int* prev_prefix,
+    unsigned int* next_prefix,
+    unsigned int n)
 {
-    // TODO
+    const int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int acc = 0;
+    acc += (index * 2 < n) ? prev_prefix[index * 2] : 0;
+    acc += (index * 2 + 1 < n) ? prev_prefix[index * 2 + 1] : 0;
+
+    if (index < (n + 1) / 2) {
+        next_prefix[index] = acc;
+    }
 }
 
 namespace cuda {
-void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize &workSize,
-    const gpu::gpu_mem_32u &buffer1, gpu::gpu_mem_32u &buffer2, unsigned int a1)
+void radix_sort_02_global_prefixes_scan_sum_reduction(const gpu::WorkSize& workSize,
+    const gpu::gpu_mem_32u& prev_prefix, gpu::gpu_mem_32u& next_prefix, unsigned int n)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::radix_sort_02_global_prefixes_scan_sum_reduction<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(buffer1.cuptr(), buffer2.cuptr(), a1);
+    ::radix_sort_02_global_prefixes_scan_sum_reduction<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(
+        prev_prefix.cuptr(), next_prefix.cuptr(), n);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda

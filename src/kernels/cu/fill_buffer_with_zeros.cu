@@ -1,11 +1,11 @@
 #include <libgpu/context.h>
-#include <libgpu/work_size.h>
 #include <libgpu/shared_device_buffer.h>
+#include <libgpu/work_size.h>
 
 #include <libgpu/cuda/cu/common.cu>
 
-#include "helpers/rassert.cu"
 #include "../defines.h"
+#include "helpers/rassert.cu"
 
 __global__ void fill_buffer_with_zeros(
     unsigned int* buffer,
@@ -17,13 +17,15 @@ __global__ void fill_buffer_with_zeros(
 }
 
 namespace cuda {
-void fill_buffer_with_zeros(const gpu::WorkSize &workSize,
-            gpu::gpu_mem_32u &buffer, unsigned int n)
+void fill_buffer_with_zeros(const gpu::WorkSize& workSize,
+    gpu::gpu_mem_32u& buffer,
+    unsigned int n)
 {
     gpu::Context context;
     rassert(context.type() == gpu::Context::TypeCUDA, 34523543124312, context.type());
     cudaStream_t stream = context.cudaStream();
-    ::fill_buffer_with_zeros<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(buffer.cuptr(), n);
+    ::fill_buffer_with_zeros<<<workSize.cuGridSize(), workSize.cuBlockSize(), 0, stream>>>(
+        buffer.cuptr(), n);
     CUDA_CHECK_KERNEL(stream);
 }
 } // namespace cuda
