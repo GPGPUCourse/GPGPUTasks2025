@@ -4,7 +4,15 @@
 
 namespace cuda {
 void aplusb(const gpu::WorkSize& workSize, const gpu::gpu_mem_32u& a, const gpu::gpu_mem_32u& b, gpu::gpu_mem_32u& c, unsigned int n);
-void sparse_csr_matrix_vector_multiplication(const gpu::WorkSize &workSize); // TODO input/output buffers
+void sparse_csr_matrix_vector_multiplication(
+    const gpu::WorkSize& workSize,
+    const gpu::gpu_mem_32u& row_offsets,
+    const gpu::gpu_mem_32u& colums,
+    const gpu::gpu_mem_32u& values,
+    const gpu::gpu_mem_32u& vec,
+    gpu::gpu_mem_32u& result,
+    unsigned int rows,
+    unsigned int nnz);
 }
 
 namespace ocl {
