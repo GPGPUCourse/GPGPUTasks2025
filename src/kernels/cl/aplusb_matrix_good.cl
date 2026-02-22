@@ -4,7 +4,7 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void aplusb_matrix_good(__global const uint* a,
                      __global const uint* b,
                      __global       uint* c,
@@ -17,13 +17,12 @@ __kernel void aplusb_matrix_good(__global const uint* a,
     // т.е. если в матрице сделать шаг вправо или влево на одну ячейку - то в памяти мы шагнем на 4 байта
     // т.е. если в матрице сделать шаг вверх или вниз на одну ячейку - то в памяти мы шагнем на так называемый stride=width*4 байта
 
-    const unsigned int i = get_global_id(0);
-    const unsigned int j = get_global_id(1);
+    const unsigned int id = get_global_id(0);
+    const unsigned int i = id / width;
+    const unsigned int j = id % width;
 
     if (i >= height || j >= width)
         return;
 
-    const unsigned int idx = i * width + j;
-
-    c[idx] = a[idx] + b[idx];
+    c[id] = a[id] + b[id];
 }
