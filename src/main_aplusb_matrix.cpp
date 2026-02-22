@@ -72,7 +72,7 @@ void run(int argc, char** argv)
             // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
             // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
             // TODO раскомментируйте вызов вашего API и поправьте его
-            ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width * height);
+            ocl_aplusb_matrix_bad.exec(workSize, a_gpu, b_gpu, c_gpu, width, height);
 
             times.push_back(t.elapsed());
         }
