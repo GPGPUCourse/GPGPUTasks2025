@@ -135,12 +135,12 @@ int main()
             std::cout << "        Device name: " << deviceName.data() << std::endl;
 
             cl_device_type deviceType = 0;
-            OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, 0, nullptr, &deviceType));
+            OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr));
             printDeviceType(deviceType);
 
             cl_ulong deviceMemSize = 0;
-            OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, 0, nullptr, &deviceMemSize));
-            std::cout << "        Device global mem size: " << deviceMemSize << std::endl;
+            OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(deviceMemSize), &deviceMemSize, nullptr));
+            std::cout << "        Device global mem size: " << deviceMemSize / (1024 * 1024) << " MB" << std::endl;
 
             size_t deviceVendorSize = 0;
             OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_VENDOR, 0, nullptr, &deviceVendorSize));
