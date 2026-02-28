@@ -58,13 +58,11 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u input_gpu(n);
     gpu::gpu_mem_32u buffer1_gpu(n); 
     gpu::gpu_mem_32u buffer_output_gpu(n);
-
     input_gpu.writeN(as.data(), n);
 
     unsigned int num_groups = div_ceil((unsigned int)n, (unsigned int)GROUP_SIZE);
     unsigned int counts_size = 16 * num_groups;
     gpu::gpu_mem_32u counts_gpu(counts_size);
-
     std::vector<std::shared_ptr<gpu::gpu_mem_32u>> block_sums;
     std::vector<unsigned int> level_sizes;
     unsigned int cur_size = counts_size;
@@ -79,18 +77,13 @@ void run(int argc, char** argv)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { 
         timer t;
-
         if (context.type() == gpu::Context::TypeOpenCL) {
             gpu::gpu_mem_32u* src_buf = &input_gpu;
             gpu::gpu_mem_32u* dst_buf = &buffer1_gpu;
-
-            // 8 проходов по 4 бита
             for (int pass = 0; pass < 8; ++pass) {
                 unsigned int shift = pass * 4;
-
                 ocl_radixSort01LocalCounting.exec(gpu::WorkSize(GROUP_SIZE, num_groups * GROUP_SIZE), 
                                                   *src_buf, counts_gpu, n, shift);
-
                 for (size_t i = 0; i < block_sums.size(); ++i) {
                     unsigned int size = level_sizes[i];
                     gpu::WorkSize ws(GROUP_SIZE, div_ceil(size, (unsigned int)GROUP_SIZE) * GROUP_SIZE);
@@ -110,7 +103,6 @@ void run(int argc, char** argv)
                         ocl_radixSort03GlobalPrefixesScanAccumulation.exec(ws, *block_sums[i - 1], *block_sums[i], size);
                     }
                 }
-
                 ocl_radixSort04Scatter.exec(gpu::WorkSize(GROUP_SIZE, num_groups * GROUP_SIZE), 
                                             *src_buf, counts_gpu, *dst_buf, n, shift);
                 if (pass == 0) {
