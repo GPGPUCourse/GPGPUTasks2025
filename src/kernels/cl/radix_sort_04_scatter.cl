@@ -1,19 +1,38 @@
 #ifdef __CLION_IDE__
-#include <libgpu/opencl/cl/clion_defines.cl> // This file helps CLion IDE to know what additional functions exists in OpenCL's extended C99
+#include <libgpu/opencl/cl/clion_defines.cl> 
 #endif
 
-#include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
-__kernel void radix_sort_04_scatter(
-    // это лишь шаблон! смело меняйте аргументы и используемые буфера! можете сделать даже больше кернелов, если это вызовет затруднения - смело спрашивайте в чате
-    // НЕ ПОДСТРАИВАЙТЕСЬ ПОД СИСТЕМУ! СВЕРНИТЕ С РЕЛЬС!! БУНТ!!! АНТИХАЙП!11!!1
-    __global const uint* buffer1,
-    __global const uint* buffer2,
-                   uint* buffer3,
-    unsigned int a1,
-    unsigned int a2)
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__kernel void radix_sort_04_scatter(__global const uint* src,
+                                    __global const uint* counts_scan,
+                                    __global       uint* dst,
+                                    unsigned int n,
+                                    unsigned int shift)
 {
-    // TODO
+    uint lid = get_local_id(0);
+    uint gid = get_global_id(0);
+    uint group_id = get_group_id(0);
+    uint num_groups = get_num_groups(0);
+    __local uint local_val[GROUP_SIZE];
+    local_val[lid] = (gid < n) ? src[gid] : 0;
+    __local uint global_offsets[16];
+    if (lid < 16) {
+        uint flat_id = lid * num_groups + group_id;
+        global_offsets[lid] = (flat_id == 0) ? 0 : counts_scan[flat_id - 1];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (gid < n) {
+        uint val = local_val[lid];
+        uint bucket = (val >> shift) & 0xF;
+        uint local_offset = 0;
+        for (uint i = 0; i < lid; ++i) {
+            if (((local_val[i] >> shift) & 0xF) == bucket) {
+                local_offset++;
+            }
+        }
+        dst[global_offsets[bucket] + local_offset] = val;
+    }
 }
