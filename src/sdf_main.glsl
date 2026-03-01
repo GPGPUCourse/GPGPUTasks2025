@@ -24,24 +24,57 @@ float lazycos(float angle)
     return 1.0;
 }
 
-// возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
+float smin(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// капсула пригодится для ручек, ножек и зубов
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    vec3 mp = p - vec3(0.0, 0.35, -0.8);
+    float d = smin(sdSphere(mp, 0.3), sdSphere(mp - vec3(0.0, 0.35, 0.0), 0.22), 0.1);
+    d = smin(d, sdCapsule(mp, vec3(-0.25, 0.1, 0.0), vec3(-0.4, -0.1, 0.1), 0.05), 0.05);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float wave = lazycos(iTime * 6.0);
+    d = smin(d, sdCapsule(mp, vec3(0.25, 0.1, 0.0), vec3(0.45, 0.3 + 0.15 * wave, 0.1), 0.05), 0.05);
+    d = smin(d, sdCapsule(mp, vec3(-0.15, -0.2, 0.0), vec3(-0.15, -0.4, 0.0), 0.06), 0.05);
+    d = smin(d, sdCapsule(mp, vec3( 0.15, -0.2, 0.0), vec3( 0.15, -0.4, 0.0), 0.06), 0.05);
 
-    // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    d = max(d, -sdSphere(mp - vec3(0.0, 0.12, 0.2), 0.1));
+    return vec4(d, vec3(0.2, 0.8, 0.3));
 }
 
 vec4 sdEye(vec3 p)
 {
-
+    vec3 mp = p - vec3(0.0, 0.35, -0.8);
     vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    vec3 ep = mp - vec3(0.0, 0.38, 0.14);
+    
+    float sclera = sdSphere(ep, 0.11);
+    if (sclera < res.x) res = vec4(sclera, 1.0, 1.0, 1.0);
 
+    float iris = sdSphere(ep - vec3(0.0, 0.0, 0.06), 0.06);
+    if (iris < res.x) {
+        float r = length(ep.xy);
+        vec3 iris_col = mix(vec3(0.3, 0.8, 1.0), vec3(0.0, 0.2, 0.5), r * 16.0);
+        res = vec4(iris, iris_col);
+    }
+
+    float pupil = sdSphere(ep - vec3(0.0, 0.0, 0.10), 0.03);
+    if (pupil < res.x) res = vec4(pupil, 0.02, 0.02, 0.02);
+    
+    float teeth = min(sdCapsule(mp, vec3(-0.06, 0.09, 0.17), vec3(-0.06, 0.02, 0.17), 0.02),
+                      sdCapsule(mp, vec3( 0.06, 0.09, 0.17), vec3( 0.06, 0.02, 0.17), 0.02));
+    if (teeth < res.x) res = vec4(teeth, 0.95, 0.95, 0.95);
+    
     return res;
 }
 
