@@ -6,9 +6,9 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
-    __global const uint* pow2_sum, // contains n values
-    __global       uint* next_pow2_sum, // will contain (n+1)/2 values
+__kernel void copy_buffer(
+    __global const uint* src,
+    __global       uint* dest,
     const uint n,
     const uint offset_src,
     const uint offset_dest)
@@ -19,7 +19,5 @@ __kernel void radix_sort_02_global_prefixes_scan_sum_reduction(
         return;
     }
 
-    if (index & 1) {
-        next_pow2_sum[offset_dest + index / 2] = pow2_sum[offset_src + index - 1] + pow2_sum[offset_src + index];
-    }
+    dest[offset_dest + index] = src[offset_src + index];
 }
