@@ -49,7 +49,6 @@ __kernel void radix_sort_01_local_counting(
             }
         }
         k /= 2;
-        barrier(CLK_LOCAL_MEM_FENCE); // rm for gpu
     }
 
     if (local_index == 0) {
