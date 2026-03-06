@@ -35,6 +35,7 @@ void run(int argc, char** argv)
     //          кроме того используемая библиотека поддерживает rassert-проверки (своеобразные инварианты с уникальным числом) на видеокарте для Vulkan
 
     ocl::KernelSource ocl_mergeSort(ocl::getMergeSort());
+    ocl::KernelSource ocl_bitonicSort(ocl::getBitonicSort());
 
     avk2::KernelSource vk_mergeSort(avk2::getMergeSort());
 
@@ -95,20 +96,14 @@ void run(int argc, char** argv)
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        ocl_bitonicSort.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer1_gpu, n);
+        for (uint sorted_k = GROUP_SIZE; sorted_k < n; sorted_k <<= 1) {
+            ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, sorted_k, n);
+            if ((sorted_k << 1) < n) {
+                buffer1_gpu.swap(buffer2_gpu);
+            }
         }
+        buffer_output_gpu.swap(buffer2_gpu);
 
         times.push_back(t.elapsed());
     }
