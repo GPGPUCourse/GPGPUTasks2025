@@ -109,13 +109,26 @@ void run(int argc, char** argv)
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
         if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
+            gpu::WorkSize ws(GROUP_SIZE, n);
+
+            for (unsigned int offset = 0; offset < 32; offset++) {
+                ocl_fillBufferWithZeros.exec(ws, buffer3_gpu, n);
+                ocl_radixSort01LocalCounting.exec(ws, input_gpu, buffer1_gpu, n, offset);
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(ws,buffer1_gpu,buffer3_gpu,n,0);
+
+                for (unsigned int pow2 = 1, cur_size = n; cur_size > 1; pow2++, cur_size = (cur_size + 1) / 2) {
+                    gpu::WorkSize new_ws(GROUP_SIZE, (cur_size + 1) / 2);
+
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(new_ws,buffer1_gpu,buffer2_gpu,cur_size);
+                    ocl_radixSort03GlobalPrefixesScanAccumulation.exec(ws,buffer2_gpu,buffer3_gpu,n,pow2);
+
+                    buffer1_gpu.swap(buffer2_gpu);
+                }
+
+                ocl_radixSort04Scatter.exec(ws,input_gpu,buffer3_gpu,buffer_output_gpu,offset,n);
+
+                input_gpu.swap(buffer_output_gpu);
+            }
         } else if (context.type() == gpu::Context::TypeCUDA) {
             // TODO
             throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
