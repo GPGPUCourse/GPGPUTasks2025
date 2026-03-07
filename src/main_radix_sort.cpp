@@ -121,7 +121,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
-    std::cout << "GPU radix-sort median effective VRAM bandwidth, gb/s" << memory_size_gb / stats::median(times) << n / 1000.0 / 1000.0 / stats::median(times) << " uint millions/s" << std::endl;
+    std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000.0 / 1000.0 / stats::median(times) << " uint millions/s)" << std::endl;
 
     std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
     for (size_t i = 0; i < n; ++i) {
