@@ -10,6 +10,17 @@
 #include "kernels/kernels.h"
 
 #include <fstream>
+#include <utility>
+
+void debug_mem(const gpu::gpu_mem_32u& mem, const std::string& log_prefix) {
+    std::vector<unsigned int> vec = mem.readVector();
+
+    std::cerr << log_prefix << ":\n";
+    for (auto& i : vec) {
+        std::cerr << i << "\n";
+    }
+    std::cerr << std::endl;
+}
 
 void run(int argc, char** argv)
 {
@@ -43,6 +54,9 @@ void run(int argc, char** argv)
     int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int min_value = 1; // это сделано для упрощения, чтобы существовало очевидное -INFINITY значение
     int max_value = std::numeric_limits<int>::max() - 1; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+
+    // n = 12;
+    // max_value = 20;
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -88,26 +102,24 @@ void run(int argc, char** argv)
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
     buffer1_gpu.fill(255);
     buffer2_gpu.fill(255);
-    buffer_output_gpu.fill(255);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
 
+        // debug_mem(input_gpu, "Array before:");
+
+        // prevent copying, first iteration - in -> buffer, then buffer -> buffer
+        ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, buffer2_gpu, 1, n);
+
+        // debug_mem(buffer2_gpu, "After first iteration:");
+
         // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
         // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-        } else {
-            rassert(false, 4531412341, context.type());
+        for (uint k = 2; k < n; k *= 2) {
+            std::swap(buffer1_gpu, buffer2_gpu);
+            ocl_mergeSort.exec(gpu::WorkSize(GROUP_SIZE, n), buffer1_gpu, buffer2_gpu, k, n);
         }
 
         times.push_back(t.elapsed());
@@ -119,7 +131,7 @@ void run(int argc, char** argv)
     std::cout << "GPU merge-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = buffer2_gpu.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
