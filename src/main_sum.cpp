@@ -80,7 +80,7 @@ void run(int argc, char** argv)
         pci_times.push_back(t.elapsed());
     }
     double pcie_gb = (double)(n * sizeof(unsigned int)) / (1024.0 * 1024.0 * 1024.0);
-    std::cout << "\nPCI-E median bandwidth, gb/s" << pcie_gb / stats::median(pci_times) << "\n\n";
+    std::cout << "\nPCI-E median bandwidth: " << pcie_gb / stats::median(pci_times) << " GB/s\n\n";
 
     std::vector<std::string> algorithm_names = {
         "CPU",
