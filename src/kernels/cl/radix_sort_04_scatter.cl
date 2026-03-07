@@ -33,7 +33,7 @@ __kernel void radix_sort_04_scatter(
         return;
     }
 
-    local_offset = 0;
-    global_offset = prefix_sum_accum[index] - 1;
+    local_offset = prefix_sum_accum[index] - 1;
+    global_offset = 0;
     output[local_offset + global_offset] = inp_bit;
 }
