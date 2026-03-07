@@ -51,8 +51,8 @@ void run(int argc, char** argv)
 
             times.push_back(t.elapsed());
         }
-        std::cout << "BAD kernel times, s" << stats::valuesStatsLine(times) << std::endl;
-        std::cout << "BAD kernel median bandwidth, gb/s" << mem_gb / stats::median(times) << std::endl;
+        std::cout << "BAD kernel times (in seconds): " << stats::valuesStatsLine(times) << std::endl;
+        std::cout << "BAD kernel median bandwidth: " << mem_gb / stats::median(times) << " GB/s" << std::endl;
 
         std::vector<unsigned int> cs(width * height, 0);
         c_gpu.readN(cs.data(), width * height);
@@ -76,8 +76,8 @@ void run(int argc, char** argv)
 
             times.push_back(t.elapsed());
         }
-        std::cout << "GOOD kernel times, s" << stats::valuesStatsLine(times) << std::endl;
-        std::cout << "GOOD kernel median bandwidth, gb/s" << mem_gb / stats::median(times) << std::endl;
+        std::cout << "GOOD kernel times (in seconds): " << stats::valuesStatsLine(times) << std::endl;
+        std::cout << "GOOD kernel median bandwidth: " << mem_gb / stats::median(times) << " GB/s" << std::endl;
 
         std::vector<unsigned int> cs(width * height, 0);
         c_gpu.readN(cs.data(), width * height);
