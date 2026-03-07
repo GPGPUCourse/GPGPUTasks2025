@@ -135,7 +135,7 @@ void run(int argc, char** argv)
     gpu::gpu_mem_32u* in_arr = &arr1_gpu;
     gpu::gpu_mem_32u* out_arr = &arr2_gpu;
     std::vector<double> times;
-    const int NUM_ITERS = 1;
+    const int NUM_ITERS = 10;
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     for (int iter = 0; iter < NUM_ITERS; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
