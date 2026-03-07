@@ -1,3 +1,4 @@
+#include <iostream>
 #include <libbase/stats.h>
 #include <libutils/misc.h>
 
@@ -10,8 +11,29 @@
 #include "kernels/kernels.h"
 
 #include "debug.h" // TODO очень советую использовать debug::prettyBits(...) для отладки
+#include "libbase/math.h"
+#include "libgpu/shared_device_buffer.h"
 
 #include <fstream>
+#include <sys/types.h>
+#include <utility>
+
+void debug_mem(const gpu::gpu_mem_32u& mem, const std::string& log_prefix, bool need_bin = false) {
+    std::vector<unsigned int> vec = mem.readVector();
+
+    std::cerr << log_prefix << ":\n";
+    for (auto& i : vec) {
+        std::cerr << i << "\n";
+    }
+    std::cerr << std::endl;
+    if (need_bin) {
+        auto bits = debug::toBits(vec);
+        for (auto& i : bits) {
+            std::cerr << i << "\n";
+        }
+        std::cerr << std::endl;
+    }
+}
 
 void run(int argc, char** argv)
 {
@@ -50,8 +72,12 @@ void run(int argc, char** argv)
 
     FastRandom r;
 
-    int n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    uint n = 100*1000*1000; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
     int max_value = std::numeric_limits<int>::max(); // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+
+    // n = 20; // TODO при отладке используйте минимальное n (например n=5 или n=10) при котором воспроизводится бага
+    // max_value = 1000000000; // TODO при отладке используйте минимальное max_value (например max_value=8) при котором воспроизводится бага
+
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
     for (size_t i = 0; i < n; ++i) {
@@ -86,56 +112,89 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n);
-    gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
-    gpu::gpu_mem_32u buffer_output_gpu(n);
+    gpu::gpu_mem_32u arr1_gpu(n), arr2_gpu(n), input_gpu(n);
+
+    const uint GROUPS_COUNT = (n + GROUP_SIZE - 1) / GROUP_SIZE;
+    gpu::gpu_mem_32u local_buckets_gpu(GROUPS_COUNT * BUCKET_SIZE);
+    gpu::gpu_mem_32u pref_sum_buf_1(GROUPS_COUNT * BUCKET_SIZE);
+    gpu::gpu_mem_32u pref_sum_buf_2(GROUPS_COUNT * BUCKET_SIZE);
+    gpu::gpu_mem_32u global_pref_sums(GROUPS_COUNT * BUCKET_SIZE);
+    local_buckets_gpu.fill(0);
+    pref_sum_buf_1.fill(0);
+    pref_sum_buf_2.fill(0);
+    global_pref_sums.fill(0);
+
+    // gpu::gpu_mem_32u buffer1_gpu(n), buffer2_gpu(n), buffer3_gpu(n), buffer4_gpu(n); // TODO это просто шаблонка, можете переименовать эти буферы, сделать другого размера/типа, удалить часть, добавить новые
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
     // Советую занулить (или еще лучше - заполнить какой-то уникальной константой, например 255) все буферы
     // В некоторых случаях это ускоряет отладку, но обратите внимание, что fill реализован через копию множества нулей по PCI-E, то есть он очень медленный
     // Если вам нужно занулять буферы в процессе вычислений - используйте кернел который это сделает (см. кернел fill_buffer_with_zeros)
-    buffer1_gpu.fill(255);
-    buffer2_gpu.fill(255);
-    buffer3_gpu.fill(255);
-    buffer4_gpu.fill(255);
-    buffer_output_gpu.fill(255);
 
-    // Запускаем кернел (несколько раз и с замером времени выполнения)
+    gpu::gpu_mem_32u* in_arr = &arr1_gpu;
+    gpu::gpu_mem_32u* out_arr = &arr2_gpu;
     std::vector<double> times;
-    for (int iter = 0; iter < 10; ++iter) { // TODO при отладке запускайте одну итерацию
+    const int NUM_ITERS = 1;
+    // Запускаем кернел (несколько раз и с замером времени выполнения)
+    for (int iter = 0; iter < NUM_ITERS; ++iter) { // TODO при отладке запускайте одну итерацию
         timer t;
+        gpu::WorkSize workSize(GROUP_SIZE, n);
+        input_gpu.copyToN(arr1_gpu, n);
+        in_arr = &arr2_gpu;
+        out_arr = &arr1_gpu;
 
-        // Запускаем кернел, с указанием размера рабочего пространства и передачей всех аргументов
-        // Если хотите - можете удалить ветвление здесь и оставить только тот код который соответствует вашему выбору API
-        if (context.type() == gpu::Context::TypeOpenCL) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // ocl_fillBufferWithZeros.exec();
-            // ocl_radixSort01LocalCounting.exec();
-            // ocl_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // ocl_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // ocl_radixSort04Scatter.exec();
-        } else if (context.type() == gpu::Context::TypeCUDA) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // cuda::fill_buffer_with_zeros();
-            // cuda::radix_sort_01_local_counting();
-            // cuda::radix_sort_02_global_prefixes_scan_sum_reduction();
-            // cuda::radix_sort_03_global_prefixes_scan_accumulation();
-            // cuda::radix_sort_04_scatter();
-        } else if (context.type() == gpu::Context::TypeVulkan) {
-            // TODO
-            throw std::runtime_error(CODE_IS_NOT_IMPLEMENTED);
-            // vk_fillBufferWithZeros.exec();
-            // vk_radixSort01LocalCounting.exec();
-            // vk_radixSort02GlobalPrefixesScanSumReduction.exec();
-            // vk_radixSort03GlobalPrefixesScanAccumulation.exec();
-            // vk_radixSort04Scatter.exec();
-        } else {
-            rassert(false, 4531412341, context.type());
+        for (uint offset = 0; offset < 8 * sizeof(uint); offset += BUCKET_BIT_SIZE) {
+            // std::cerr << "offset = " << offset << std::endl;
+            std::swap(in_arr, out_arr);
+            // debug_mem(*in_arr, "in_arr");
+            ocl_radixSort01LocalCounting.exec(workSize, *in_arr, pref_sum_buf_2, n, offset);
+            // debug_mem(pref_sum_buf_2, "pref_sum_buf_2 (local_buckets)");
+
+            unsigned int cur_n = BUCKET_SIZE * GROUPS_COUNT;
+            unsigned int pow2 = 1;
+
+            ocl_fillBufferWithZeros.exec(
+                gpu::WorkSize(GROUP_SIZE, BUCKET_SIZE * GROUPS_COUNT),
+                global_pref_sums,
+                BUCKET_SIZE * GROUPS_COUNT
+            );
+
+            while (pow2 <= BUCKET_SIZE * GROUPS_COUNT) {
+                ocl_radixSort03GlobalPrefixesScanAccumulation.exec(
+                    gpu::WorkSize(GROUP_SIZE, BUCKET_SIZE * GROUPS_COUNT),
+                    pref_sum_buf_2,
+                    global_pref_sums,
+                    BUCKET_SIZE * GROUPS_COUNT,
+                    pow2
+                );
+
+                std::swap(pref_sum_buf_2, pref_sum_buf_1);
+                pow2 *= 2;
+                if (pow2 <= BUCKET_SIZE * GROUPS_COUNT) {
+                    ocl_radixSort02GlobalPrefixesScanSumReduction.exec(
+                        gpu::WorkSize(GROUP_SIZE, (cur_n + 1) / 2),
+                        pref_sum_buf_1,
+                        pref_sum_buf_2,
+                        cur_n
+                    );
+                    cur_n = (cur_n + 1) / 2;
+                }
+            }
+
+            // debug_mem(global_pref_sums, "global_pref_sums");
+
+            ocl_radixSort04Scatter.exec(
+                gpu::WorkSize(GROUP_SIZE, n),
+                *in_arr,
+                global_pref_sums,
+                *out_arr,
+                n,
+                offset
+            );
+            // debug_mem(*out_arr, "out_arr");
+            // std::cerr << "------------ ---------------\n";
         }
-
         times.push_back(t.elapsed());
     }
     std::cout << "GPU radix-sort times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
@@ -145,7 +204,7 @@ void run(int argc, char** argv)
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1000 / 1000 / stats::median(times) << " uint millions/s)" << std::endl;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
-    std::vector<unsigned int> gpu_sorted = buffer_output_gpu.readVector();
+    std::vector<unsigned int> gpu_sorted = (*out_arr).readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
