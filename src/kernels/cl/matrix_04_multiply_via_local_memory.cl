@@ -18,8 +18,8 @@ __kernel void matrix_04_multiply_via_local_memory(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    __local float tile_a[GROUP_SIZE_X + 1][GROUP_SIZE_Y];
-    __local float tile_b[GROUP_SIZE_X + 1][GROUP_SIZE_Y];
+    __local float tile_a[GROUP_SIZE_Y][GROUP_SIZE_X];
+    __local float tile_b[GROUP_SIZE_Y][GROUP_SIZE_X + 1];
 
     c[j * w + i] = 0.0f;
 
@@ -28,21 +28,21 @@ __kernel void matrix_04_multiply_via_local_memory(
         const uint row_b = tile_k / GROUP_SIZE_X * GROUP_SIZE_Y + loc_j;
 
         if (j < h && col_a < k) {
-            tile_a[loc_i][loc_j] = a[j * k + col_a];
+            tile_a[loc_j][loc_i] = a[j * k + col_a];
         } else {
-            tile_a[loc_i][loc_j] = 0.0f;
+            tile_a[loc_j][loc_i] = 0.0f;
         }
 
         if (i < w && row_b < k) {
-            tile_b[loc_i][loc_j] = b[row_b * w + i];
+            tile_b[loc_j][loc_i] = b[row_b * w + i];
         } else {
-            tile_b[loc_i][loc_j] = 0.0f;
+            tile_b[loc_j][loc_i] = 0.0f;
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);
 
         for (uint acc_idx = 0; acc_idx < GROUP_SIZE_X; ++acc_idx) {
-            c[j * w + i] += tile_a[acc_idx][loc_j] * tile_b[loc_i][acc_idx];
+            c[j * w + i] += tile_a[loc_j][acc_idx] * tile_b[acc_idx][loc_i];
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);
