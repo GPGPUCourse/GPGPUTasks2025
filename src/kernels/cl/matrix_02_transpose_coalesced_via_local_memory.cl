@@ -18,10 +18,10 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     const uint i = get_global_id(0);
     const uint j = get_global_id(1);
 
-    __local float tile[GROUP_SIZE_X + 1][GROUP_SIZE_Y];
+    __local float tile[GROUP_SIZE_Y][GROUP_SIZE_X + 1];
 
     if (i < w && j < h) {
-        tile[loc_i][loc_j] = matrix[j * w + i];
+        tile[loc_j][loc_i] = matrix[j * w + i];
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -32,6 +32,6 @@ __kernel void matrix_02_transpose_coalesced_via_local_memory(
     const uint new_j = new_gr_j * GROUP_SIZE_X + loc_j;
 
     if (new_i < h && new_j < w) {
-        transposed_matrix[new_j * h + new_i] = tile[loc_j][loc_i];
+        transposed_matrix[new_j * h + new_i] = tile[loc_i][loc_j];
     }
 }
