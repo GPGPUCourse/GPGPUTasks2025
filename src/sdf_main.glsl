@@ -24,25 +24,75 @@ float lazycos(float angle)
     return 1.0;
 }
 
+float smin(float a, float b, float k)
+{
+    float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0);
+    return mix(b, a, h) - k*h*(1.0 - h);
+}
+
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r)
+{
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba*h) - r;
+}
+
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    float d1 = sdSphere(p - vec3(0.0, 0.25, -0.7), 0.35);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
+    float d2 = sdSphere((p - vec3(0.0, 0.45, -0.7)) * vec3(1.0, 1.3, 1.0), 0.32);
 
-    // return distance and color
-    return vec4(d, vec3(0.0, 1.0, 0.0));
+    float d = smin(d1, d2, 0.25);
+
+    float armSwing = 0.25 * lazycos(iTime * 3.0);
+
+    vec3 armL_a = vec3(-0.27, 0.32, -0.7);
+    vec3 armL_b = vec3(-0.45, 0.32 + armSwing, -0.7);
+    float armL = sdCapsule(p, armL_a, armL_b, 0.07);
+
+    vec3 armR_a = vec3(0.27, 0.32, -0.7);
+    vec3 armR_b = vec3(0.45, 0.32, -0.7);
+    float armR = sdCapsule(p, armR_a, armR_b, 0.07);
+
+    d = smin(d, armL, 0.03);
+    d = smin(d, armR, 0.03);
+
+    vec3 legL_a = vec3(-0.13, 0.10, -0.63);
+    vec3 legL_b = vec3(-0.13, -0.25, -0.63);
+    float legL = sdCapsule(p, legL_a, legL_b, 0.12);
+
+    vec3 legR_a = vec3(0.13, 0.10, -0.63);
+    vec3 legR_b = vec3(0.13, -0.25, -0.63);
+    float legR = sdCapsule(p, legR_a, legR_b, 0.12);
+
+    d = min(d, legL);
+    d = min(d, legR);
+
+    return vec4(d, 0.0, 1.0, 0.0);
 }
 
 vec4 sdEye(vec3 p)
 {
+    vec3 E = vec3(0.0, 0.47, -0.45);
 
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+    float Rwhite = 0.18;
+    float Riris  = 0.09;
+    float Rpupil = 0.05;
 
-    return res;
+    float dWhite = sdSphere(p - E, Rwhite);
+    float dIris  = sdSphere(p - (E + vec3(0.0, 0.0, 0.17)), Riris);
+    float dPupil = sdSphere(p - (E + vec3(0.0, 0.0, 0.25)), Rpupil);
+
+    float d = dWhite;
+    vec3 col = vec3(1.0);
+
+    if (dIris  < d) { d = dIris;  col = vec3(0.2, 0.5, 1.0); }
+    if (dPupil < d) { d = dPupil; col = vec3(0.05); }
+
+    return vec4(d, col);
 }
 
 vec4 sdMonster(vec3 p)
